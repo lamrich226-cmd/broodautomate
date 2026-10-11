@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Broodautomate</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header>
+    <h1>🥖 Broodautomate</h1>
+    <div id="status-bar">
+      <span id="sim-status" class="badge off">Simulateur : OFF</span>
+      <span id="serial-status" class="badge off">RS232 : déconnecté</span>
+    </div>
+  </header>
+
+    <nav>
+    <button data-view="fleet" class="active">🌍 Ma Flotte </button>
+    <button data-view="dashboard">📊 Détails Machine</button>
+    <button data-view="products">🍞 Produits / Stock</button>
+    <button data-view="sales">💶 Ventes</button>
+    <button data-view="alerts">⚠️ Alertes</button>
+    <button data-view="serial">🔌 Connexion RS232</button>
+  </nav>
+
+  <main>
+    <section id="view-fleet"     class="view active"></section>
+    <section id="view-dashboard" class="view"></section>
+    <section id="view-products"  class="view"></section>
+    <section id="view-sales"     class="view"></section>
+    <section id="view-alerts"    class="view"></section>
+    <section id="view-serial"    class="view"></section>
+  </main>
+
+  <footer>
+    <button id="btn-sim-toggle">▶ Démarrer le simulateur</button>
+    <button id="btn-reset" class="danger">🗑 Réinitialiser</button>
+    <span id="version"></span>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/evadts-parser.js"></script>
+  <script src="js/simulator.js"></script>
+  <script src="js/serial.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
