@@ -199,6 +199,35 @@ window.BA = window.BA || {};
       return verifier(res) || [];
     },
 
+    // ---------- Relevés d'audit (fichier USB ou câble) ----------
+    async addAudit(machineId, audit) {
+      const res = await client().from("audits").insert({
+        machine_id:   machineId,
+        machine_date: audit.machine_date || null,
+        source:       audit.source || "usb",
+        total_count:  audit.total_count,
+        total_value:  audit.total_value,
+        selections:   audit.selections || [],
+        errors:       audit.errors || [],
+        delta_count:  audit.delta_count == null ? null : audit.delta_count,
+        delta_value:  audit.delta_value == null ? null : audit.delta_value
+      });
+      verifier(res);
+    },
+
+    async getAudits(machineId, limite = 10) {
+      const res = await client().from("audits").select("*")
+        .eq("machine_id", machineId)
+        .order("imported_at", { ascending: false })
+        .limit(limite);
+      return verifier(res) || [];
+    },
+
+    async getLastAudit(machineId) {
+      const liste = await this.getAudits(machineId, 1);
+      return liste[0] || null;
+    },
+
     // ---------- Réinitialisation (ventes + événements d'une machine) ----------
     async resetData(machineId) {
       verifier(await client().from("sales").delete().eq("machine_id", machineId));
@@ -218,6 +247,11 @@ window.BA = window.BA || {};
         .on("postgres_changes", { event: "*", schema: "public", table: "products" }, onChange)
         .on("postgres_changes", { event: "*", schema: "public", table: "sales" },    onChange)
         .on("postgres_changes", { event: "*", schema: "public", table: "events" },   onChange)
+        .subscribe();
+
+      // Canal à part : si la table « audits » n'existe pas encore, les autres tables continuent de se mettre à jour
+      this._canalAudits = supa.channel("broodautomate-audits")
+        .on("postgres_changes", { event: "*", schema: "public", table: "audits" }, onChange)
         .subscribe();
     }
   };

@@ -95,6 +95,74 @@
     return _dernierId;
   }
 
+  // ---------- Relevés d'audit (mode local : sauvegardés dans le navigateur) ----------
+  const CLE_AUDITS = "broodautomate_audits";
+
+  function chargerAudits() {
+    try {
+      const brut = localStorage.getItem(CLE_AUDITS);
+      if (brut) return JSON.parse(brut);
+    } catch (e) { /* aucun relevé */ }
+    return {};
+  }
+
+  let _auditsLocal = chargerAudits();
+
+  function sauverAudits() {
+    try {
+      localStorage.setItem(CLE_AUDITS, JSON.stringify(_auditsLocal));
+    } catch (e) {
+      console.warn("Sauvegarde des relevés impossible :", e.message);
+    }
+  }
+
+  function auditsLocaux(id) {
+    return (id && _auditsLocal[id]) ? _auditsLocal[id] : [];
+  }
+
+  async function lireDernierAudit(machineId) {
+    if (BA.DB.isReady()) return await BA.DB.getLastAudit(machineId);
+    return auditsLocaux(machineId)[0] || null;
+  }
+
+  async function sauverAudit(machineId, audit) {
+    if (BA.DB.isReady()) {
+      await BA.DB.addAudit(machineId, audit);
+      return;
+    }
+    const liste = auditsLocaux(machineId).slice();
+    liste.unshift({ ...audit, imported_at: new Date().toISOString() });
+    if (liste.length > 50) liste.length = 50;
+    _auditsLocal[machineId] = liste;
+    sauverAudits();
+  }
+
+  // Diminue le stock des produits dont le numéro de sélection a vendu depuis le dernier relevé
+  async function appliquerVentesAuStock(machineId, parSelection) {
+    let modifies = 0;
+    if (BA.DB.isReady()) {
+      const produits = await BA.DB.getProducts(machineId);
+      for (const d of parSelection) {
+        if (d.delta <= 0) continue;
+        const p = produits.find(x => Number(x.selection) === Number(d.selection));
+        if (!p) continue;
+        await BA.DB.updateProduct(p.id, { qty: Math.max(0, Number(p.qty) - d.delta) });
+        modifies++;
+      }
+    } else {
+      const produits = produitsDe(machineId);
+      for (const d of parSelection) {
+        if (d.delta <= 0) continue;
+        const p = produits.find(x => Number(x.selection) === Number(d.selection));
+        if (!p) continue;
+        p.qty = Math.max(0, Number(p.qty) - d.delta);
+        modifies++;
+      }
+      if (modifies) sauverStock();
+    }
+    return modifies;
+  }
+
   // ---------- Machine sélectionnée actuellement ----------
   let _machineSelectionnee = _listeMachines[0] ? _listeMachines[0].id : null;
 
@@ -107,6 +175,10 @@
   let _allMachines = []; // Toutes les machines pour la vue flotte
   let _lastEvaDts  = null;
   let _serialLog   = "";
+  let _serialBrut  = "";             // derniers caractères reçus du câble (flux brut)
+  let _serialOctets = 0;             // total de caractères reçus depuis la connexion
+  let _audits = [];                  // relevés d'audit de la machine sélectionnée (le plus récent en premier)
+  let _lastAudit = null;
   let _erreurDonnees = "";           // dernière erreur de chargement Supabase
 
   // Rafraîchissement groupé quand Supabase signale un changement
@@ -134,19 +206,27 @@
             BA.DB.getProducts(_machineSelectionnee),
             BA.DB.getSales(_machineSelectionnee, 50),
             BA.DB.getEvents(_machineSelectionnee, 40),
-            BA.DB.getCounters(_machineSelectionnee)
+            BA.DB.getCounters(_machineSelectionnee),
+            BA.DB.getAudits(_machineSelectionnee, 10).catch(err => {
+              console.warn("Relevés d'audit indisponibles (table « audits » créée ?) :", err.message);
+              return [];
+            })
           ]);
           _machine  = results[0];
           _products = results[1];
           _sales    = results[2];
           _events   = results[3];
           _counters = results[4];
+          _audits   = results[5] || [];
+          _lastAudit = _audits[0] || null;
         } else {
           _machine  = null;
           _products = [];
           _sales    = [];
           _events   = [];
           _counters = { totalSales: 0, totalValue: 0 };
+          _audits   = [];
+          _lastAudit = null;
         }
         _erreurDonnees = "";
       } catch (err) {
@@ -159,6 +239,8 @@
       const estSimulee = _machineSelectionnee === idSimule;
 
       _products = produitsDe(_machineSelectionnee);
+      _audits   = auditsLocaux(_machineSelectionnee);
+      _lastAudit = _audits[0] || null;
 
       if (estSimulee) {
         _machine  = BA.Simulator._localMachine;
@@ -292,6 +374,97 @@
     `;
   }
 
+  // ---------- Bloc « relevé d'audit » (tableau de bord) ----------
+  function htmlAudit() {
+    const bouton = `
+      <input type="file" id="audit-file" style="display:none" onchange="BA.App.importerAudit(this)">
+      <button class="btn" onclick="document.getElementById('audit-file').click()">
+        📥 Importer un audit (fichier de la clé USB)
+      </button>`;
+
+    if (!_lastAudit) {
+      return `
+        <h2>📥 Relevé d'audit</h2>
+        <p class="note" style="margin-bottom:12px">
+          Aucun audit importé pour cette machine. Lance l'audit sur clé USB dans le menu de la machine,
+          puis importe ici le fichier .dat.
+        </p>
+        ${bouton}`;
+    }
+
+    const a = _lastAudit;
+    const depuis = a.delta_count == null
+      ? "Relevé initial"
+      : `+${a.delta_count} vente(s) (+${eur(a.delta_value)})`;
+    const codes = [...new Set((a.errors || []).map(e => e.code).filter(Boolean))];
+
+    return `
+      <h2>📥 Relevé d'audit</h2>
+      <div class="cards">
+        <div class="card">
+          <div class="label">Dernier relevé importé</div>
+          <div class="value" style="font-size:1rem">${heure(a.imported_at)}</div>
+        </div>
+        <div class="card">
+          <div class="label">Ventes cumulées (machine)</div>
+          <div class="value">${a.total_count}</div>
+        </div>
+        <div class="card">
+          <div class="label">CA cumulé (machine)</div>
+          <div class="value">${eur(a.total_value)}</div>
+        </div>
+        <div class="card">
+          <div class="label">Depuis le relevé précédent</div>
+          <div class="value" style="font-size:1rem">${depuis}</div>
+        </div>
+      </div>
+      <p class="note" style="margin-bottom:12px">
+        Horloge de la machine dans le fichier : ${esc(a.machine_date || "—")} (peu fiable).
+        ${codes.length ? "<br>Codes d'erreur dans son journal : " + esc(codes.join(", ")) + "." : ""}
+      </p>
+      ${bouton}`;
+  }
+
+  // ---------- Ventes par sélection d'après le dernier relevé (onglet Ventes) ----------
+  function htmlAuditSelections() {
+    if (!_lastAudit) return "";
+
+    const prec    = _audits[1];
+    const avant   = {};
+    if (prec) (prec.selections || []).forEach(s => { avant[s.selection] = s.sold; });
+
+    const lignes = (_lastAudit.selections || [])
+      .filter(s => s.sold > 0)
+      .map(s => {
+        const prod = _products.find(p => Number(p.selection) === Number(s.selection));
+        const d = prec ? s.sold - (avant[s.selection] || 0) : null;
+        return `
+          <tr>
+            <td>${s.selection}</td>
+            <td>${prod && prod.name ? prod.name : "—"}</td>
+            <td>${s.sold}</td>
+            <td>${s.value == null ? "—" : eur(s.value)}</td>
+            <td>${d == null ? "—" : "+" + d}</td>
+          </tr>`;
+      }).join("");
+
+    return `
+      <h2>📥 Par sélection — relevé du ${heure(_lastAudit.imported_at)}</h2>
+      <table>
+        <tr>
+          <th>Sél.</th>
+          <th>Produit</th>
+          <th>Ventes cumulées</th>
+          <th>CA cumulé</th>
+          <th>Depuis le relevé précédent</th>
+        </tr>
+        ${lignes || "<tr><td colspan='5'>Aucune vente dans le relevé</td></tr>"}
+      </table>
+      <p class="note" style="margin-top:8px; margin-bottom:24px">
+        Chiffres cumulés depuis la mise en service de la machine. Le CA n'est pas fourni pour toutes les sélections.
+      </p>`;
+  }
+
   // ---------- VUE DASHBOARD (détails machine sélectionnée) ----------
   function renderDashboard() {
     if (!_machine) {
@@ -340,6 +513,8 @@
           <div class="value">${alertesStock}</div>
         </div>
       </div>
+
+      ${htmlAudit()}
 
       <h2>Dernières ventes</h2>
       ${tableVentes(_sales.slice(0, 8))}
@@ -487,6 +662,8 @@
         </div>
       </div>
 
+      ${htmlAuditSelections()}
+
       <h2>Par sélection</h2>
       <table>
         <tr>
@@ -633,7 +810,7 @@
 
       <div class="alert info" style="margin-bottom:12px">
         ℹ️ Pour lire une machine avec le câble :<br>
-        1. Câble USB → RS232 DB9  et son driver<br>
+        1. Câble USB → RS232 DB9 (~10-15€) et son driver<br>
         2. Branche le câble entre ton PC et la machine<br>
         3. Clique sur Connecter ci-dessous<br>
         4. Quand la trame arrive, la machine détectée s'affiche : tu peux l'ajouter à la flotte
@@ -655,7 +832,18 @@
         Déconnecter
       </button>
 
-      <h3>Données reçues</h3>
+      <button class="btn secondary" onclick="BA.App.serialRelancer()">
+        🔁 Relancer la demande
+      </button>
+
+      <h3>Flux brut (tout ce qui arrive du câble)</h3>
+      <p class="note">
+        Caractères reçus : <span id="serial-count">${_serialOctets}</span>.
+        Si le voyant de l'adaptateur clignote et que rien ne s'affiche ici, la machine répond mais pas comme prévu.
+      </p>
+      <pre id="serial-brut">${esc(_serialBrut) || "— Rien reçu pour l'instant —"}</pre>
+
+      <h3>Trames complètes reçues</h3>
       <pre id="serial-log">${esc(_serialLog) || "— En attente de connexion —"}</pre>
 
       <h3>Machine détectée</h3>
@@ -850,6 +1038,8 @@
           delete _stockLocal[id];
           sauverStock();
         }
+        delete _auditsLocal[id];
+        sauverAudits();
       }
 
       if (_machineSelectionnee === id) {
@@ -963,6 +1153,110 @@
       } else {
         const p = produitsDe(_machineSelectionnee).find(x => x.id === id);
         if (p) { p.qty = capacite; sauverStock(); render(); }
+      }
+    },
+
+    // ---------- Relevés d'audit ----------
+    // Choix d'un fichier d'audit (clé USB) pour la machine sélectionnée
+    importerAudit: async (input) => {
+      const fichier = input.files && input.files[0];
+      input.value = "";
+      if (!fichier) return;
+
+      if (!_machineSelectionnee) {
+        alert("Choisis d'abord une machine (onglet Ma Flotte).");
+        return;
+      }
+
+      let texte = "";
+      try {
+        texte = await fichier.text();
+      } catch (err) {
+        alert("Impossible de lire le fichier : " + err.message);
+        return;
+      }
+
+      if (!/^\s*DXS\*/.test(texte) || !/DXE\*/.test(texte)) {
+        alert("Ce fichier ne ressemble pas à un audit EVA-DTS (il doit commencer par DXS et finir par DXE).");
+        return;
+      }
+
+      const analyse = BA.EvaDts.parse(texte);
+      if (!analyse.va1) {
+        alert("Fichier d'audit incomplet : les compteurs de ventes (VA1) sont introuvables.");
+        return;
+      }
+
+      await BA.App.traiterAudit(_machineSelectionnee, analyse, "usb");
+    },
+
+    // Enregistre un relevé : compare au précédent, demande confirmation, met à jour le stock
+    traiterAudit: async (machineId, analyse, source) => {
+      try {
+        const audit   = BA.EvaDts.toAudit(analyse);
+        const ancien  = await lireDernierAudit(machineId);
+        const diff    = BA.EvaDts.compare(ancien, audit);
+        const machine = _listeMachines.find(m => m.id === machineId) || {};
+        const nom     = machine.name || machineId;
+
+        if (diff.identique) {
+          alert("Ce relevé est identique au dernier relevé de « " + nom + " » : aucune nouvelle vente.");
+          return false;
+        }
+
+        let message =
+          "Importer ce relevé pour « " + nom + " » (" + machineId + ") ?\n\n" +
+          "Compteurs de la machine : " + audit.total_count + " vente(s), " + eur(audit.total_value) + ".\n";
+
+        let appliquer = false;
+        if (diff.baseline) {
+          message += "\nC'est le premier relevé de cette machine : il sert de point de départ, aucune vente n'est ajoutée.";
+        } else if (diff.anomalies) {
+          message += "\n⚠️ Les compteurs sont plus BAS que lors du relevé précédent (remise à zéro de la machine, " +
+                     "ou fichier d'une autre machine ?). Ce relevé deviendra le nouveau point de départ, sans calcul de ventes.";
+        } else {
+          appliquer = true;
+          message += "\nDepuis le relevé précédent : +" + diff.deltaCount + " vente(s), +" + eur(diff.deltaValue) + ".\n" +
+                     "Le stock des produits concernés sera diminué de ces ventes.";
+        }
+
+        if (!confirm(message)) return false;
+
+        audit.source      = source;
+        audit.delta_count = appliquer ? diff.deltaCount : null;
+        audit.delta_value = appliquer ? diff.deltaValue : null;
+        await sauverAudit(machineId, audit);
+
+        let majStock = 0;
+        if (appliquer) majStock = await appliquerVentesAuStock(machineId, diff.parSelection);
+
+        if (BA.DB.isReady()) {
+          await BA.DB.addEvent(
+            machineId,
+            "info",
+            "AUDIT_IMPORT",
+            diff.baseline || !appliquer
+              ? "Relevé d'audit enregistré (point de départ)"
+              : "Relevé d'audit : +" + diff.deltaCount + " vente(s) (+" + eur(diff.deltaValue) + ")"
+          );
+        }
+
+        await loadAll();
+
+        alert(
+          diff.baseline || !appliquer
+            ? "✅ Relevé enregistré comme point de départ. Les prochains relevés calculeront les ventes."
+            : "✅ Relevé enregistré : +" + diff.deltaCount + " vente(s) (+" + eur(diff.deltaValue) + ").\n" +
+              "Stock mis à jour pour " + majStock + " produit(s)."
+        );
+        return true;
+      } catch (err) {
+        console.error("Erreur d'import d'audit :", err);
+        const aide = /audits/i.test(err.message || "")
+          ? "\n\nLa table « audits » n'existe sans doute pas encore dans Supabase : lance d'abord le SQL fourni (SQL Editor)."
+          : "";
+        alert("Erreur : " + err.message + aide);
+        return false;
       }
     },
 
@@ -1149,8 +1443,8 @@
 
             if (idMachine && _listeMachines.some(m => m.id === idMachine)) {
               try {
-                // Sync des ventes manquées (avec confirmation)
-                await BA.App.syncOfflineSales(parsed, idMachine);
+                // Enregistre le relevé reçu par le câble (avec confirmation)
+                await BA.App.traiterAudit(idMachine, parsed, "rs232");
 
                 await BA.DB.updateMachine(
                   idMachine,
@@ -1168,10 +1462,25 @@
               }
             }
           }
-        }, majStatut);
+        }, majStatut, texte => {
+          _serialOctets += texte.length;
+          _serialBrut = (_serialBrut + texte).slice(-4000);
+          const brut = $("#serial-brut");
+          if (brut) brut.textContent = _serialBrut;
+          const nb = $("#serial-count");
+          if (nb) nb.textContent = _serialOctets;
+        });
       } catch (err) {
         majStatut("erreur : " + err.message);
       }
+    },
+
+    serialRelancer: async () => {
+      if (!BA.Serial.connected) {
+        alert("Connecte d'abord la machine (bouton « Connecter la machine »).");
+        return;
+      }
+      await BA.Serial.relancer();
     },
 
     serialDisconnect: () => {
