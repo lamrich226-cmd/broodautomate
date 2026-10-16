@@ -59,6 +59,16 @@ BA.DDCMP = {
   // (bit 7 du 3e octet), qui autorise la machine à émettre ses messages en attente
   ack(resp, select = false) { return this.controle(this.TYPE_ACK, { resp, flags: select ? 2 : 0 }); },
 
+  // Message de données émis par l'hôte : texte EVA-DTS dans un message DDCMP
+  // resp = dernier numéro reçu de la machine, num = notre numéro d'émission
+  message(texte, num, resp) {
+    const corps = Array.from(texte, c => c.charCodeAt(0) & 0xFF);
+    const n = corps.length;
+    const entete = this.avecCrc([this.SOH, n & 0xFF, (n >> 8) & 0x3F, resp & 0xFF, num & 0xFF, this.ADDR]);
+    const crc = this.crc16(corps);
+    return Uint8Array.from([...entete, ...corps, crc & 0xFF, crc >> 8]);
+  },
+
   // Lit les messages complets présents dans le tampon.
   // Retourne { donnees: [Uint8Array...], controles: [type...], reste: Uint8Array,
   //            erreurs: nombre de trames rejetées }
@@ -241,6 +251,13 @@ BA.Serial = {
       const ack = BA.DDCMP.ack(d.num, true);
       if (onRaw) onRaw("[données DDCMP n°" + d.num + " reçues (" + d.octets.length + " octets) -> ACK envoyé : " + BA.DDCMP.hex(ack) + "]\n");
       await this.envoyer(ack);
+      if (!this._hoteEnvoye) {
+        this._hoteEnvoye = true;
+        const texte = "DXS*BROODAUTO*FAS*1\r\nDXE*1*1\r\n";
+        const msg = BA.DDCMP.message(texte, 1, d.num);
+        if (onRaw) onRaw("[message hôte envoyé (test) : " + BA.DDCMP.hex(msg) + "]\n");
+        await this.envoyer(msg);
+      }
       this.buffer += BA.DDCMP.versTexte(d.octets);
       this.extraire(onData);
     }
@@ -278,6 +295,7 @@ BA.Serial = {
       this.connected = true;
       this.buffer    = "";
       this.tamponBin = new Uint8Array(0);
+      this._hoteEnvoye = false;
       onStatus("connecté");
 
       const self = this;
