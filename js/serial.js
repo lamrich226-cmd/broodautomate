@@ -85,11 +85,12 @@ BA.DDCMP = {
   // Commande « Finish Communications » : fin de session
   finishCommande() { return [0x77, 0xFF]; },
 
-  // Réponse « Who Are You » acceptée (88 E0 00 01) :
-  // 88 E0 00 01 | S2 S1 P2 P1 | n° de série (8 chiffres ASCII) | V1 M1 RD 00 | msdb lsdb
+  // Réponse « Who Are You » ACCEPTÉE (norme §3.6.4.1.1, p.83) :
+  // 88 E0 01 | S2 S1 P2 P1 | n° de série (8 chiffres ASCII) | V1 M1 RD 00 | msdb lsdb
+  // (la réponse REFUSÉE est 88 E0 00 01 : ancienne version, erronée)
   reponseWhoAreYou(serie8) {
     const ascii = Array.from(String(serie8).padEnd(8, "0").slice(0, 8), c => c.charCodeAt(0));
-    return [0x88, 0xE0, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, ...ascii, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00];
+    return [0x88, 0xE0, 0x01, 0x00, 0x00, 0x00, 0x00, ...ascii, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
   },
 
   // Lit les messages complets présents dans le tampon.
@@ -293,8 +294,8 @@ BA.Serial = {
       const o = d.octets;
 
       if (o[0] === 0x88 && o[1] === 0xE0) {
-        // Réponse à notre « Who Are You » (88 E0 00 01 = accepté)
-        if (o[3] === 0x01 && !this._lectureLancee) {
+        // Réponse à notre « Who Are You » : 88 E0 01 = accepté, 88 E0 00 01 = refusé
+        if (o[2] === 0x01 && !this._lectureLancee) {
           this._lectureLancee = true;
           const cmd = BA.DDCMP.messageOctets(BA.DDCMP.readDataCommande(1), this._numEmis, d.num);
           this._numEmis = (this._numEmis % 255) + 1;
@@ -319,11 +320,7 @@ BA.Serial = {
           await this.envoyer(fin);
         }
       } else if (o[0] === 0x77 && o[1] === 0xE0) {
-        // La machine demande « Who Are You » : on répond « accepté » (88 E0)
-        const rep = BA.DDCMP.messageOctets(BA.DDCMP.reponseWhoAreYou("02166085"), this._numEmis, d.num);
-        this._numEmis = (this._numEmis % 255) + 1;
-        if (onRaw) onRaw("[réponse « Who Are You » acceptée (88 E0) envoyée : " + BA.DDCMP.hex(rep) + "]\n");
-        await this.envoyer(rep);
+        // Déjà traité plus haut (réponse 88 E0 envoyée une seule fois par commande 77 E0)
       } else if (onRaw) {
         onRaw("[message DDCMP non géré : " + BA.DDCMP.hex(o.slice(0, 8)) + "]\n");
       }
