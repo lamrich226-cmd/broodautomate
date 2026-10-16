@@ -51,6 +51,9 @@ BA.DDCMP = {
   // STRT : « je démarre, réinitialise la numérotation » (les deux bits FLAGS à 1)
   strt() { return this.controle(this.TYPE_STRT, { flags: 3 }); },
 
+  // STACK : réponse à un STRT reçu de la machine
+  stack() { return this.controle(this.TYPE_STACK, { flags: 3 }); },
+
   // ACK : accuse réception jusqu'au numéro resp
   ack(resp) { return this.controle(this.TYPE_ACK, { resp }); },
 
@@ -223,6 +226,12 @@ BA.Serial = {
 
     for (const c of r.controles) {
       if (onRaw) onRaw("[contrôle DDCMP reçu, type " + c.type + "]\n");
+      if (c.type === BA.DDCMP.TYPE_STRT) {
+        // La machine demande le démarrage : on répond STACK
+        const stack = BA.DDCMP.stack();
+        if (onRaw) onRaw("[réponse STACK envoyée : " + BA.DDCMP.hex(stack) + "]\n");
+        await this.envoyer(stack);
+      }
     }
 
     for (const d of r.donnees) {
@@ -253,7 +262,7 @@ BA.Serial = {
 
       // Ouvre le port avec les paramètres FAS
       await this.port.open({
-        baudRate: config.baudRate || 2400,
+        baudRate: config.baudRate || 9600,
         dataBits: config.dataBits || 8,
         parity:   config.parity   || "none",
         stopBits: config.stopBits || 1
