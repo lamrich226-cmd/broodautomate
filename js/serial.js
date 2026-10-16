@@ -55,7 +55,9 @@ BA.DDCMP = {
   stack() { return this.controle(this.TYPE_STACK, { flags: 3 }); },
 
   // ACK : accuse réception jusqu'au numéro resp
-  ack(resp) { return this.controle(this.TYPE_ACK, { resp }); },
+  // ACK : accuse réception jusqu'au numéro resp ; select = true lève le drapeau SELECT
+  // (bit 7 du 3e octet), qui autorise la machine à émettre ses messages en attente
+  ack(resp, select = false) { return this.controle(this.TYPE_ACK, { resp, flags: select ? 2 : 0 }); },
 
   // Lit les messages complets présents dans le tampon.
   // Retourne { donnees: [Uint8Array...], controles: [type...], reste: Uint8Array,
@@ -236,7 +238,7 @@ BA.Serial = {
 
     for (const d of r.donnees) {
       // Accusé de réception : la machine attend ACK avant d'envoyer la suite
-      const ack = BA.DDCMP.ack(d.num);
+      const ack = BA.DDCMP.ack(d.num, true);
       if (onRaw) onRaw("[données DDCMP n°" + d.num + " reçues (" + d.octets.length + " octets) -> ACK envoyé : " + BA.DDCMP.hex(ack) + "]\n");
       await this.envoyer(ack);
       this.buffer += BA.DDCMP.versTexte(d.octets);
