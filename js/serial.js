@@ -260,19 +260,19 @@ BA.Serial = {
 
     for (const c of r.controles) {
       if (onRaw) onRaw("[contrôle DDCMP reçu, type " + c.type + "]\n");
-      if (c.type === BA.DDCMP.TYPE_STACK && !this._maitreLance) {
+      if (c.type === BA.DDCMP.TYPE_STRT) {
+        // La machine demande le démarrage : on répond STACK
+        const stack = BA.DDCMP.stack();
+        if (onRaw) onRaw("[réponse STACK envoyée : " + BA.DDCMP.hex(stack) + "]\n");
+        await this.envoyer(stack);
+      }
+      if ((c.type === BA.DDCMP.TYPE_STACK || c.type === BA.DDCMP.TYPE_STRT) && !this._maitreLance) {
         // La machine a répondu à notre démarrage : nous sommes maîtres, on identifie l'hôte
         this._maitreLance = true;
         const cmd = BA.DDCMP.messageOctets(BA.DDCMP.whoAreYouCommande(), this._numEmis, this._dernierNum || 0);
         this._numEmis = (this._numEmis % 255) + 1;
         if (onRaw) onRaw("[commande « Who Are You » envoyée (nous = maître) : " + BA.DDCMP.hex(cmd) + "]\n");
         await this.envoyer(cmd);
-      }
-      if (c.type === BA.DDCMP.TYPE_STRT) {
-        // La machine demande le démarrage : on répond STACK
-        const stack = BA.DDCMP.stack();
-        if (onRaw) onRaw("[réponse STACK envoyée : " + BA.DDCMP.hex(stack) + "]\n");
-        await this.envoyer(stack);
       }
     }
 
