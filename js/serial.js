@@ -236,7 +236,9 @@ BA.Serial = {
 
     for (const d of r.donnees) {
       // Accusé de réception : la machine attend ACK avant d'envoyer la suite
-      await this.envoyer(BA.DDCMP.ack(d.num));
+      const ack = BA.DDCMP.ack(d.num);
+      if (onRaw) onRaw("[données DDCMP n°" + d.num + " reçues (" + d.octets.length + " octets) -> ACK envoyé : " + BA.DDCMP.hex(ack) + "]\n");
+      await this.envoyer(ack);
       this.buffer += BA.DDCMP.versTexte(d.octets);
       this.extraire(onData);
     }
