@@ -319,6 +319,13 @@ BA.Serial = {
           if (onRaw) onRaw("[fin de lecture -> « Finish » envoyé : " + BA.DDCMP.hex(fin) + "]\n");
           await this.envoyer(fin);
         }
+      } else if (o[0] === 0x77 && o[1] === 0xE3) {
+        // « Write Data » reçu de la machine (norme §3.6.4.1.4, p.89) : la machine nous envoie des données.
+        // Réponse acceptée : 88 E3 01. Les blocs suivants arrivent ensuite ; on les accuse par ACK.
+        const rep = BA.DDCMP.messageOctets([0x88, 0xE3, 0x01], this._numEmis, d.num);
+        this._numEmis = (this._numEmis % 255) + 1;
+        if (onRaw) onRaw("[« Write Data » reçu (liste " + o[3] + ", longueur " + ((o[4] << 8) | o[5]).toString(16) + ") -> 88 E3 01 envoyé : " + BA.DDCMP.hex(rep) + "]\n");
+        await this.envoyer(rep);
       } else if (o[0] === 0x77 && o[1] === 0xE0) {
         // Déjà traité plus haut (réponse 88 E0 envoyée une seule fois par commande 77 E0)
       } else if (onRaw) {
