@@ -62,7 +62,8 @@ BA.DDCMP = {
   // Message de données émis par l'hôte (corps = tableau d'octets)
   messageOctets(corps, num, resp) {
     const n = corps.length;
-    const entete = this.avecCrc([this.SOH, n & 0xFF, (n >> 8) & 0x3F, resp & 0xFF, num & 0xFF, this.ADDR]);
+    // Octet 3 : bit 7 = SELECT (0), bit 6 = QSYNC (toujours 1, norme §3.6.3), bits 0-5 = longueur haute
+    const entete = this.avecCrc([this.SOH, n & 0xFF, 0x40 | ((n >> 8) & 0x3F), resp & 0xFF, num & 0xFF, this.ADDR]);
     const crc = this.crc16(corps);
     return Uint8Array.from([...entete, ...corps, crc & 0xFF, crc >> 8]);
   },
