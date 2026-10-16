@@ -36,7 +36,7 @@ BA.EvaDts = {
 
     const lines = String(text || "")
       .split(/\r?\n/)
-      .map(l => l.trim())
+      .map(l => l.replace(/[\x00-\x1F�]/g, "").trim())   // retire octets nuls et caractères illisibles (début de bloc 99)
       .filter(Boolean);
 
     const parSel = {};
@@ -54,6 +54,8 @@ BA.EvaDts = {
 
         case "DXS":
           result.header = { sender: f[1], version: f[3] };
+          // Sans segment ID1, le n° de série est lu dans l'en-tête DXS (ex. FAS000000001)
+          if (!result.machineId && f[1]) result.machineId = f[1].trim();
           break;
 
         case "ID1":
