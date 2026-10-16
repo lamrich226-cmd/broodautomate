@@ -67,6 +67,23 @@ BA.DDCMP = {
     return Uint8Array.from([...entete, ...corps, crc & 0xFF, crc >> 8]);
   },
 
+  // Convertit en BCD (ex. 16 -> 0x16)
+  bcd(n) { return ((Math.floor(n / 10) & 0xF) << 4) | (n % 10); },
+
+  // Commande « Who Are You » envoyée par l'hôte (maître) : 77 E0 00 S2 S1 P2 P1 DD MM YY HH MM SS U2 U1 A
+  whoAreYouCommande(date = new Date()) {
+    return [0x77, 0xE0, 0x00, 0x00, 0x00, 0x00, 0x00,
+            this.bcd(date.getDate()), this.bcd(date.getMonth() + 1), this.bcd(date.getFullYear() % 100),
+            this.bcd(date.getHours()), this.bcd(date.getMinutes()), this.bcd(date.getSeconds()),
+            0x42, 0x41, 0x0B];   // utilisateur « BA », interrogateur 0B = maintenance
+  },
+
+  // Commande « Read Data » : liste (1 = relevé d'audit), enregistrement 01, décalage 0, longueur 0 = tout
+  readDataCommande(liste = 1) { return [0x77, 0xE2, 0x00, liste, 0x01, 0x00, 0x00, 0x00, 0x00]; },
+
+  // Commande « Finish Communications » : fin de session
+  finishCommande() { return [0x77, 0xFF]; },
+
   // Réponse « Who Are You » acceptée (88 E0 00 01) :
   // 88 E0 00 01 | S2 S1 P2 P1 | n° de série (8 chiffres ASCII) | V1 M1 RD 00 | msdb lsdb
   reponseWhoAreYou(serie8) {
@@ -243,6 +260,14 @@ BA.Serial = {
 
     for (const c of r.controles) {
       if (onRaw) onRaw("[contrôle DDCMP reçu, type " + c.type + "]\n");
+      if (c.type === BA.DDCMP.TYPE_STACK && !this._maitreLance) {
+        // La machine a répondu à notre démarrage : nous sommes maîtres, on identifie l'hôte
+        this._maitreLance = true;
+        const cmd = BA.DDCMP.messageOctets(BA.DDCMP.whoAreYouCommande(), this._numEmis, this._dernierNum || 0);
+        this._numEmis = (this._numEmis % 255) + 1;
+        if (onRaw) onRaw("[commande « Who Are You » envoyée (nous = maître) : " + BA.DDCMP.hex(cmd) + "]\n");
+        await this.envoyer(cmd);
+      }
       if (c.type === BA.DDCMP.TYPE_STRT) {
         // La machine demande le démarrage : on répond STACK
         const stack = BA.DDCMP.stack();
@@ -263,8 +288,44 @@ BA.Serial = {
         this._numEmis = (this._numEmis % 255) + 1;
         await this.envoyer(rep);
       }
-      this.buffer += BA.DDCMP.versTexte(d.octets);
-      this.extraire(onData);
+      this._dernierNum = d.num;
+      const o = d.octets;
+
+      if (o[0] === 0x88 && o[1] === 0xE0) {
+        // Réponse à notre « Who Are You » (88 E0 00 01 = accepté)
+        if (o[3] === 0x01 && !this._lectureLancee) {
+          this._lectureLancee = true;
+          const cmd = BA.DDCMP.messageOctets(BA.DDCMP.readDataCommande(1), this._numEmis, d.num);
+          this._numEmis = (this._numEmis % 255) + 1;
+          if (onRaw) onRaw("[« Who Are You » accepté -> commande « Read Data » liste 1 envoyée : " + BA.DDCMP.hex(cmd) + "]\n");
+          await this.envoyer(cmd);
+        } else if (onRaw) {
+          onRaw("[réponse « Who Are You » refusée : " + BA.DDCMP.hex(o) + "]\n");
+        }
+      } else if (o[0] === 0x88 && o[1] === 0xE2) {
+        if (onRaw) onRaw("[lecture acceptée (88 E2) : les données arrivent]\n");
+      } else if (o[0] === 0x99) {
+        // Bloc de données : on retire l'octet 99 et on transmet le texte EVA-DTS
+        const texte = BA.DDCMP.versTexte(o.slice(1));
+        this.buffer += texte;
+        this.extraire(onData);
+        if (texte.indexOf("DXE") !== -1 && !this._finEnvoye) {
+          // Dernier bloc reçu : on termine la session proprement
+          this._finEnvoye = true;
+          const fin = BA.DDCMP.messageOctets(BA.DDCMP.finishCommande(), this._numEmis, d.num);
+          this._numEmis = (this._numEmis % 255) + 1;
+          if (onRaw) onRaw("[fin de lecture -> « Finish » envoyé : " + BA.DDCMP.hex(fin) + "]\n");
+          await this.envoyer(fin);
+        }
+      } else if (o[0] === 0x77 && o[1] === 0xE0) {
+        // La machine demande « Who Are You » : on répond « accepté » (88 E0)
+        const rep = BA.DDCMP.messageOctets(BA.DDCMP.reponseWhoAreYou("02166085"), this._numEmis, d.num);
+        this._numEmis = (this._numEmis % 255) + 1;
+        if (onRaw) onRaw("[réponse « Who Are You » acceptée (88 E0) envoyée : " + BA.DDCMP.hex(rep) + "]\n");
+        await this.envoyer(rep);
+      } else if (onRaw) {
+        onRaw("[message DDCMP non géré : " + BA.DDCMP.hex(o.slice(0, 8)) + "]\n");
+      }
     }
   },
 
@@ -301,6 +362,10 @@ BA.Serial = {
       this.buffer    = "";
       this.tamponBin = new Uint8Array(0);
       this._numEmis = 1;
+      this._maitreLance = false;
+      this._lectureLancee = false;
+      this._finEnvoye = false;
+      this._dernierNum = 0;
       onStatus("connecté");
 
       const self = this;
