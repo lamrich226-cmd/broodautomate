@@ -59,14 +59,19 @@ BA.DDCMP = {
   // (bit 7 du 3e octet), qui autorise la machine à émettre ses messages en attente
   ack(resp, select = false) { return this.controle(this.TYPE_ACK, { resp, flags: select ? 2 : 0 }); },
 
-  // Message de données émis par l'hôte : texte EVA-DTS dans un message DDCMP
-  // resp = dernier numéro reçu de la machine, num = notre numéro d'émission
-  message(texte, num, resp) {
-    const corps = Array.from(texte, c => c.charCodeAt(0) & 0xFF);
+  // Message de données émis par l'hôte (corps = tableau d'octets)
+  messageOctets(corps, num, resp) {
     const n = corps.length;
     const entete = this.avecCrc([this.SOH, n & 0xFF, (n >> 8) & 0x3F, resp & 0xFF, num & 0xFF, this.ADDR]);
     const crc = this.crc16(corps);
     return Uint8Array.from([...entete, ...corps, crc & 0xFF, crc >> 8]);
+  },
+
+  // Réponse « Who Are You » acceptée (88 E0 00 01) :
+  // 88 E0 00 01 | S2 S1 P2 P1 | n° de série (8 chiffres ASCII) | V1 M1 RD 00 | msdb lsdb
+  reponseWhoAreYou(serie8) {
+    const ascii = Array.from(String(serie8).padEnd(8, "0").slice(0, 8), c => c.charCodeAt(0));
+    return [0x88, 0xE0, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00, ...ascii, 0x00, 0x00, 0x00, 0x00, 0x04, 0x00];
   },
 
   // Lit les messages complets présents dans le tampon.
@@ -251,12 +256,12 @@ BA.Serial = {
       const ack = BA.DDCMP.ack(d.num, true);
       if (onRaw) onRaw("[données DDCMP n°" + d.num + " reçues (" + d.octets.length + " octets) -> ACK envoyé : " + BA.DDCMP.hex(ack) + "]\n");
       await this.envoyer(ack);
-      if (!this._hoteEnvoye) {
-        this._hoteEnvoye = true;
-        const texte = "DXS*BROODAUTO*FAS*1\r\nDXE*1*1\r\n";
-        const msg = BA.DDCMP.message(texte, 1, d.num);
-        if (onRaw) onRaw("[message hôte envoyé (test) : " + BA.DDCMP.hex(msg) + "]\n");
-        await this.envoyer(msg);
+      // La machine demande « Who Are You » (77 E0) : on répond « accepté » (88 E0)
+      if (d.octets[0] === 0x77 && d.octets[1] === 0xE0) {
+        const rep = BA.DDCMP.messageOctets(BA.DDCMP.reponseWhoAreYou("02166085"), this._numEmis, d.num);
+        if (onRaw) onRaw("[réponse « Who Are You » acceptée (88 E0) envoyée : " + BA.DDCMP.hex(rep) + "]\n");
+        this._numEmis = (this._numEmis % 255) + 1;
+        await this.envoyer(rep);
       }
       this.buffer += BA.DDCMP.versTexte(d.octets);
       this.extraire(onData);
@@ -295,7 +300,7 @@ BA.Serial = {
       this.connected = true;
       this.buffer    = "";
       this.tamponBin = new Uint8Array(0);
-      this._hoteEnvoye = false;
+      this._numEmis = 1;
       onStatus("connecté");
 
       const self = this;
