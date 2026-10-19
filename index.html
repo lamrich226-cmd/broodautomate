@@ -15,8 +15,8 @@
     </div>
   </header>
 
-    <nav>
-    <button data-view="fleet" class="active">🌍 Ma Flotte </button>
+  <nav>
+    <button data-view="fleet" class="active">🌍 Ma Flotte</button>
     <button data-view="dashboard">📊 Détails Machine</button>
     <button data-view="products">🍞 Produits / Stock</button>
     <button data-view="sales">💶 Ventes</button>
@@ -39,9 +39,11 @@
     <span id="version"></span>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Version de Supabase figée (la v3.0 prenait toujours la dernière « @2 ») -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
   <script src="js/config.js"></script>
   <script src="js/db.js"></script>
+  <script src="js/alertes.js"></script>
   <script src="js/evadts-parser.js"></script>
   <script src="js/simulator.js"></script>
   <script src="js/serial.js"></script>
