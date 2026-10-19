@@ -38,3 +38,34 @@ pre { background: #020617; padding: 12px; border-radius: 8px; overflow: auto; fo
 footer { display: flex; gap: 10px; align-items: center; padding: 10px 20px; background: #1e293b; border-top: 1px solid #334155; font-size: .8rem; color: #94a3b8; }
 footer button { padding: 8px 14px; border-radius: 6px; border: none; background: #16a34a; color: #fff; }
 .note { font-size: .8rem; color: #94a3b8; margin: 8px 0; }
+/* ---------- v3.1 ---------- */
+button:disabled { opacity: .5; cursor: not-allowed; }
+.btn.petit { padding: 4px 8px; margin-left: 8px; font-size: .8rem; }
+select { background: #0f172a; color: #e2e8f0; }
+label.case { display: block; margin: 6px 0; font-size: .9rem; cursor: pointer; }
+label.case input[type=checkbox], label.case input[type=radio] { width: auto; margin-right: 6px; vertical-align: middle; }
+.carte-machine:hover { border-color: #3b82f6; }
+.alert .sous { font-size: .8rem; color: #cbd5e1; margin-top: 4px; }
+.alert.fini { opacity: .75; }
+.petit { font-size: .75rem; color: #94a3b8; }
+details { background: #1e293b; border: 1px solid #334155; border-radius: 8px; padding: 8px 12px; margin-bottom: 6px; }
+details summary { cursor: pointer; }
+.code-ligne { padding: 6px 0; border-bottom: 1px solid #334155; font-size: .85rem; }
+.code-ligne:last-child { border-bottom: none; }
+.code-ligne code { display: inline-block; min-width: 56px; color: #93c5fd; font-weight: 700; }
+.code-ligne .sous { font-size: .8rem; color: #cbd5e1; margin: 3px 0 0 60px; }
+pre.journal { white-space: pre-wrap; }
+pre.journal .j-tx   { color: #93c5fd; }
+pre.journal .j-rx   { color: #cbd5e1; }
+pre.journal .j-ok   { color: #4ade80; }
+pre.journal .j-warn { color: #fbbf24; }
+pre.journal .j-err  { color: #f87171; }
+pre.journal .j-info { color: #e2e8f0; }
+textarea.zone-texte { width: 100%; background: #0f172a; color: #e2e8f0; border: 1px solid #475569; border-radius: 6px; padding: 8px; font-family: monospace; font-size: .8rem; }
+@media (max-width: 600px) {
+  main { padding: 12px; }
+  header, nav, footer { padding-left: 12px; padding-right: 12px; }
+  table { display: block; overflow-x: auto; }
+}
+.carte-actions { display: flex; gap: 6px; margin-top: 10px; }
+.carte-actions .btn { margin: 0; padding: 8px 10px; white-space: nowrap; }
