@@ -1,7 +1,8 @@
 // ============================================================
-// BROODAUTOMATE — Simulateur FAS Power Lift
+// BROODAUTOMATE — Simulateur FAS Power Lift (v3.1)
 // Simule des ventes, la température et des erreurs
 // Permet de tester l'application SANS la machine physique
+// (mode local uniquement : en mode réel les boutons sont cachés)
 // ============================================================
 
 window.BA = window.BA || {};
@@ -54,12 +55,12 @@ _localProducts: [
     this._addLocalEvent("info", "SIM_START", "Simulateur démarré");
 
     if (BA.DB.isReady()) {
-      await BA.DB.updateMachine({
+      await BA.DB.updateMachine(this._localMachine.id, {
         status:    "online",
         last_seen: new Date().toISOString(),
         temp_c:    BA_CONFIG.simulator.targetTempC
       });
-      await BA.DB.addEvent("info", "SIM_START", "Simulateur démarré");
+      await BA.DB.addEvent(this._localMachine.id, "info", "SIM_START", "Simulateur démarré");
     }
 
     this.saleTimer = setInterval(() => this.tickSale(), BA_CONFIG.simulator.saleIntervalMs);
@@ -78,8 +79,8 @@ _localProducts: [
     this._addLocalEvent("info", "SIM_STOP", "Simulateur arrêté");
 
     if (BA.DB.isReady()) {
-      await BA.DB.updateMachine({ status: "offline" });
-      await BA.DB.addEvent("info", "SIM_STOP", "Simulateur arrêté");
+      await BA.DB.updateMachine(this._localMachine.id, { status: "offline" });
+      await BA.DB.addEvent(this._localMachine.id, "info", "SIM_STOP", "Simulateur arrêté");
     }
 
     if (this._onRefresh) this._onRefresh();
@@ -87,12 +88,13 @@ _localProducts: [
 
   // ---------- Tick vente ----------
   async tickSale() {
-    const products  = BA.DB.isReady() ? await BA.DB.getProducts() : this._localProducts;
+    const id        = this._localMachine.id;
+    const products  = BA.DB.isReady() ? await BA.DB.getProducts(id) : this._localProducts;
     const available = products.filter(p => p.qty > 0);
 
     if (!available.length) {
       this._addLocalEvent("error", "ALL_EMPTY", "Tous les produits sont épuisés");
-      if (BA.DB.isReady()) await BA.DB.addEvent("error", "ALL_EMPTY", "Tous les produits sont épuisés");
+      if (BA.DB.isReady()) await BA.DB.addEvent(id, "error", "ALL_EMPTY", "Tous les produits sont épuisés");
       if (this._onRefresh) this._onRefresh();
       return;
     }
@@ -107,7 +109,7 @@ _localProducts: [
     // Ajout vente locale
     this._localSales.unshift({
       id:         Date.now(),
-      machine_id: BA_CONFIG.machines[0].id,
+      machine_id: id,
       selection:  p.selection,
       name:       p.name,
       price:      p.price,
@@ -116,16 +118,16 @@ _localProducts: [
 
     // Supabase si prêt
     if (BA.DB.isReady()) {
-      await BA.DB.addSale({ selection: p.selection, name: p.name, price: p.price });
+      await BA.DB.addSale(id, { selection: p.selection, name: p.name, price: p.price });
       await BA.DB.updateProduct(p.id, { qty: newQty });
     }
 
     if (newQty === 0) {
       this._addLocalEvent("error", `SOLD_OUT_${p.selection}`, `Épuisé : ${p.name}`);
-      if (BA.DB.isReady()) await BA.DB.addEvent("error", `SOLD_OUT_${p.selection}`, `Épuisé : ${p.name}`);
+      if (BA.DB.isReady()) await BA.DB.addEvent(id, "error", `SOLD_OUT_${p.selection}`, `Épuisé : ${p.name}`);
     } else if (newQty <= BA_CONFIG.lowStockThreshold) {
       this._addLocalEvent("warn", `LOW_${p.selection}`, `Stock faible : ${p.name} (${newQty} restant)`);
-      if (BA.DB.isReady()) await BA.DB.addEvent("warn", `LOW_${p.selection}`, `Stock faible : ${p.name} (${newQty} restant)`);
+      if (BA.DB.isReady()) await BA.DB.addEvent(id, "warn", `LOW_${p.selection}`, `Stock faible : ${p.name} (${newQty} restant)`);
     }
 
     if (this._onRefresh) this._onRefresh();
@@ -149,13 +151,13 @@ _localProducts: [
       this._localMachine.status = "error";
       this._addLocalEvent("error", code, msg);
       if (BA.DB.isReady()) {
-        await BA.DB.updateMachine({ status: "error", temp_c: tempC, last_seen: new Date().toISOString() });
-        await BA.DB.addEvent("error", code, msg);
+        await BA.DB.updateMachine(this._localMachine.id, { status: "error", temp_c: tempC, last_seen: new Date().toISOString() });
+        await BA.DB.addEvent(this._localMachine.id, "error", code, msg);
       }
     } else {
       this._localMachine.status = "online";
       if (BA.DB.isReady()) {
-        await BA.DB.updateMachine({ status: "online", temp_c: tempC, last_seen: new Date().toISOString() });
+        await BA.DB.updateMachine(this._localMachine.id, { status: "online", temp_c: tempC, last_seen: new Date().toISOString() });
       }
     }
 
@@ -166,7 +168,7 @@ _localProducts: [
   _addLocalEvent(level, code, message) {
     this._localEvents.unshift({
       id:         Date.now() + Math.random(),
-      machine_id: BA_CONFIG.machines[0].id,
+      machine_id: this._localMachine.id,
       level,
       code,
       message,
@@ -175,7 +177,9 @@ _localProducts: [
     if (this._localEvents.length > 100) this._localEvents.length = 100;
   },
 
-  // ---------- Générateur trame EVA-DTS ----------
+  // ---------- Générateur trame EVA-DTS (même forme qu'un audit FAS) ----------
+  // Compteurs cumulés VA1 / LA1 (LA105) / PA2, événements EA1 + EA2,
+  // G85 calculé comme la machine (CRC-16 de ST… à la ligne avant G85), SE exact.
   generateEvaDts(machine, products, sales, events) {
     const d     = new Date();
     const date  = d.toISOString().slice(2, 10).replace(/-/g, "");
@@ -185,28 +189,40 @@ _localProducts: [
     const totalSales = sales.length;
     const totalValue = sales.reduce((a, s) => a + Number(s.price), 0);
 
-    const lines = [
-      `DXS*FAS*VA*V0/6*1`,
+    const lignes = [
+      `DXS*FAS000000001*VA*V1/6*1`,
       `ST*001*0001`,
-      `ID1*${machine.serial}*${(machine.model || "").split(" ").slice(0, 2).join("_")}`,
-      `ID4*2*EUR`,
+      `ID1*FAS000000001*SIMULATEUR*0091* *+120*`,
+      `ID4*2*39`,
       `ID5*${date}*${time}`,
-      `VA1*${cents(totalValue)}*${totalSales}*${cents(totalValue)}*${totalSales}`
+      `VA1*${cents(totalValue)}*${totalSales}*${cents(totalValue)}*${totalSales}*0**0`
     ];
 
     for (const p of products) {
       const ventesSel = sales.filter(s => s.selection === p.selection);
       const valSel    = ventesSel.reduce((a, s) => a + Number(s.price), 0);
-      lines.push(`PA1*${p.selection}*${cents(p.price)}`);
-      lines.push(`PA2*${ventesSel.length}*${cents(valSel)}*${ventesSel.length}*0`);
+      lignes.push(`PA1*${p.selection}*0*${p.selection * 100}*0**1**0*99`);
+      lignes.push(`PA2*${ventesSel.length}*${cents(valSel)}*${ventesSel.length}`);
+    }
+    for (const p of products) {
+      const n = sales.filter(s => s.selection === p.selection).length;
+      if (n) lignes.push(`LA1*0*${p.selection}*0*${n}*${n}`);
     }
 
     events
       .filter(e => e.level === "error")
       .slice(0, 10)
-      .forEach(e => lines.push(`EA1*${e.code}*${date}*${time}`));
+      .forEach(e => {
+        const code = String(e.code).replace(/[^A-Z0-9_]/gi, "").slice(0, 20) || "EJZ";
+        lignes.push(`EA1*${code}*${date}*${time}***+120`);
+        lignes.push(`EA2*${code}****1`);
+      });
 
-    lines.push(`G85*0000`, `SE*${lines.length + 2}*0001`, `DXE*1*1`);
-    return lines.join("\r\n");
+    lignes.push(`G85*0000`);
+    const iSt = lignes.indexOf("ST*001*0001");
+    lignes.push(`SE*${lignes.length - iSt + 1}*001*0001`, `DXE*1*1`);
+    let texte = lignes.join("\r\n") + "\r\n";
+    const g85 = BA.EvaDts.calculerG85(texte);
+    return texte.replace("G85*0000", "G85*" + g85);
   }
 };

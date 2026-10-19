@@ -149,6 +149,19 @@ window.BA = window.BA || {};
       verifier(res);
     },
 
+    // Plusieurs ventes d'un coup (calculées à partir de deux relevés), par paquets de 500
+    async addSales(machineId, ventes) {
+      const lignes = (ventes || []).map(v => ({
+        machine_id: machineId,
+        selection:  v.selection,
+        name:       v.name,
+        price:      v.price
+      }));
+      for (let i = 0; i < lignes.length; i += 500) {
+        verifier(await client().from("sales").insert(lignes.slice(i, i + 500)));
+      }
+    },
+
     async getSales(machineId, limite = 50) {
       const res = await client().from("sales").select("*")
         .eq("machine_id", machineId)
