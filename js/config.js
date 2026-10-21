@@ -8,9 +8,13 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate Flotte", version: "3.1.0" },
+  app: { name: "Broodautomate Flotte", version: "3.2.0" },
   currency: "EUR",
   lowStockThreshold: 3,
+
+  // Température intérieure normale (lue dans les lignes MA5*TEMPER du relevé).
+  // En dehors de cette plage : alerte « Température hors plage ».
+  temperature: { min: 14, max: 18 },
 
   supabase: {
     url: "https://ujvihkryzjrawamekwpu.supabase.co",
@@ -38,6 +42,6 @@ const BA_CONFIG = {
     saleIntervalMs: 10000,
     telemetryIntervalMs: 5000,
     errorProbability: 0.02,
-    targetTempC: 4.0
+    targetTempC: 16.0
   }
 };

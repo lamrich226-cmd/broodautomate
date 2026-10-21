@@ -82,6 +82,28 @@
   // N° de plaque d'une machine (champ « serial », sinon tiré de l'identifiant)
   const plaque = m => (m && (m.serial || String(m.id || "").replace(/^FAS-/i, ""))) || "—";
 
+  // ---------- Température (lignes MA5*TEMPER) ----------
+  const PLAGE_TEMP = Object.assign({ min: 14, max: 18 }, BA_CONFIG.temperature || {});
+  const aTemp = v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+  const degres = v => aTemp(v)
+    ? Number(v).toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " °C" : "— °C";
+  // "haut" | "bas" | null
+  const horsPlage = v => !aTemp(v) ? null : Number(v) > PLAGE_TEMP.max ? "haut" : Number(v) < PLAGE_TEMP.min ? "bas" : null;
+  const textePlage = () => degres(PLAGE_TEMP.min).replace(" °C", "") + " – " + degres(PLAGE_TEMP.max);
+  function htmlTemp(v) {
+    const h = horsPlage(v);
+    if (!h) return esc(degres(v));
+    return `<span style="color:#dc2626; font-weight:bold" title="Hors plage normale (${esc(textePlage())})">⚠️ ${esc(degres(v))}</span>`;
+  }
+  // Relevés de température d'un relevé enregistré (le plus récent d'abord)
+  const tempsAudit = audit => ((audit && audit.errors) || []).filter(e => e.type === "temp")
+    .sort((a, b) => BA.EvaDts.cleDate(b.date, b.time).localeCompare(BA.EvaDts.cleDate(a.date, a.time)));
+  function messageTemp(t) {
+    const quand = BA.EvaDts.formatDate(t.date, t.time);
+    return "Température intérieure " + degres(t.c) + (horsPlage(t.c) === "haut" ? " : trop chaude" : " : trop froide") +
+      " (plage normale " + textePlage() + ")" + (quand ? " — horloge machine : " + quand : "");
+  }
+
   let _formProduitOuvert = false;    // formulaire « nouveau produit »
   let _renommage = null;             // machine en cours de renommage (Ma Flotte)
   let _rechercheAlerte = "";         // recherche dans le catalogue des alertes
@@ -329,11 +351,11 @@
       _events    = evenementsDe(id);
       _machine   = !id ? null : estSimulee(id)
         ? BA.Simulator._localMachine
-        : { id, status: conf.status || "unknown", temp_c: null, last_seen: conf.last_seen || null, serial: conf.serial };
+        : { id, status: conf.status || "unknown", temp_c: aTemp(conf.temp_c) ? conf.temp_c : null, last_seen: conf.last_seen || null, serial: conf.serial };
 
       _allMachines = _listeMachines.map(m => estSimulee(m.id)
         ? { ...BA.Simulator._localMachine, name: m.name, city: m.city, serial: m.serial || BA.Simulator._localMachine.serial }
-        : { id: m.id, name: m.name, city: m.city, serial: m.serial, status: m.status || "unknown", temp_c: null, last_seen: m.last_seen || null });
+        : { id: m.id, name: m.name, city: m.city, serial: m.serial, status: m.status || "unknown", temp_c: aTemp(m.temp_c) ? m.temp_c : null, last_seen: m.last_seen || null });
 
       _counters = {
         totalSales: _sales.length,
@@ -395,7 +417,7 @@
         <div class="value" style="font-size:1rem; margin:6px 0">${esc(m.name || m.id)}</div>
         <div style="margin:8px 0">${badge(m.status)}${cable}</div>
         <div class="note">
-          🌡️ ${m.temp_c ?? "—"} °C<br>
+          🌡️ ${htmlTemp(m.temp_c)}<br>
           🕐 Dernière communication : ${heure(m.last_seen)}<br>
           Plaque : ${esc(plaque(m))} — ID : ${esc(m.id)}
         </div>
@@ -578,8 +600,12 @@
         </div>
         <div class="card">
           <div class="label">Température</div>
-          <div class="value">${_machine.temp_c ?? "—"} °C</div>
-          <div class="note">${estSimulee(_machineSelectionnee) ? "simulée" : "non transmise par l'audit (commande 99)"}</div>
+          <div class="value">${htmlTemp(_machine.temp_c)}</div>
+          <div class="note">${estSimulee(_machineSelectionnee) ? "simulée" : (() => {
+            const t = tempsAudit(_lastAudit)[0];
+            const quand = t ? BA.EvaDts.formatDate(t.date, t.time) : "";
+            return "Intérieur — plage normale " + esc(textePlage()) + (quand ? "<br>Relevé : " + esc(quand) + " (horloge machine)" : "");
+          })()}</div>
         </div>
         <div class="card">
           <div class="label">Ventes aujourd'hui</div>
@@ -803,12 +829,33 @@
       <h3>Erreurs Power Lift (journal FAS, avec la solution du manuel)</h3>
       ${err.fas.length ? err.fas.map(carteFas).join("") : `<p class="note">Aucune erreur FAS (MA5*ERROR) dans ce relevé.</p>`}
 
+      ${htmlTemperatures(a)}
+
       <h3>🔌 Coupures de courant</h3>
       ${coupures ? `
         <table><tr><th>Courant coupé</th><th>Courant revenu</th></tr>${coupures}</table>
         <p class="note" style="margin-top:6px">Les 10 dernières coupures (commande 99, option 2). Dates fiables seulement si l'horloge de la machine est réglée (commande 02).</p>`
         : `<p class="note">Aucune coupure de courant dans ce relevé.</p>`}
     `;
+  }
+
+  function htmlTemperatures(audit) {
+    const temps = tempsAudit(audit);
+    if (!temps.length) {
+      return `<h3>🌡️ Température intérieure</h3>
+        <p class="note">Aucune température dans ce relevé (lignes MA5*TEMPER). Sur la machine, commande 90 : « Block MA5*TEMPER » doit être à 0 (activé).</p>`;
+    }
+    const lignes = temps.map(t => `<tr><td>${esc(BA.EvaDts.formatDate(t.date, t.time) || "—")}</td><td>${htmlTemp(t.c)}</td>
+      <td>${horsPlage(t.c) === "haut" ? "trop chaude" : horsPlage(t.c) === "bas" ? "trop froide" : "normale"}</td></tr>`);
+    const dernier = temps[0];
+    return `
+      <h3>🌡️ Température intérieure</h3>
+      ${horsPlage(dernier.c)
+        ? `<div class="alert warn">⚠️ Dernière température : <b>${esc(degres(dernier.c))}</b>, ${horsPlage(dernier.c) === "haut" ? "trop chaude" : "trop froide"} (plage normale ${esc(textePlage())}).</div>`
+        : `<div class="alert info">✅ Dernière température : <b>${esc(degres(dernier.c))}</b> (plage normale ${esc(textePlage())}).</div>`}
+      <table><tr><th>Horloge machine</th><th>Température</th><th>État</th></tr>${lignes.slice(0, 12).join("")}</table>
+      ${lignes.length > 12 ? `<details><summary>Voir les ${lignes.length} relevés</summary><table>${lignes.slice(12).join("")}</table></details>` : ""}
+      <p class="note" style="margin-top:6px">Températures envoyées par la machine dans le relevé (comme la commande 99, option 3). L'heure est celle de l'horloge de la machine : à régler avec la commande 02.</p>`;
   }
 
   function htmlCatalogue(recherche) {
@@ -846,6 +893,7 @@
   function renderAlerts() {
     const stockFaible = _products.filter(p => p.qty <= BA_CONFIG.lowStockThreshold);
     const alertesGlobales = _allMachines.filter(m => m.status === "error" || m.status === "offline");
+    const alertesTemp = _allMachines.filter(m => horsPlage(m.temp_c));
     const machineConfig = _listeMachines.find(m => m.id === _machineSelectionnee) || {};
     const nom = machineConfig.name || _machineSelectionnee || "—";
     const n = BA.Alertes.nombreCodes();
@@ -862,6 +910,13 @@
           </div>
         `).join("")}
       ` : `<div class="alert info">✅ Aucune machine en erreur ou hors ligne</div>`}
+
+      ${alertesTemp.map(m => `
+        <div class="alert warn">
+          🌡️ Température hors plage — <b>${esc(m.name || m.id)}</b> (${esc(m.city || "—")}) : ${htmlTemp(m.temp_c)}
+          ${horsPlage(m.temp_c) === "haut" ? "trop chaude" : "trop froide"} (plage normale ${esc(textePlage())})
+          <button class="btn secondary petit" onclick="BA.App.selectMachine(${arg(m.id)})">Voir</button>
+        </div>`).join("")}
 
       ${_machineSelectionnee ? htmlErreursMachine(nom) : ""}
 
@@ -1017,6 +1072,10 @@
           <tr><th>Ventes (compteur total)</th><td>${total}</td></tr>
           <tr><th>Sélections</th><td>${a.selections.length}</td></tr>
           <tr><th>Événements / erreurs FAS / coupures</th><td>${a.events.length} / ${a.fasErrors.length} / ${a.powerCuts.length}</td></tr>
+          <tr><th>Température intérieure</th><td>${a.temperatures && a.temperatures.length
+            ? htmlTemp(a.temperatures[0].celsius) + " <span class='note'>(" + esc(BA.EvaDts.formatDate(a.temperatures[0].date, a.temperatures[0].time)) +
+              ", horloge machine ; " + a.temperatures.length + " relevé(s))</span>"
+            : "—"}</td></tr>
           <tr><th>Contrôle G85</th><td>${a.g85.present ? (a.g85.ok ? "✅ correct" : "❌ faux (texte abîmé)") : "absent"}</td></tr>
         </table>
         ${attente}
@@ -1226,6 +1285,18 @@
         nouveaux++;
         panne = true;
       }
+      for (const t of (analyse.temperatures || [])) {
+        const cle = "temp|" + t.date + "|" + t.time;
+        if (vus.has(cle)) continue;
+        vus.add(cle);
+        nouveaux++;
+        if (horsPlage(t.celsius)) {
+          await ajouterEvenement(machineId, "warn", "TEMPERATURE", messageTemp({ date: t.date, time: t.time, c: t.celsius }));
+        }
+      }
+      if (analyse.temperatures && analyse.temperatures.length) {
+        await majMachine(machineId, { temp_c: analyse.temperatures[0].celsius });
+      }
       if (parCable) await majMachine(machineId, { last_seen: maintenant, status: statutApres(panne) });
       else if (panne) await majMachine(machineId, { status: "error" });
       return { message: analyse.type === "vide" ? "envoi sans données" : (nouveaux ? nouveaux + " événement(s) enregistré(s)" : "événement(s) déjà connu(s)"),
@@ -1238,6 +1309,9 @@
     const diff   = BA.EvaDts.compare(ancien, audit);
     const nv     = BA.EvaDts.nouveautes(ancien ? ancien.errors : null, audit.errors);
     const nouveauxEvts = diff.baseline ? 0 : nv.eva.length + nv.fas.length + nv.pow.length + nv.activations.length;
+    const nouvellesTemps = diff.baseline ? tempsAudit(audit) : nv.temp;
+    const derniereTemp = tempsAudit(audit)[0] || null;
+    if (derniereTemp) await majMachine(machineId, { temp_c: derniereTemp.c });
     const appliquer = !diff.baseline && !diff.anomalies && !diff.identique;
 
     if (interactif) {
@@ -1259,7 +1333,7 @@
     }
 
     // Rien de neuf : pas de nouvel enregistrement (lecture automatique toutes les N minutes)
-    if (diff.identique && !nouveauxEvts) {
+    if (diff.identique && !nouveauxEvts && !nouvellesTemps.length) {
       if (parCable) await majMachine(machineId, { last_seen: maintenant, status: statutApres(false) });
       return { message: "aucun changement depuis le relevé précédent", identique: true };
     }
@@ -1305,12 +1379,19 @@
         await ajouterEvenement(machineId, "error", "FAS_" + e.code + (e.sous ? "/" + e.sous : ""), messageFas(d, e));
         panne = true;
       }
+      for (const t of nv.temp) {
+        if (horsPlage(t.c)) await ajouterEvenement(machineId, "warn", "TEMPERATURE", messageTemp(t));
+      }
       for (const p of nv.pow) {
         const [d1, h1] = String(p.off || "").split(" ");
         const [d2, h2] = String(p.on || "").split(" ");
         await ajouterEvenement(machineId, "warn", "COUPURE",
           "Coupure de courant : de " + (BA.EvaDts.formatDate(d1, h1) || "?") + " à " + (BA.EvaDts.formatDate(d2, h2) || "?") + " (horloge machine).");
       }
+    }
+    // Premier relevé : seulement la température la plus récente, si elle est hors plage
+    if (diff.baseline && derniereTemp && horsPlage(derniereTemp.c)) {
+      await ajouterEvenement(machineId, "warn", "TEMPERATURE", messageTemp(derniereTemp));
     }
     if (parCable) await majMachine(machineId, { last_seen: maintenant, status: statutApres(panne) });
     else if (panne) await majMachine(machineId, { status: "error" });
@@ -1321,6 +1402,7 @@
     else if (appliquer) message = "+" + diff.deltaCount + " vente(s) (+" + eur(diff.deltaValue) + "), stock mis à jour pour " + majStock + " produit(s)";
     else message = "aucune nouvelle vente";
     if (nouveauxEvts) message += " ; " + nouveauxEvts + " nouvel(s) événement(s)";
+    if (derniereTemp) message += " ; température " + degres(derniereTemp.c) + (horsPlage(derniereTemp.c) ? " ⚠️ hors plage" : "");
 
     if (interactif) {
       alert(diff.baseline

@@ -14,7 +14,10 @@
 //   EA1/EA2 : événements (EA1 = quand ; EA2 = compteurs et état actif,
 //         EA205 = 1 actif / 0 terminé ; certains appareils le mettent en EA204)
 //   MA5 : lignes propres à FAS : ERROR (code et sous-code du manuel),
-//         POW OFF / POW ON (coupures de courant), réglages…
+//         POW OFF / POW ON (coupures de courant),
+//         TEMPER*AAMMJJ*hhmm*+193 = température intérieure en dixièmes de °C
+//         (vérifié le 21/10/2026 : « +193 » = « TI 19.3° » de la commande 99, option 3),
+//         réglages…
 //   G85 : contrôle d'intégrité (CRC-16 du texte de ST jusqu'à la ligne
 //         avant G85, fins de ligne CRLF, 4 caractères hexa, poids fort d'abord)
 // Les ventes se calculent TOUJOURS par différence entre deux relevés sur
@@ -112,6 +115,7 @@ BA.EvaDts = {
       fasErrors:    [],     // MA5*ERROR (codes du manuel FAS)
       powerEvents:  [],     // MA5 POW OFF / POW ON dans l'ordre du fichier
       powerCuts:    [],     // paires coupure -> retour, la plus récente d'abord
+      temperatures: [],     // MA5*TEMPER : { date, time, celsius }, la plus récente d'abord
       ea3:          null,
       ea7:          null,
       g85:          null,
@@ -268,6 +272,14 @@ BA.EvaDts = {
           } else if (etiquette === "POW ON" || etiquette === "POW OFF") {
             result.powerEvents.push({ type: etiquette === "POW ON" ? "ON" : "OFF",
                                       date: champ(f[2]) || "", time: champ(f[3]) || "" });
+          } else if (etiquette === "TEMPER") {
+            const v = champ(f[4]) || "";
+            if (/^[+-]?\d+$/.test(v)) {
+              result.temperatures.push({ date: champ(f[2]) || "", time: champ(f[3]) || "",
+                                         celsius: Math.round(Number(v)) / 10 });
+            } else if (v) {
+              result.avertissements.push("Température illisible dans « " + line + " ».");
+            }
           }
           // les autres MA5 (INDXPR, LIGHT, CMECMDB…) sont des réglages : ignorés
           break;
@@ -345,6 +357,14 @@ BA.EvaDts = {
     const cleP = p => p.off ? this.cleDate(p.off.date, p.off.time) : (p.on ? this.cleDate(p.on.date, p.on.time) : "");
     result.powerCuts = paires.sort((a, b) => cleP(b).localeCompare(cleP(a)));
 
+    // ---------- Températures : sans doublon, la plus récente d'abord ----------
+    const tVues = new Set();
+    result.temperatures = result.temperatures.filter(t => {
+      const k = t.date + "|" + t.time + "|" + t.celsius;
+      if (tVues.has(k)) return false;
+      tVues.add(k); return true;
+    }).sort((a, b) => this.cleDate(b.date, b.time).localeCompare(this.cleDate(a.date, a.time)));
+
     // ---------- Contrôles ----------
     result.complet = aDxs && aDxe;
     result.g85 = this.verifierG85(text);
@@ -357,7 +377,7 @@ BA.EvaDts = {
     if (result.se && result.se.ok === false) result.avertissements.push("Le nombre de lignes (SE) ne correspond pas.");
 
     result.type = result.va1 ? "audit"
-      : (result.events.length || result.fasErrors.length || result.powerEvents.length) ? "evenements"
+      : (result.events.length || result.fasErrors.length || result.powerEvents.length || result.temperatures.length) ? "evenements"
       : "vide";
 
     return result;
@@ -378,6 +398,9 @@ BA.EvaDts = {
       type: "pow",
       off: p.off ? (p.off.date + " " + p.off.time).trim() : "",
       on:  p.on  ? (p.on.date  + " " + p.on.time).trim()  : ""
+    }));
+    (analyse.temperatures || []).forEach(t => errors.push({
+      type: "temp", date: t.date, time: t.time, c: t.celsius
     }));
     return {
       machine_date: analyse.machineDate || "",
@@ -449,7 +472,9 @@ BA.EvaDts = {
     const cleFas = e => e.code + "/" + (e.sous || "") + "|" + (e.date || "") + "|" + (e.time || "");
     const clePow = e => (e.off || "") + "|" + (e.on || "");
 
-    const res = { eva: [], fas: [], pow: [], activations: [] };
+    const cleTemp = e => (e.date || "") + "|" + (e.time || "");
+    const res = { eva: [], fas: [], pow: [], activations: [], temp: [] };
+    const avantTemp = new Set((ancienErrors || []).filter(e => typer(e) === "temp").map(cleTemp));
     const avantEva = compter(ancienErrors, "eva", cleEva);
     const avantFas = compter(ancienErrors, "fas", cleFas);
     const avantPow = compter(ancienErrors, "pow", clePow);
@@ -473,6 +498,8 @@ BA.EvaDts = {
         const k = clePow(e);
         if (!avantPow[k]) res.pow.push(e);
         else avantPow[k]--;
+      } else if (t === "temp") {
+        if (!avantTemp.has(cleTemp(e))) res.temp.push(e);
       }
     });
     return res;
