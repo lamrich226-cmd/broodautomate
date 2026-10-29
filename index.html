@@ -3,50 +3,41 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Broodautomate</title>
+  <meta name="theme-color" content="#1e293b">
+  <title>Broodautomate — Admin</title>
   <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/reel.css">
 </head>
 <body>
-  <header>
-    <h1>🥖 Broodautomate</h1>
-    <div id="status-bar">
-      <span id="sim-status" class="badge off">Simulateur : OFF</span>
-      <span id="serial-status" class="badge off">RS232 : déconnecté</span>
-    </div>
-  </header>
+  <header id="app-header"></header>
+  <nav id="app-nav"></nav>
+  <main id="app-main"></main>
+  <footer id="app-footer"></footer>
+  <div id="modal-root"></div>
 
-  <nav>
-    <button data-view="fleet" class="active">🌍 Ma Flotte</button>
-    <button data-view="dashboard">📊 Détails Machine</button>
-    <button data-view="products">🍞 Produits / Stock</button>
-    <button data-view="sales">💶 Ventes</button>
-    <button data-view="alerts">⚠️ Alertes</button>
-    <button data-view="serial">🔌 Connexion RS232</button>
-  </nav>
-
-  <main>
-    <section id="view-fleet"     class="view active"></section>
-    <section id="view-dashboard" class="view"></section>
-    <section id="view-products"  class="view"></section>
-    <section id="view-sales"     class="view"></section>
-    <section id="view-alerts"    class="view"></section>
-    <section id="view-serial"    class="view"></section>
-  </main>
-
-  <footer>
-    <button id="btn-sim-toggle">▶ Démarrer le simulateur</button>
-    <button id="btn-reset" class="danger">🗑 Réinitialiser</button>
-    <span id="version"></span>
-  </footer>
-
-  <!-- Version de Supabase figée (la v3.0 prenait toujours la dernière « @2 ») -->
+  <!-- Supabase (version figée, comme en v3.2), graphiques et export Excel (versions figées) -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <script src="js/config.js"></script>
   <script src="js/db.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/i18n-forecast.js"></script>
+  <script src="js/i18n-reel.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/forecast.js"></script>
+  <script src="js/store-reel.js"></script>
   <script src="js/alertes.js"></script>
   <script src="js/evadts-parser.js"></script>
-  <script src="js/simulator.js"></script>
   <script src="js/serial.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/reel.js"></script>
+  <script src="js/actions.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/excel.js"></script>
+  <script src="js/history.js"></script>
+  <script src="js/admin-forecast.js"></script>
+  <script src="js/rs232.js"></script>
+  <script src="js/boot.js"></script>
+  <script src="js/admin.js"></script>
 </body>
 </html>

@@ -1,0 +1,36 @@
+/* ============================================================
+   BROODAUTOMATE v5 — styles ajoutés à ceux de la version test 4.8.1
+   (app.css n'est pas modifié) : écran de connexion / installation,
+   onglet « Connexion RS232 » (Mes machines, clé USB).
+   ============================================================ */
+
+/* ---- Écran de démarrage : connexion, chargement, installation ---- */
+#boot { position: fixed; inset: 0; z-index: 60; background: #0f172a; overflow: auto; padding: 8vh 16px 24px; display: flex; justify-content: center; align-items: flex-start; }
+.boot-box { width: 100%; max-width: 720px; }
+.boot-box .card { margin: 0 auto; }
+.boot-box .boot-login { max-width: 420px; }
+.boot-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.boot-top h2 { margin: 0; }
+.boot-box .alert { margin: 10px 0; }
+.boot-box a { color: #93c5fd; }
+.field-col { display: flex; flex-direction: column; gap: 4px; margin: 10px 0; font-size: .9rem; color: #cbd5e1; }
+.field-col input { font-size: 1rem; padding: 9px 10px; }
+.boot-login .btn.big { width: 100%; margin: 12px 0 0; }
+.boot-setup textarea.zone-texte { margin: 6px 0 4px; min-height: 220px; }
+
+/* ---- Onglet Connexion RS232 ---- */
+.rs-card { margin-bottom: 12px; }
+.rs-card h3 { margin-top: 0; }
+.rs-h2 { margin-top: 30px; padding-top: 18px; border-top: 1px solid #334155; }
+.rs-form { margin-top: 8px; }
+table.rs-machines td { vertical-align: middle; }
+table.rs-machines .txt-in { width: 170px; }
+label.file-btn { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+.add-sel-row label.file-btn { flex-direction: row; color: #fff; font-size: .9rem; }
+#serial-detect details { margin-top: 12px; }
+
+@media (max-width: 600px) {
+  #boot { padding-top: 16px; }
+  .boot-top { flex-wrap: wrap; }
+  table.rs-machines .txt-in { width: 140px; }
+}

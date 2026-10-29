@@ -45,6 +45,11 @@ window.BA = window.BA || {};
       return CONFIGURE;
     },
 
+    // v5 : le même client Supabase pour les données partagées (table ba_state, voir store-reel.js)
+    raw() {
+      return client();
+    },
+
     // ---------- Connexion ----------
     async getSession() {
       const { data } = await client().auth.getSession();
