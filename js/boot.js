@@ -31,10 +31,7 @@ create policy "ba_state_authenticated" on public.ba_state
   for all to authenticated using (true) with check (true);
 grant select, insert, update, delete on public.ba_state to authenticated;
 grant all on public.ba_state to service_role;
-do $$ begin
-  alter publication supabase_realtime add table public.ba_state;
-exception when duplicate_object then null;
-end $$;
+alter publication supabase_realtime add table public.ba_state;
 `;
 
   function screen(html) {
