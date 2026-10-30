@@ -1,4 +1,4 @@
-# Broodautomate v5.0
+# Broodautomate v5.1
 
 Logiciel de suivi des distributeurs de pain FAS Power Lift.
 
@@ -11,8 +11,8 @@ La version 5 reprend toutes les fonctions de la version test 4.8.1 : Dashboard, 
 ## Première ouverture (une seule fois)
 
 1. Ouvre le logiciel et connecte-toi avec ton compte habituel (le même que pour la v3).
-2. L'écran « Une dernière étape dans Supabase » s'affiche avec un script. Clique sur « Copier le script ».
-3. Dans Supabase : ton projet → **SQL Editor** → **New query** → colle le script → **Run**. Tu dois voir « Success ». Le même script est dans `supabase/ba_state.sql`.
+2. L'écran « Une dernière étape dans Supabase » s'affiche avec 5 commandes, chacune avec un bouton « Copier ».
+3. Dans Supabase : ton projet → **SQL Editor** → **New query**. L'éditeur n'accepte qu'une commande à la fois : colle une commande → **Run** → « Success » → commande suivante. Les mêmes commandes sont dans `supabase/ba_state.sql`.
 4. Reviens dans Broodautomate et clique sur « Réessayer ».
 
 Tes machines, produits et ventes de la v3 sont alors repris automatiquement. Les machines reçoivent les numéros #1, #2… dans l'ordre où elles ont été créées. Tu peux changer ces numéros dans l'onglet « Connexion RS232 », partie « Mes machines ». Le stock repris de la v3 forme un seul lot marqué « estimé ». Sa date est celle de la dernière livraison : corrige-la dans « Détails machine » si besoin.
@@ -35,6 +35,15 @@ Tes machines, produits et ventes de la v3 sont alors repris automatiquement. Les
   - au premier relevé d'une machine, son journal d'erreurs est repris comme historique dans les alertes « Résolues ».
 - Une machine est « En ligne » si elle a envoyé des données il y a moins de 45 minutes.
 
+## Boîtiers 4G (v5.1)
+
+Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la machine, la lit tout seul (liste 2, comme le câble) et envoie les relevés par la 4G. Ils sont traités exactement comme un relevé par câble (ventes, stock, alertes), sur le PC comme sur le téléphone, sans jamais compter une vente deux fois.
+
+- Mise en place : onglet « Connexion RS232 » → « 📡 Boîtiers 4G » (commandes SQL une par une, fonction « ingest », ajout d'un boîtier et de sa clé secrète).
+- Programme du boîtier et mode d'emploi pas à pas : dossier `lilygo/` (`lilygo/LISEZMOI.md`, `lilygo/broodautomate_lilygo.zip`).
+- « En ligne » : le boîtier envoie un signal de vie toutes les 30 minutes. Alertes : « Boîtier 4G muet », « Boîtier 4G : lecture de la machine impossible ».
+- La liaison du boîtier est une copie fidèle de `js/serial.js` (mêmes trames, même liste de sécurité) : il ne fait que lire.
+
 ## Fichiers
 
 | Fichier | Rôle |
@@ -50,7 +59,10 @@ Tes machines, produits et ventes de la v3 sont alors repris automatiquement. Les
 | `js/boot.js` | connexion au compte, chargement, écran d'installation |
 | `js/ui.js`, `js/admin.js`, `js/admin-forecast.js`, `js/operateur.js`, `js/history.js`, `js/excel.js` | écrans |
 | `js/i18n.js`, `js/i18n-forecast.js`, `js/i18n-reel.js` | textes en français, néerlandais et anglais |
-| `supabase/ba_state.sql` | script à coller une fois dans Supabase |
+| `js/boitiers.js`, `js/i18n-4g.js` | boîtiers 4G : relevés reçus par la 4G, état des boîtiers, ajout d'un boîtier |
+| `supabase/ba_state.sql` | commandes à passer une fois dans Supabase (données partagées) |
+| `supabase/4g-boitiers.sql`, `supabase/functions/ingest/index.ts` | boîtiers 4G : 9 commandes SQL et fonction « ingest » |
+| `lilygo/` | programme du boîtier 4G (LILYGO) et son mode d'emploi |
 
 ## Rappels de sécurité
 

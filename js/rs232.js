@@ -318,7 +318,7 @@ window.BA = window.BA || {};
         <td><input id="mm-city-${m.num}" class="txt-in" value="${E(m.city)}" data-f="city"></td>
         <td><select id="mm-region-${m.num}" class="auto-w" data-f="region"><option value="vl" ${m.region !== "bxl" ? "selected" : ""}>${E(t("rs_region_vl"))}</option><option value="bxl" ${m.region === "bxl" ? "selected" : ""}>${E(t("rs_region_bxl"))}</option></select></td>
         <td class="nowrap">${E(m.serial || "—")}</td>
-        <td>${m.online ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${m.lastSeen ? U().F.date(m.lastSeen) + " " + U().F.time(m.lastSeen) : "—"}</div></td>
+        <td>${m.online ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${m.lastSeen ? U().F.date(m.lastSeen) + " " + U().F.time(m.lastSeen) : "—"}${BA.Boitiers && BA.Boitiers.has(m.id) ? E(BA.Boitiers.tag(m)) : ""}</div></td>
         <td><button class="btn petit secondary" data-mdel="${m.num}" title="${E(t("rs_del_machine"))}">🗑</button></td></tr>`).join("")}</tbody></table></div>`;
   }
 
@@ -338,6 +338,7 @@ window.BA = window.BA || {};
     const ze = _el.querySelector("#rs-etat"); if (ze) ze.textContent = (BA.Serial.connected ? "🟢 " : "⚪ ") + (_etat || t("rs_state_off"));
     const bc = _el.querySelector("#btn-rs-connecter"); if (bc) bc.disabled = BA.Serial.connected;
     majProchaine();
+    if (BA.Boitiers) BA.Boitiers.redraw();
   }
 
   function render(el) {
@@ -392,6 +393,9 @@ window.BA = window.BA || {};
         <pre id="serial-brut">${E(_brut.join("\n")) || "— " + E(t("rs_nothing")) + " —"}</pre></details>
       <p class="note">🔒 ${E(t("rs_security"))}</p>
 
+      <h2 class="rs-h2">📡 ${E(t("rs_boxes"))}</h2>
+      <div id="rs-boitiers"></div>
+
       <h2 class="rs-h2">🏭 ${E(t("rs_my_machines"))}</h2>
       <p class="note">${E(t("rs_my_machines_note"))}</p>
       <div id="rs-machines">${htmlMachines()}</div>
@@ -415,6 +419,7 @@ window.BA = window.BA || {};
       <pre id="eva-parsed">— ${E(t("eva_parse_hint"))} —</pre>`;
     bind();
     majProchaine();
+    if (BA.Boitiers) BA.Boitiers.mount(el.querySelector("#rs-boitiers"));
   }
 
   function bindChoix() {
@@ -603,7 +608,7 @@ window.BA = window.BA || {};
       ${s.machines.length ? `<div class="table-scroll"><table>
         <thead><tr><th>${E(t("machine"))}</th><th>${E(t("col_address"))}</th><th>${E(t("col_link"))}</th><th>${E(t("col_last_data"))}</th></tr></thead>
         <tbody>${s.machines.map(m => `<tr><td class="selno">#${m.num}</td><td>${E(m.street)}, ${E(m.city)}</td>
-          <td>${m.online ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}</td>
+          <td>${m.online ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}${BA.Boitiers && BA.Boitiers.has(m.id) ? `<div class="petit">${E(BA.Boitiers.tag(m).replace(/^ · /, ""))}</div>` : ""}</td>
           <td>${m.lastSeen ? F.date(m.lastSeen) + " " + F.clock(m.lastSeen) : "—"}</td></tr>`).join("")}</tbody></table></div>`
         : `<div class="alert info">${E(t("no_machine_op"))}</div>`}`;
   }
@@ -611,6 +616,8 @@ window.BA = window.BA || {};
   BA.Rs232 = {
     render, renderOp, init, badge,
     tick: () => majDyn(),
+    // relevé gardé dans la table « audits » (point de départ du relevé suivant) : utilisé aussi par les boîtiers 4G
+    saveAudit: sauverAudit,
     // pour les tests
     _traiter: traiter, _rs: () => _rs, _journal: () => _journal
   };

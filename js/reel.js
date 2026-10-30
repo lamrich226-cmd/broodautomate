@@ -125,7 +125,7 @@ window.BA = window.BA || {};
       if (e.active === false) M.resolveEvents(s, m.num, "MACHINE_EVENT", x => x.data.code === e.code);
     });
   }
-  // src : "usb" (clé USB : la machine n'est pas pour autant reliée) ou "rs232"
+  // src : "usb" (clé USB : la machine n'est pas pour autant reliée), "rs232" ou "4g" (boîtier 4G)
   function seen(s, m, t, src) {
     if (src !== "usb") m.link = true;
     m.lastSeen = Math.max(m.lastSeen || 0, t);
@@ -289,7 +289,9 @@ window.BA = window.BA || {};
   };
 
   // ---------------- BA.Live : heure réelle et entretien ----------------
-  const onlineNow = (s, m) => !!(m.link && m.lastSeen && s.now - m.lastSeen < (Number(C.onlineMinutes) || 45) * MIN);
+  // En ligne : données reçues il y a moins de 45 min (câble ou 4G), ou boîtier 4G qui donne signe de vie
+  const onlineNow = (s, m) => !!(m.link && m.lastSeen && s.now - m.lastSeen < (Number(C.onlineMinutes) || 45) * MIN)
+    || !!(BA.Boitiers && BA.Boitiers.alive(m.id, s.now));
   function housekeeping(s, m) {
     const st = s.settings;
     // La porte n'est connue que par les relevés : sans données récentes (câble débranché, machine hors ligne),

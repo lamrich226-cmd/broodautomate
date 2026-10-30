@@ -1,10 +1,11 @@
 // ============================================================
-// BROODAUTOMATE — Configuration (v5.0)
+// BROODAUTOMATE — Configuration (v5.1)
 // Version 5 : toutes les fonctions de la version de test 4.8.1
 // (Dashboard, lots datés, appli opérateur, Commander, Prévisions,
 // Statistiques, Historique, FR/NL/EN), branchées sur les vraies
 // machines : câble RS232 (EVA-DTS DDCMP, réglages inchangés) et
 // Supabase (données partagées entre l'admin et l'opérateur).
+// v5.1 : boîtiers 4G (LILYGO) qui lisent les machines à distance.
 // ============================================================
 // MODE RÉEL  : url + key remplies  → connexion Supabase (données en ligne)
 // MODE LOCAL : mettre "REMPLACER_ICI" dans url ET key → données gardées dans ce navigateur
@@ -13,7 +14,7 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate", version: "5.0.0" },
+  app: { name: "Broodautomate", version: "5.1.0" },
   currency: "EUR",
 
   supabase: {

@@ -29,8 +29,23 @@ label.file-btn { display: inline-flex; align-items: center; gap: 6px; cursor: po
 .add-sel-row label.file-btn { flex-direction: row; color: #fff; font-size: .9rem; }
 #serial-detect details { margin-top: 12px; }
 
+/* ---- Commandes SQL une par une (installation, boîtiers 4G) ---- */
+ol.sql-steps { margin: 8px 0; padding-left: 22px; }
+ol.sql-steps li { margin: 0 0 8px; }
+ol.sql-steps code { display: block; white-space: pre-wrap; word-break: break-word; background: #0b1220; border: 1px solid #334155; border-radius: 6px; padding: 6px 8px; font-size: .78rem; color: #e2e8f0; margin-bottom: 4px; }
+ol.sql-steps .btn.petit { margin-left: 0; }
+
+/* ---- Boîtiers 4G ---- */
+ol.bx-steps { margin: 6px 0 12px; padding-left: 22px; font-size: .9rem; }
+ol.bx-steps li { margin: 4px 0; }
+table.bx-table td { vertical-align: middle; }
+table.bx-table select { max-width: 230px; }
+pre.bx-key { white-space: pre-wrap; word-break: break-all; background: #0b1220; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-size: .9rem; color: #fde68a; user-select: all; }
+.dlg-body textarea.zone-texte { width: 100%; font-family: monospace; font-size: .75rem; }
+
 @media (max-width: 600px) {
   #boot { padding-top: 16px; }
   .boot-top { flex-wrap: wrap; }
   table.rs-machines .txt-in { width: 140px; }
+  table.bx-table select { max-width: 160px; }
 }

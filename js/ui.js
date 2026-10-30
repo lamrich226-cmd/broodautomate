@@ -59,7 +59,9 @@ window.BA = window.BA || {};
   const tempBadOf = (s, m) => hasTemp(m) && (m.temp > s.settings.tempMax || m.temp < s.settings.tempMin);
   const tempTxt = m => hasTemp(m) ? F.num(m.temp, 1) + " °C" : "— °C";
   // v5 : plus de « vente dans mm:ss » (simulateur) : heure des dernières données reçues
-  const seenTxt = (s, m) => m.lastSeen ? t("foot_seen", { d: (M.dayKey(m.lastSeen) === M.dayKey(s.now) ? "" : F.dt(m.lastSeen).slice(0, 5) + " ") + F.time(m.lastSeen) }) : t("foot_never");
+  // v5.1 : + état du boîtier 4G (« 📡 4G 04:19 » = dernier signe de vie)
+  const boxTag = m => BA.Boitiers ? F.esc(BA.Boitiers.tag(m)) : "";
+  const seenTxt = (s, m) => (m.lastSeen ? t("foot_seen", { d: (M.dayKey(m.lastSeen) === M.dayKey(s.now) ? "" : F.dt(m.lastSeen).slice(0, 5) + " ") + F.time(m.lastSeen) }) : t("foot_never")) + boxTag(m);
 
   // ---------------- Fenêtre de confirmation (suppressions, réinitialisation) ----------------
   // o = { title, html, ok, cancel, danger, onOk } — Échap, « Annuler » ou un clic à côté ferment sans rien faire.
@@ -149,9 +151,9 @@ window.BA = window.BA || {};
     if (x.oldest !== null) chips.push(`<span class="chip">${t("chip_oldest")} ${F.age(s.now - x.oldest)}</span>`);
     chips.push(`<span class="chip ${tempBadOf(s, m) ? "c-error" : ""}">🌡 ${tempTxt(m)}</span>`);
     let left;
-    if (m.door) left = t("foot_door");
-    else if (m.power) left = t("foot_power");
-    else if (x.total === 0) left = t("foot_empty");
+    if (m.door) left = t("foot_door") + boxTag(m);
+    else if (m.power) left = t("foot_power") + boxTag(m);
+    else if (x.total === 0) left = t("foot_empty") + boxTag(m);
     else left = seenTxt(s, m);
     const today = (s.daily[M.dayKey(s.now)] || {})[m.num];
     const right = admin ? `🧾 ${today ? today.s : 0} · ${F.eur(today ? today.r : 0)}` : (m.online ? "🟢 " + t("online") : "⚪ " + t("offline"));   // v5 : état réel

@@ -14,24 +14,32 @@ window.BA = window.BA || {};
   const t = (k, v) => BA.I18n.t(k, v);
   const E = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-  // Script à coller une seule fois dans Supabase (SQL Editor)
-  const SQL = `-- Broodautomate v5 : données partagées (admin + appli opérateur)
--- Supabase → SQL Editor → New query → coller → Run (une seule fois).
--- Les tables de la v3 (machines, products, sales, events, audits) ne changent pas.
-create table if not exists public.ba_state (
-  id          text primary key,
-  version     bigint not null default 1,
-  data        jsonb  not null,
-  updated_at  timestamptz not null default now(),
-  updated_by  text
-);
-alter table public.ba_state enable row level security;
-drop policy if exists "ba_state_authenticated" on public.ba_state;
-create policy "ba_state_authenticated" on public.ba_state
-  for all to authenticated using (true) with check (true);
-grant select, insert, update, delete on public.ba_state to authenticated;
-grant all on public.ba_state to service_role;
-`;
+  // Commandes à passer une seule fois dans Supabase (SQL Editor). L'éditeur de Supabase n'accepte
+  // qu'UNE commande par « Run » : elles sont montrées une par une, chacune avec un bouton « Copier ».
+  const SQL_STEPS = [
+    "create table if not exists public.ba_state (id text primary key, version bigint not null default 1, data jsonb not null, updated_at timestamptz not null default now(), updated_by text);",
+    "alter table public.ba_state enable row level security;",
+    "create policy \"ba_state_authenticated\" on public.ba_state for all to authenticated using (true) with check (true);",
+    "grant select, insert, update, delete on public.ba_state to authenticated;",
+    "grant all on public.ba_state to service_role;"
+  ];
+  const SQL = SQL_STEPS.join("\n");
+
+  // Liste de commandes SQL avec un bouton « Copier » chacune (aussi utilisée par les boîtiers 4G)
+  const sqlList = (list, id) => `<ol class="sql-steps" id="${id}">${list.map((q, i) =>
+    `<li><code>${E(q)}</code><button class="btn petit" data-copy-step="${i}">📋 ${E(t("setup_copy_one"))}</button></li>`).join("")}</ol>`;
+  async function copyText(text, btn) {
+    try { await navigator.clipboard.writeText(text); }
+    catch (e) {
+      const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta); ta.select();
+      try { document.execCommand("copy"); } catch (e2) { /* rien */ }
+      ta.remove();
+    }
+    if (btn) btn.textContent = "✅ " + t("setup_copied_one");
+  }
+  function bindSqlList(root, list) {
+    root.querySelectorAll("[data-copy-step]").forEach(b => b.onclick = () => copyText(list[Number(b.dataset.copyStep)], b));
+  }
 
   function screen(html) {
     let el = document.getElementById("boot");
@@ -48,7 +56,7 @@ grant all on public.ba_state to service_role;
   }
 
   const Boot = {
-    SQL,
+    SQL, SQL_STEPS, sqlList, bindSqlList, copyText,
     async start(ctx) {
       BA.I18n.load(ctx.role);
       document.documentElement.lang = BA.I18n.lang;
@@ -73,6 +81,7 @@ grant all on public.ba_state to service_role;
       }
       close();
       BA.Shell.init(ctx);
+      if (BA.Boitiers) BA.Boitiers.start();          // boîtiers 4G : relevés reçus par la 4G
       if (ctx.afterInit) { try { ctx.afterInit(); } catch (e) { console.error(e); } }
       if (BA.Store.status().lost && BA.UI) BA.UI.toast(t("sync_lost"), 20000);
     },
@@ -105,19 +114,15 @@ grant all on public.ba_state to service_role;
         <div class="boot-top"><h2>🛠 ${E(t("setup_title"))}</h2>${langSelect(ctx)}</div>
         <p>${E(t("setup_text"))}</p>
         <p class="note">${E(t("setup_steps"))}</p>
-        <textarea id="setup-sql" class="zone-texte" rows="14" readonly>${E(SQL)}</textarea>
+        ${sqlList(SQL_STEPS, "setup-sql")}
+        <p class="note">${E(t("setup_exists"))}</p>
         <div class="carte-actions wrap-actions">
-          <button class="btn" id="setup-copy">${E(t("setup_copy"))}</button>
-          <button class="btn secondary" id="setup-retry">${E(t("setup_retry"))}</button>
+          <button class="btn" id="setup-retry">${E(t("setup_retry"))}</button>
         </div>
         <p class="note">${E(t("setup_v3"))} <a href="v3/index.html">v3/index.html</a></p>
       </div>`);
       bindLang(ctx, () => this.setup(ctx));
-      document.getElementById("setup-copy").onclick = async () => {
-        const ta = document.getElementById("setup-sql");
-        try { await navigator.clipboard.writeText(SQL); } catch (e) { ta.select(); try { document.execCommand("copy"); } catch (e2) { /* rien */ } }
-        document.getElementById("setup-copy").textContent = "✅ " + t("setup_copied");
-      };
+      bindSqlList(document.getElementById("boot"), SQL_STEPS);
       document.getElementById("setup-retry").onclick = () => this.load(ctx);
     },
 
