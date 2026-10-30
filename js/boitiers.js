@@ -77,8 +77,13 @@ window.BA = window.BA || {};
       throw new Error(res.error.message);
     }
     installed = true;
-    devices = res.data || [];
+    devices = (res.data || []).map(d => { if (d && d.info && typeof d.info.st === "string") d.info = Object.assign({}, d.info, { st: fixUtf8(d.info.st) }); return d; });
     return true;
+  }
+  // Le boîtier envoie chaque octet en \u00XX : un texte avec accents arrive en « Ã© » ; on le remet en « é »
+  function fixUtf8(s) {
+    if (!/[\u00C2-\u00F4][\u0080-\u00BF]/.test(s)) return s;
+    try { return decodeURIComponent(escape(s)); } catch (e) { return s; }
   }
 
   // ---------------- Relevé de départ ----------------
