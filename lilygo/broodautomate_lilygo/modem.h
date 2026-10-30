@@ -19,7 +19,7 @@ class Modem {
   bool pret = false;                  // le modem répond aux commandes AT
   bool reseau = false;                // enregistré sur le réseau 4G et données actives
   int csq = 99;                       // qualité du signal 0…31 (99 = inconnue)
-  String operateur, ip, derniereErreur;
+  String operateur, ip, derniereErreur, opBon;
 
   // ---------- Allumage ----------
   bool demarrer() {
@@ -82,14 +82,19 @@ class Modem {
     at("AT+CNMP=2", "OK", 3000);
     at("AT+CEREG=0", "OK", 2000);
     Serial.print(F("[4G] Recherche du réseau"));
-    bool ok = false;
-    for (int i = 0; i < 150 && !ok; i++) {
-      ok = enregistre("AT+CEREG?", "+CEREG:") || enregistre("AT+CGREG?", "+CGREG:") || enregistre("AT+CREG?", "+CREG:");
-      if (!ok) {
-        if (i % 10 == 0) { signal(); Serial.print(" [" + String(i) + " s, signal " + String(csq) + "]"); }
-        else if (i % 2 == 0) Serial.print('.');
-        attendre(1000);
+    // Phase 1 : choix automatique de l'opérateur (60 s)
+    bool ok = attendreReseau(60);
+    // Phase 2 : si rien, on force chaque opérateur belge l'un après l'autre (dernier opérateur qui a marché en premier)
+    if (!ok) {
+      String liste[3] = { "20620", "20601", "20610" };   // Telenet/BASE, Proximus, Orange
+      if (opBon.length()) { for (int k = 0; k < 3; k++) if (liste[k] == opBon) { String t = liste[0]; liste[0] = liste[k]; liste[k] = t; } }
+      for (int k = 0; k < 3 && !ok; k++) {
+        Serial.print("\n[4G] Essai de l'opérateur " + liste[k] + " ");
+        at(String("AT+COPS=1,2,\"") + liste[k] + "\"", "OK", 60000);
+        ok = attendreReseau(30);
+        if (ok) opBon = liste[k];
       }
+      if (!ok) { Serial.print(F("\n[4G] Retour au choix automatique ")); at("AT+COPS=0", "OK", 15000); ok = attendreReseau(40); }
     }
     Serial.println();
     signal();
@@ -117,6 +122,16 @@ class Modem {
     reseau = true;
     Serial.println("[4G] ✔ Réseau : " + (operateur.length() ? operateur : String("?")) + ", signal " + String(csq) + "/31, adresse " + ip);
     return true;
+  }
+  // Attend l'inscription sur le réseau (secondes) ; affiche le signal toutes les 10 s
+  bool attendreReseau(int secondes) {
+    for (int i = 0; i < secondes; i++) {
+      if (enregistre("AT+CEREG?", "+CEREG:") || enregistre("AT+CGREG?", "+CGREG:") || enregistre("AT+CREG?", "+CREG:")) return true;
+      if (i % 10 == 0) { signal(); Serial.print(" [" + String(i) + " s, signal " + String(csq) + "]"); }
+      else if (i % 2 == 0) Serial.print('.');
+      attendre(1000);
+    }
+    return false;
   }
   bool encoreConnecte() {
     if (!reseau) return false;
