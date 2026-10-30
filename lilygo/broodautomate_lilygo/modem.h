@@ -110,11 +110,21 @@ class Modem {
       return false;
     }
     if (at("AT+COPS?", "OK", 3000)) operateur = extraitGuillemets("+COPS:");
-    // Données (contexte PDP n°1)
-    if (!(at("AT+CGACT?", "OK", 3000) && rep_.indexOf("+CGACT: 1,1") >= 0)) at("AT+CGACT=1,1", "OK", 30000);
-    at("AT+CDNSCFG=\"8.8.8.8\",\"1.1.1.1\"", "OK", 3000);   // serveurs DNS publics (évite l'erreur 713 « DNS impossible »)
+    // Données (contexte PDP n°1). Si l'APN de config.h ne donne pas d'adresse, on essaie les APN belges courants.
+    const char* apns[4] = { APN, "web.be", "mworld.be", "internet.proximus.be" };
     ip = "";
-    if (at("AT+CGPADDR=1", "OK", 3000)) { String a = extrait("+CGPADDR:"); int v = a.indexOf(','); ip = v >= 0 ? a.substring(v + 1) : a; ip.replace("\"", ""); }
+    for (int k = 0; k < 4 && (!ip.length() || ip == "0.0.0.0"); k++) {
+      if (k > 0) {
+        if (String(apns[k]) == String(APN)) continue;
+        Serial.println(String("[4G] Pas d'adresse avec l'APN précédent : essai de l'APN « ") + apns[k] + " »");
+        at("AT+CGACT=0,1", "OK", 10000);
+        at(String("AT+CGDCONT=1,\"IP\",\"") + apns[k] + "\"", "OK", 3000);
+      }
+      if (!(at("AT+CGACT?", "OK", 3000) && rep_.indexOf("+CGACT: 1,1") >= 0)) at("AT+CGACT=1,1", "OK", 30000);
+      at("AT+CDNSCFG=\"8.8.8.8\",\"1.1.1.1\"", "OK", 3000);   // serveurs DNS publics (évite l'erreur 713 « DNS impossible »)
+      if (at("AT+CGPADDR=1", "OK", 3000)) { String a = extrait("+CGPADDR:"); int v = a.indexOf(','); ip = v >= 0 ? a.substring(v + 1) : a; ip.replace("\"", ""); }
+      if (ip.length() && ip != "0.0.0.0" && k > 0) Serial.println(String("[4G] ✔ L'APN « ") + apns[k] + " » fonctionne : écris-le dans config.h (APN).");
+    }
     if (!ip.length() || ip == "0.0.0.0") {
       derniereErreur = "réseau trouvé mais pas de données (APN ?)";
       Serial.println(F("[4G] ✖ Réseau trouvé mais pas d'accès aux données : vérifie l'APN dans config.h et le forfait de la carte SIM."));
