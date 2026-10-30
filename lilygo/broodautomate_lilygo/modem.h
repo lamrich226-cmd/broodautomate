@@ -76,15 +76,30 @@ class Modem {
       return false;
     }
     at(String("AT+CGDCONT=1,\"IP\",\"") + APN + "\"", "OK", 3000);
+    // Réglages « sans surprise » : radio allumée, choix automatique de l'opérateur et du type de réseau
+    at("AT+CFUN=1", "OK", 10000);
+    at("AT+COPS=0", "OK", 15000);
+    at("AT+CNMP=2", "OK", 3000);
+    at("AT+CEREG=0", "OK", 2000);
     Serial.print(F("[4G] Recherche du réseau"));
     bool ok = false;
-    for (int i = 0; i < 120 && !ok; i++) {
+    for (int i = 0; i < 150 && !ok; i++) {
       ok = enregistre("AT+CEREG?", "+CEREG:") || enregistre("AT+CGREG?", "+CGREG:") || enregistre("AT+CREG?", "+CREG:");
-      if (!ok) { if (i % 5 == 0) Serial.print('.'); attendre(1000); }
+      if (!ok) {
+        if (i % 10 == 0) { signal(); Serial.print(" [" + String(i) + " s, signal " + String(csq) + "]"); }
+        else if (i % 2 == 0) Serial.print('.');
+        attendre(1000);
+      }
     }
     Serial.println();
     signal();
     if (!ok) {
+      // Diagnostic pour comprendre pourquoi (à copier si ça se reproduit)
+      at("AT+CPIN?", "OK", 3000);  Serial.println("[4G] Diagnostic SIM     : " + nettoie(rep_));
+      at("AT+CEREG?", "OK", 3000); Serial.println("[4G] Diagnostic 4G      : " + nettoie(rep_) + "  (0,2 = cherche ; 0,3 = refusé ; 0,0 = arrêt)");
+      at("AT+CGREG?", "OK", 3000); Serial.println("[4G] Diagnostic 2G/3G   : " + nettoie(rep_));
+      at("AT+COPS?", "OK", 3000);  Serial.println("[4G] Diagnostic opérateur: " + nettoie(rep_));
+      at("AT+CPSI?", "OK", 3000);  Serial.println("[4G] Diagnostic cellule : " + nettoie(rep_));
       derniereErreur = "pas de réseau 4G (signal " + String(csq) + "/31)";
       Serial.println("[4G] ✖ Pas de réseau. Signal : " + String(csq) + "/31 (99 = aucun). Vérifie l'antenne 4G (prise « LTE ») et la carte SIM.");
       return false;

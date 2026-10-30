@@ -17,7 +17,7 @@
 #define DEVICE_KEY  "COLLE_ICI_LA_CLE_DU_BOITIER"
 
 // ---------- 3. Carte SIM ----------
-#define APN      "internet.proximus.be"   // Mobile Vikings (réseau Proximus). Carte 1NCE : "iot.1nce.net"
+#define APN      "internet"   // Digi Portugal : "internet". Mobile Vikings : "internet.proximus.be". 1NCE : "iot.1nce.net"
 #define SIM_PIN  ""                       // vide si la carte SIM n'a pas de code PIN (conseillé)
 
 // ---------- 4. Supabase (ne pas changer) ----------
