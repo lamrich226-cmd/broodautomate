@@ -154,6 +154,7 @@ static bool envoyer(const Releve* r) {
   Serial.printf("[Envoi] ✖ Échec (code %d) : %s\n", code, modem.derniereErreur.c_str());
   if (code == 401) Serial.println(F("[Envoi]   → Clé refusée : vérifie DEVICE_KEY dans config.h (clé donnée par Broodautomate pour CE boîtier)."));
   else if (code == 404) Serial.println(F("[Envoi]   → Fonction « ingest » introuvable : déploie-la dans Supabase (Edge Functions)."));
+  else if (code == 713) Serial.println(F("[Envoi]   → DNS impossible (le modem ne trouve pas l'adresse de Supabase) : signal faible ou réseau instable, nouvel essai plus tard."));
   else if (code >= 700) Serial.println(F("[Envoi]   → Erreur de connexion du modem (réseau ou HTTPS) : nouvel essai plus tard."));
   return false;
 }

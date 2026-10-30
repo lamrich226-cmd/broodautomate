@@ -112,6 +112,7 @@ class Modem {
     if (at("AT+COPS?", "OK", 3000)) operateur = extraitGuillemets("+COPS:");
     // Données (contexte PDP n°1)
     if (!(at("AT+CGACT?", "OK", 3000) && rep_.indexOf("+CGACT: 1,1") >= 0)) at("AT+CGACT=1,1", "OK", 30000);
+    at("AT+CDNSCFG=\"8.8.8.8\",\"1.1.1.1\"", "OK", 3000);   // serveurs DNS publics (évite l'erreur 713 « DNS impossible »)
     ip = "";
     if (at("AT+CGPADDR=1", "OK", 3000)) { String a = extrait("+CGPADDR:"); int v = a.indexOf(','); ip = v >= 0 ? a.substring(v + 1) : a; ip.replace("\"", ""); }
     if (!ip.length() || ip == "0.0.0.0") {
