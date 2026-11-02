@@ -1,4 +1,4 @@
-# Broodautomate v5.3
+# Broodautomate v5.4
 
 Logiciel de suivi des distributeurs de pain FAS Power Lift.
 
@@ -45,6 +45,11 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Programme du boîtier et mode d'emploi pas à pas : dossier `lilygo/` (`lilygo/LISEZMOI.md`, `lilygo/broodautomate_lilygo.zip`).
 - « En ligne » : le boîtier passe chez Supabase toutes les 2 minutes (demandes de lecture) et envoie son état toutes les 30 minutes. Alertes : « Boîtier 4G muet », « Boîtier 4G : lecture de la machine impossible ».
 - La liaison du boîtier est une copie fidèle de `js/serial.js` (mêmes trames, même liste de sécurité) : il ne fait que lire.
+
+## Menu et IA (v5.4)
+
+- **Menu en barre latérale flottante** (admin, `index.html`) : repliée sur les icônes, elle s'ouvre par-dessus la page quand la souris passe dessus (ou au clavier avec Tab). Le bouton ☰ la garde ouverte (le contenu se décale) ; ce choix est gardé sur l'appareil. Téléphone : un bouton rond ☰ en bas à gauche ouvre le menu. L'appli opérateur garde son menu du haut. Palette « Ocean Depths » (marine, turquoise, écume) sur le fond ardoise.
+- **🤖 Copier pour l'IA** (page « Commander / Extraction ») : un clic copie un résumé en français (règles de la tournée, stock par machine et par type de pain, ventes par jour de semaine, jours fériés des 14 prochains jours, alertes actives, calcul du logiciel s'il existe) à coller dans Claude ou ChatGPT en version gratuite. Rien n'est envoyé tout seul, aucune clé, aucun coût ; l'IA conseille, tu décides.
 
 ## Fichiers
 

@@ -702,9 +702,18 @@ window.BA = window.BA || {};
           <a class="badge link" href="${c.role === "admin" ? "operateur.html" : "index.html"}">${c.role === "admin" ? "📱 " + t("open_operator") : "🖥 " + t("open_admin")}</a>
           ${BA.DB && BA.DB.isReady() ? `<button id="btn-logout" class="badge link" title="${E(BA.DB.email || "")}">🚪 ${t("logout")}</button>` : ""}
         </div>`;
-      $("#app-nav").innerHTML = c.views.map(v =>
-        `<button data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}">${v.icon} ${t(v.label)}</button>`).join("");
-      $("#app-nav").querySelectorAll("button").forEach(b => b.onclick = () => this.go(b.dataset.view));
+      // v5.4 : admin = barre latérale flottante (icônes, s'ouvre au survol) ; opérateur = menu du haut comme avant
+      const rail = c.role === "admin";
+      document.body.classList.toggle("has-rail", rail);
+      const nav = $("#app-nav");
+      nav.className = rail ? "rail" : "";
+      nav.setAttribute("aria-label", t("nav_menu"));
+      nav.innerHTML = rail
+        ? `<button type="button" class="rail-toggle" aria-pressed="false"><span class="ni" aria-hidden="true">☰</span><span class="nl"></span></button>`
+          + c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${v.icon}</span><span class="nl">${t(v.label)}</span></button>`).join("")
+        : c.views.map(v => `<button data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}">${v.icon} ${t(v.label)}</button>`).join("");
+      nav.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => { this.go(b.dataset.view); if (rail) this.railClose(); });
+      if (rail) this.railInit();
       $("#app-main").innerHTML = c.views.map(v => `<section id="view-${v.id}" class="view ${v.id === this.state.view ? "active" : ""}"></section>`).join("");
       $("#app-footer").innerHTML = c.footer();
       if (c.bindFooter) c.bindFooter();
@@ -715,10 +724,64 @@ window.BA = window.BA || {};
       this.refreshChrome();
     },
 
+    // ---------- Barre latérale flottante (admin, v5.4) ----------
+    // Repliée : seulement les icônes. La souris dessus (ou le clavier) l'ouvre par-dessus la page. Le bouton ☰ la garde
+    // ouverte (« épinglée », mémorisé sur cet appareil). Téléphone : un bouton rond ☰ ouvre le menu en panneau.
+    railLabels() {
+      const nav = $("#app-nav"), pinned = document.body.classList.contains("rail-pinned");
+      const tg = nav.querySelector(".rail-toggle");
+      if (tg) {
+        const txt = t(pinned ? "nav_unpin" : "nav_pin");
+        tg.setAttribute("aria-pressed", pinned ? "true" : "false");
+        tg.querySelector(".nl").textContent = txt;
+      }
+      const fab = document.getElementById("rail-fab");
+      if (fab) { const open = nav.classList.contains("open"); fab.setAttribute("aria-label", t(open ? "nav_close" : "nav_open")); fab.setAttribute("aria-expanded", open ? "true" : "false"); }
+    },
+    railClose() {
+      const nav = $("#app-nav"); if (!nav) return;
+      nav.classList.remove("open", "hot");
+      const bk = document.getElementById("rail-back"); if (bk) bk.classList.remove("on");
+      this.railLabels();
+    },
+    railInit() {
+      const nav = $("#app-nav");
+      try { document.body.classList.toggle("rail-pinned", localStorage.getItem("ba_rail_pinned") === "1"); } catch (e) { /* mémoire du navigateur bloquée : tant pis */ }
+      // bouton rond (téléphone) et fond
+      if (!document.getElementById("rail-fab")) {
+        const fab = document.createElement("button"); fab.id = "rail-fab"; fab.type = "button"; fab.className = "rail-fab"; fab.textContent = "☰";
+        const bk = document.createElement("div"); bk.id = "rail-back"; bk.className = "rail-back";
+        document.body.appendChild(bk); document.body.appendChild(fab);
+        fab.addEventListener("click", () => {
+          const on = !nav.classList.contains("open");
+          nav.classList.toggle("open", on); bk.classList.toggle("on", on); this.railLabels();
+        });
+        bk.addEventListener("click", () => this.railClose());
+      }
+      nav.querySelector(".rail-toggle").onclick = () => {
+        const on = !document.body.classList.contains("rail-pinned");
+        document.body.classList.toggle("rail-pinned", on);
+        try { localStorage.setItem("ba_rail_pinned", on ? "1" : "0"); } catch (e) { /* tant pis */ }
+        this.railLabels();
+      };
+      if (!nav.dataset.railBound) {          // une seule fois : le menu est redessiné au changement de langue
+        nav.dataset.railBound = "1";
+        let tIn = null, tOut = null;
+        nav.addEventListener("pointerenter", e => { if (e.pointerType !== "mouse") return; clearTimeout(tOut); tIn = setTimeout(() => nav.classList.add("hot"), 110); });
+        nav.addEventListener("pointerleave", e => { if (e.pointerType !== "mouse") return; clearTimeout(tIn); tOut = setTimeout(() => nav.classList.remove("hot"), 220); });
+        document.addEventListener("keydown", e => { if (e.key === "Escape") this.railClose(); });
+      }
+      this.railLabels();
+    },
+
     go(view) {
       this.state.view = view;
       try { history.replaceState(null, "", "#" + view); } catch (e) { /* rien */ }
-      $("#app-nav").querySelectorAll("button").forEach(b => b.classList.toggle("active", b.dataset.view === view));
+      $("#app-nav").querySelectorAll("button[data-view]").forEach(b => {
+        const on = b.dataset.view === view;
+        b.classList.toggle("active", on);
+        if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+      });
       $("#app-main").querySelectorAll(".view").forEach(sec => sec.classList.toggle("active", sec.id === "view-" + view));
       this.renderView(true);
       window.scrollTo(0, 0);

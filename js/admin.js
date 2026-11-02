@@ -151,6 +151,7 @@
         <button data-tab="stock" class="${o.tab === "stock" ? "active" : ""}">📋 ${t("tab_stock")}</button>
       </div>
       ${BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard({ planAt: o.tab === "order" && o.plan ? o.planAt : 0 }) : ""}
+      ${BA.IA ? BA.IA.card() : ""}
       ${body}
       ${lastOrders(s)}`;
 

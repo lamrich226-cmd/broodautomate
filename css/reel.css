@@ -66,3 +66,61 @@ ol.sql-steps .bx-new { display: block; margin: 10px 0 4px; color: #fde68a; }
   table.rs-machines .txt-in { width: 140px; }
   table.bx-table select { max-width: 160px; }
 }
+
+/* ============================================================
+   v5.4 — Barre latérale flottante (admin) et « Copier pour l'IA »
+   Palette « Ocean Depths » (theme-factory) posée sur le fond ardoise de l'appli :
+   marine #162033, turquoise #2d8b8b, écume #a8dadc.
+   Repliée : seulement les icônes. Souris dessus ou clavier : elle s'ouvre PAR-DESSUS la page
+   (le contenu ne bouge pas). ☰ la garde ouverte et pousse alors le contenu.
+   ============================================================ */
+:root { --rail-bg: #162033; --rail-line: #2a3a52; --rail-ink: #e2e8f0; --rail-dim: #94a3b8; --rail-accent: #2d8b8b; --rail-soft: #a8dadc; --rail-w: 56px; --rail-wide: 244px; }
+body.has-rail main { margin-left: calc(var(--rail-w) + 28px); transition: margin-left .18s ease; }
+body.has-rail footer { padding-left: calc(var(--rail-w) + 36px); }
+body.has-rail.rail-pinned main { margin-left: calc(var(--rail-wide) + 28px); }
+body.has-rail.rail-pinned footer { padding-left: calc(var(--rail-wide) + 36px); }
+
+nav.rail { position: fixed; left: 12px; top: 50%; transform: translateY(-50%); z-index: 45; width: var(--rail-w); max-height: calc(100vh - 24px); overflow: hidden auto; scrollbar-width: none;
+  display: flex; flex-direction: column; flex-wrap: nowrap; gap: 4px; padding: 6px; background: var(--rail-bg); border: 1px solid var(--rail-line); border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(2, 6, 23, .55); transition: width .18s ease, box-shadow .18s ease; }
+nav.rail::-webkit-scrollbar { display: none; }
+nav.rail.hot, nav.rail:has(:focus-visible), body.rail-pinned nav.rail { width: var(--rail-wide); }
+nav.rail.hot { box-shadow: 0 18px 44px rgba(2, 6, 23, .68); }
+nav.rail button { position: relative; display: flex; align-items: center; flex: none; width: 100%; height: 44px; padding: 0; overflow: hidden; background: transparent; color: var(--rail-ink); border: 0; border-radius: 12px; cursor: pointer; text-align: left; font: inherit; }
+nav.rail button:hover { background: rgba(168, 218, 220, .09); }
+nav.rail button.active { background: rgba(45, 139, 139, .24); color: var(--rail-soft); }
+nav.rail button.active::before { content: ""; position: absolute; left: 0; top: 11px; bottom: 11px; width: 3px; border-radius: 3px; background: var(--rail-soft); }
+nav.rail button:focus-visible { outline: 2px solid var(--rail-soft); outline-offset: -2px; }
+nav.rail .ni { flex: none; width: 44px; text-align: center; font-size: 1.15rem; line-height: 1; }
+nav.rail .nl { flex: 1; min-width: 0; padding-right: 14px; white-space: nowrap; font-size: .92rem; opacity: 0; transition: opacity .1s ease; }
+nav.rail.hot .nl, nav.rail:has(:focus-visible) .nl, body.rail-pinned nav.rail .nl { opacity: 1; transition-delay: .07s; }
+nav.rail .rail-toggle { color: var(--rail-dim); margin-bottom: 2px; border-bottom: 1px solid var(--rail-line); border-radius: 12px 12px 4px 4px; }
+body.rail-pinned nav.rail .rail-toggle { color: var(--rail-soft); }
+.rail-fab, .rail-back { display: none; }
+
+@media (max-width: 700px) {
+  body.has-rail main, body.has-rail.rail-pinned main { margin-left: 0; }
+  body.has-rail footer, body.has-rail.rail-pinned footer { padding-left: 12px; padding-bottom: 76px; }
+  nav.rail, nav.rail.hot, body.rail-pinned nav.rail { top: auto; bottom: 80px; left: 12px; transform: translateX(-130%); width: min(290px, calc(100vw - 24px)); max-height: calc(100vh - 110px); opacity: 0; pointer-events: none; transition: transform .2s ease, opacity .2s ease; }
+  nav.rail.open { transform: none; opacity: 1; pointer-events: auto; }
+  nav.rail .nl, nav.rail.hot .nl { opacity: 1; }
+  nav.rail .rail-toggle { display: none; }
+  nav.rail button { height: 48px; }
+  .rail-fab { position: fixed; left: 16px; bottom: 16px; z-index: 47; width: 52px; height: 52px; display: grid; place-items: center; border-radius: 50%; border: 1px solid var(--rail-line); background: var(--rail-bg); color: var(--rail-soft); font-size: 1.35rem; box-shadow: 0 8px 24px rgba(2, 6, 23, .6); cursor: pointer; }
+  .rail-fab:focus-visible { outline: 2px solid var(--rail-soft); outline-offset: 2px; }
+  .rail-back.on { display: block; position: fixed; inset: 0; z-index: 44; background: rgba(2, 6, 23, .5); }
+}
+@media (prefers-reduced-motion: reduce) {
+  nav.rail, nav.rail .nl, body.has-rail main { transition: none; }
+}
+
+/* « 🤖 Copier pour l'IA » */
+.ia-card { margin: 12px 0; padding: 10px 14px; border: 1px solid #334155; border-left: 4px solid #a8dadc; border-radius: 8px; background: #111c30; font-size: .9rem; }
+.ia-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.ia-head .btn { margin: 0; }
+.ia-txt { flex: 1 1 280px; min-width: 0; line-height: 1.45; color: #cbd5e1; }
+.ia-links { white-space: nowrap; margin-left: 6px; }
+.ia-links a { color: #93c5fd; }
+.ia-prev { margin-top: 8px; }
+.ia-prev summary { cursor: pointer; color: #93c5fd; font-size: .85rem; }
+.ia-prev textarea { margin-top: 6px; min-height: 220px; }
