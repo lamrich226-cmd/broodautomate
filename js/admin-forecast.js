@@ -126,6 +126,7 @@ window.BA = window.BA || {};
         <p class="note">${t("fc_intro", { a: F.dt(s.now), b: F.dt(o.passageAt) })}</p>
         <label class="field-row">${t("fc_next")} <input type="datetime-local" id="next-at" value="${F.toInput(o.nextAt)}"></label>
         <p class="petit">${t("fc_next_help", { h: s.settings.thrHours })}</p>
+        <div class="toolbar"><button class="btn secondary" id="fc-ly">📆 ${t("pl_from_order")}</button><span class="petit">${t("pl_from_order_help")}</span></div>
         <div class="toolbar">
           <div class="seg"><button data-fcview="all" class="${view == null ? "active" : ""}">🌍 ${t("all_machines")}</button><button data-fcview="machine" class="${view != null ? "active" : ""}">🔎 ${t("fc_one_machine")}</button></div>
           ${view != null ? `<select id="fc-machine" class="auto-w">${s.machines.map(m => `<option value="${m.num}" ${m.num === view ? "selected" : ""}>#${m.num} — ${E(m.street)}</option>`).join("")}</select>` : ""}
@@ -203,6 +204,7 @@ window.BA = window.BA || {};
     const view = o.fcView === "machine" ? o.fcMachine : null;
     const na = el.querySelector("#next-at");
     if (na) U.dateInput(na, val => { const v = F.fromInput(val); if (v && v > o.passageAt) { o.nextAt = v; o.nextManual = true; } reset(); U.afterClick(rerender); });
+    const fly = el.querySelector("#fc-ly"); if (fly) fly.onclick = () => { o.lyp = { from: M.dayKey(o.passageAt), to: M.dayKey(o.nextAt) }; o.tab = "fc"; o.sub = "ly"; o.lyMode = "next"; o.lyBack = true; o.msg = ""; rerender(); };
     el.querySelectorAll("[data-fcview]").forEach(b => b.onclick = () => { o.fcView = b.dataset.fcview; o.fcEdit = null; rerender(); });
     const fm = el.querySelector("#fc-machine");
     if (fm) fm.onchange = () => { o.fcMachine = Number(fm.value); o.fcEdit = null; rerender(); };
@@ -240,7 +242,7 @@ window.BA = window.BA || {};
       if (act === "dismiss") o.sugg[x.id] = "dismissed";
       else if (act === "learn") { BA.Actions.calendarLearn(x.e.id, x.L.fleet, x.L.per); o.sugg[x.id] = "done"; reset(); }
       else if (act === "cal-confirm") { BA.Actions.calendarUpdate(x.e.id, { confirmed: true }); o.sugg[x.id] = "done"; reset(); }
-      else if (act === "go-cal") { const v = sh().fcv = sh().fcv || {}; v.tab = "cal"; v.filter = "next"; BA.Shell.go("forecast"); return; }
+      else if (act === "go-cal") { const v = forecastState(); v.tab = "cal"; v.filter = "next"; sh().orderTab = "fc"; sh().orderSub = "cal"; BA.Shell.go("order"); return; }
       else if (act === "trend") {
         const m = M.machine(ctx.s, x.m.num);
         const rows = FC.dayRows(ctx, ctx.s.now, o.passageAt, o.nextAt, m.num);
@@ -301,21 +303,334 @@ window.BA = window.BA || {};
     return out;
   }
 
-  // ================= ONGLET « PRÉVISIONS & CALENDRIER » =================
-  function renderForecastView(el) {
-    const s = BA.Store.get();
-    const o = sh().fcv = Object.assign({ tab: "cal", filter: "next", form: false, msg: "", err: "", edit: null, unit: "pct" }, sh().fcv || {});
+  // ================= PRÉVISIONS & CALENDRIER (v4.8.6 : dans le menu « Commander & prévisions ») =================
+  // Les onglets sont ceux de Commander (cal / prof / fly) ; sh().fcv.tab vaut cal / prof / ly.
+  const FCTAB = { cal: "cal", prof: "prof", fly: "ly" };
+  function forecastState() {
+    return (sh().fcv = Object.assign({ tab: "cal", filter: "next", form: false, msg: "", err: "", edit: null, unit: "pct" }, sh().fcv || {}));
+  }
+  function renderForecastPane(host, tab, rerender) {
+    const s = BA.Store.get(), o = forecastState();
+    o.tab = FCTAB[tab] || "cal";
     const ctx = FC.context(s);
-    el.innerHTML = `
-      <h2>📅 ${t("nav_forecast")}</h2>
-      <div class="seg tabs">
-        <button data-fvtab="cal" class="${o.tab === "cal" ? "active" : ""}">📅 ${t("fv_tab_cal")}</button>
-        <button data-fvtab="prof" class="${o.tab === "prof" ? "active" : ""}">📊 ${t("fv_tab_prof")}</button>
-      </div>
-      ${o.tab === "cal" ? calendarHtml(s, ctx, o) : profilesHtml(s, ctx, o)}`;
-    el.querySelectorAll("[data-fvtab]").forEach(b => b.onclick = () => { o.tab = b.dataset.fvtab; o.err = ""; o.msg = ""; renderForecastView(el); });
-    if (o.tab === "cal") bindCalendar(el, o, () => renderForecastView(el));
-    else bindProfiles(el, o, () => renderForecastView(el));
+    host.innerHTML = o.tab === "cal" ? calendarHtml(s, ctx, o) : o.tab === "ly" ? lyHtml(s, ctx, o) : profilesHtml(s, ctx, o);
+    if (lyChart) { lyChart.destroy(); lyChart = null; }
+    const back = () => { rerender(({ cal: "cal", prof: "prof", ly: "fly" })[o.tab] || "cal"); };
+    if (o.tab === "cal") bindCalendar(host, o, back);
+    else if (o.tab === "ly") bindYear(host, o, ctx, back);
+    else bindProfiles(host, o, back);
+  }
+
+  // ---------------- Même période l'an dernier (v4.8.3) ----------------
+  let lyChart = null;
+  // v4.8.8 : le détail d'une machine s'ouvre dans une fenêtre, visible tout de suite (avant : tout en bas de la page,
+  // sous les 20 machines, sans y descendre — « le bouton Détail ne fait rien »). Fermeture : ✖, Échap ou clic à côté.
+  function openDetail(html, cls, bind) {
+    const root = document.getElementById("modal-root");
+    const back = document.activeElement;
+    const key = e => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+    const close = () => {
+      document.removeEventListener("keydown", key, true);
+      if (lyChart) { lyChart.destroy(); lyChart = null; }
+      root.innerHTML = "";
+      if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true });
+    };
+    root.innerHTML = `<div class="modal-back det-back"><div class="modal det-modal ${cls || ""}" role="dialog" aria-modal="true" aria-labelledby="det-title">${html}</div></div>`;
+    document.addEventListener("keydown", key, true);
+    root.querySelector(".det-back").onclick = e => { if (e.target.classList.contains("det-back")) close(); };
+    root.querySelectorAll("[data-det-close]").forEach(b => { b.onclick = close; });
+    const f = root.querySelector("[data-det-close]"); if (f) f.focus({ preventScroll: true });
+    if (bind) bind(root, close);
+    return close;
+  }
+  // bouton « #105 🔍 » dans la 1re colonne : visible aussi sur téléphone, sans faire défiler le tableau
+  const machBtn = (attr, num) => `<button class="mach-btn" ${attr}="${num}" title="${E(t("det_open_tip"))}">#${num} <span aria-hidden="true">🔍</span></button>`;
+
+  const spNames = list => list.map(e => entryName(e)).join(", ");
+  const diffCell = d => d == null ? "—" : Math.abs(d) < 0.005 ? "≈ 0 %" : `<span class="${d < 0 ? "down" : "up"}">${d < 0 ? "▼" : "▲"} ${F.signed(d * 100)}</span>`;
+  function lyData(s, ctx, o) {
+    const W = ctx.F.weeks;
+    const list = s.machines.map(m => FC.yearCompare(ctx, m, W));
+    if (o.ly.sort === "diff") list.sort((x, y) => (x.diff == null ? 9 : x.diff) - (y.diff == null ? 9 : y.diff) || x.num - y.num);
+    return { W, list };
+  }
+  function lyNote(x) {
+    if (!x.haveNow) return t("ly_nodata_now");
+    if (!x.havePrev) return t("ly_nodata_prev");
+    if (!x.enough) return t("ly_nodata", { n: x.n, m: FC.LY_MIN_DAYS });
+    return x.anom ? t("ly_anom", { n: x.anom }) : "";
+  }
+  function lyHtml(s, ctx, o) {
+    o.ly = Object.assign({ sort: "num", num: null }, o.ly || {});
+    const { W, list } = lyData(s, ctx, o);
+    const to = FC.addDays(ctx.today, -1), from = FC.addDays(ctx.today, -W * 7);
+    const ok = list.filter(x => x.enough);
+    const tot = ok.reduce((a, x) => ({ a: a.a + x.a, b: a.b + x.b }), { a: 0, b: 0 });
+    const rows = list.map(x => {
+      const m = M.machine(s, x.num);
+      return `<tr><td class="selno">${machBtn("data-ly-open", x.num)}<div class="petit">${E(m.city)}</div></td>
+        <td>${x.enough ? F.num(x.a) : "—"}</td><td>${x.enough ? F.num(x.b) : "—"}</td><td>${diffCell(x.diff)}</td>
+        <td>${x.n}<span class="petit"> / ${x.days}</span></td><td class="petit">${E(lyNote(x))}</td></tr>`;
+    }).join("");
+    const err = o.err ? `<div class="alert err">⚠️ ${E(o.err)}</div>` : ""; o.err = "";
+    return `${err}
+      <p class="note">${t("ly_intro", { w: W, a: F.key(from), b: F.key(to), c: F.key(FC.addDays(from, -364)), d: F.key(FC.addDays(to, -364)) })}${ctx.F.excludeAnomalies ? " " + t("ly_intro_anom") : ""}</p>
+      <div class="toolbar"><button class="btn secondary" id="ly-back">← ${t("fv_tab_prof")}</button>
+        <label>${t("ly_sort")} <select id="ly-sort" class="auto-w"><option value="num" ${o.ly.sort === "num" ? "selected" : ""}>${t("ly_sort_num")}</option>
+          <option value="diff" ${o.ly.sort === "diff" ? "selected" : ""}>${t("ly_sort_diff")}</option></select></label>
+        <button class="btn" id="ly-x">📥 ${t("ly_export")}</button></div>
+      <div class="table-scroll"><table class="compact ly-table">
+        <thead><tr><th>${t("machine")}</th><th>${t("ly_col_this")}</th><th>${t("ly_col_prev")}</th><th>${t("ly_col_diff")}</th><th>${t("ly_col_days")}</th><th>${t("ly_col_note")}</th></tr></thead>
+        <tbody>
+          <tr class="total-row"><td>${t("ly_all", { n: ok.length })}</td><td>${F.num(tot.a)}</td><td>${F.num(tot.b)}</td><td>${diffCell(tot.b > 0 ? tot.a / tot.b - 1 : null)}</td><td colspan="2" class="petit">${t("ly_unit")}</td></tr>
+          ${rows}</tbody></table></div>
+      <p class="petit">🔍 ${t("det_hint")}</p>`;
+  }
+  function lyDetail(s, ctx, x) {
+    const m = M.machine(s, x.num);
+    // semaine par semaine (1 = la plus récente) : seulement les jours comparables
+    const wk = {};
+    x.rows.forEach(r => { const w = wk[r.wk] = wk[r.wk] || { a: 0, b: 0, n: 0, from: r.k, to: r.k }; if (r.k < w.from) w.from = r.k; if (r.k > w.to) w.to = r.k; if (r.use) { w.a += r.cur; w.b += r.prev; w.n++; } });
+    const weeks = Object.keys(wk).map(Number).sort((a, b) => a - b).map(i => wk[i]);
+    const types = Object.keys(x.types).sort((a, b) => (x.types[b].a + x.types[b].b) - (x.types[a].a + x.types[a].b));
+    const flag = r => {
+      const f = [];
+      if (r.spCur.length) f.push(`🎉 ${t("ly_this")}: ${spNames(r.spCur)}`);
+      if (r.spPrev.length) f.push(`🎉 ${t("ly_prev")}: ${spNames(r.spPrev)}`);
+      if (r.cur == null || r.prev == null) f.push(t("ly_flag_gap"));
+      else if (!r.use) f.push(t("ly_flag_anom"));
+      return f.join(" · ");
+    };
+    return `
+      <div class="ly-detail"><div class="modal-head"><h2 id="det-title">#${x.num} — ${E(m.street)}, ${E(m.city)}</h2>
+        <button class="btn petit secondary" data-det-close>✖ ${t("ly_close")}</button></div>
+        <p class="petit">${lyNote(x) ? E(lyNote(x)) + " · " : ""}${t("ly_cover", { n: x.haveNow, m: x.havePrev, d: x.days })}</p>
+        <div class="chart-box ly-chart"><canvas id="ly-chart"></canvas></div>
+        <div class="ly-cols">
+          <div><h4>${t("ly_weeks")}</h4><div class="table-scroll"><table class="compact"><thead><tr><th>${t("ly_col_week")}</th><th>${t("ly_col_this")}</th><th>${t("ly_col_prev")}</th><th>${t("ly_col_diff")}</th></tr></thead>
+            <tbody>${weeks.map(w => `<tr><td>${F.keyShort(w.from)} → ${F.keyShort(w.to)}<div class="petit">${w.n}/7</div></td><td>${w.n ? F.num(w.a) : "—"}</td><td>${w.n ? F.num(w.b) : "—"}</td><td>${diffCell(w.n >= 3 && w.b > 0 ? w.a / w.b - 1 : null)}</td></tr>`).join("")}</tbody></table></div></div>
+          <div><h4>${t("ly_types")}</h4>${types.length ? `<div class="table-scroll"><table class="compact"><thead><tr><th>${t("col_type")}</th><th>${t("ly_col_this")}</th><th>${t("ly_col_prev")}</th><th>${t("ly_col_diff")}</th></tr></thead>
+            <tbody>${types.map(ty => { const v = x.types[ty]; return `<tr><td>${U.prod(ty)}</td><td>${F.num(v.a)}</td><td>${F.num(v.b)}</td><td>${diffCell(v.b > 0 && x.enough ? v.a / v.b - 1 : null)}</td></tr>`; }).join("")}</tbody></table></div>` : `<p class="petit">—</p>`}</div>
+        </div>
+        <details class="ly-days ly-bytype-box" open><summary>${t("ly_bytype_days")}</summary>
+          <p class="petit">${t("ly_bytype_help")}</p>
+          <div class="table-scroll"><table class="compact ly-bytype">
+          <thead><tr><th>${t("ly_col_day")}</th><th>${t("ly_col_dayprev")}</th>${x.tlist.map(ty => `<th>${U.prod(ty)}</th>`).join("")}<th>${t("pl_col_all")}</th></tr></thead>
+          <tbody>${x.rows.slice().reverse().map(r => `<tr class="${r.use ? "" : "off"}"><td class="nowrap">${F.dayShort(FC.keyMs(r.k))}${r.spCur.length || r.spPrev.length ? ` <span title="${E(flag(r))}">🎉</span>` : ""}</td><td class="nowrap">${F.dayShort(FC.keyMs(r.kp))}/${r.kp.slice(2, 4)}</td>
+            ${x.tlist.map(ty => `<td>${r.cty ? F.num(r.cty[ty]) : "—"}<div class="ly-sub" title="${E(t("ly_sub_tip"))}">↳ ${r.pty ? F.num(r.pty[ty]) : "—"}</div></td>`).join("")}
+            <td><b>${r.cur == null ? "—" : r.cur}</b><div class="ly-sub">↳ ${r.prev == null ? "—" : r.prev}</div></td></tr>`).join("")}</tbody></table></div></details>
+        <details class="ly-days"><summary>${t("ly_days")}</summary><div class="table-scroll"><table class="compact">
+          <thead><tr><th>${t("ly_col_day")}</th><th>${t("ly_col_dayprev")}</th><th>${t("ly_col_this")}</th><th>${t("ly_col_prev")}</th><th>${t("ly_col_diff")}</th><th>${t("ly_col_note")}</th></tr></thead>
+          <tbody>${x.rows.slice().reverse().map(r => `<tr class="${r.use ? "" : "off"}"><td class="nowrap">${F.dayShort(FC.keyMs(r.k))}</td><td class="nowrap">${F.dayShort(FC.keyMs(r.kp))}/${r.kp.slice(2, 4)}</td>
+            <td>${r.cur == null ? "—" : r.cur}</td><td>${r.prev == null ? "—" : r.prev}</td><td>${diffCell(r.use && r.prev > 0 ? r.cur / r.prev - 1 : null)}</td><td class="petit">${E(flag(r))}</td></tr>`).join("")}</tbody></table></div></details>
+      </div>`;
+  }
+  function lyDraw(el, s, ctx, x) {
+    const box = el.querySelector(".ly-chart");
+    if (!box) return;
+    if (typeof Chart === "undefined") { box.innerHTML = `<div class="alert warn">${t("chart_missing")}</div>`; return; }
+    // v4.8.8 : cette année en couleur, l'an dernier en gris (le contexte) ; points seulement sur les jours spéciaux
+    const C = U.chartTheme();
+    Chart.defaults.color = C.muted; Chart.defaults.borderColor = C.grid; Chart.defaults.font.family = C.font;
+    const line = (label, data, color, special) => ({
+      label, data, borderColor: color, backgroundColor: color, borderWidth: 2, cubicInterpolationMode: "monotone", spanGaps: false,
+      pointRadius: special.map(v => v ? 4 : 0), pointHoverRadius: 5, pointHitRadius: 12,
+      pointBackgroundColor: color, pointBorderColor: C.surface, pointBorderWidth: 2
+    });
+    if (lyChart) { lyChart.destroy(); lyChart = null; }
+    lyChart = new Chart(el.querySelector("#ly-chart"), {
+      type: "line",
+      data: {
+        labels: x.rows.map(r => F.dayShort(FC.keyMs(r.k))),
+        datasets: [
+          line(t("ly_series_this"), x.rows.map(r => r.cur), C.loaded, x.rows.map(r => r.spCur.length > 0)),
+          line(t("ly_series_prev"), x.rows.map(r => r.prev), C.context, x.rows.map(r => r.spPrev.length > 0))
+        ]
+      },
+      plugins: [U.chartCrosshair],
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        interaction: { mode: "index", intersect: false },
+        plugins: {
+          title: { display: false },
+          baCross: { color: C.muted },
+          legend: { display: true, align: "start", labels: { color: C.ink, boxWidth: 18, boxHeight: 3 } },
+          tooltip: { backgroundColor: C.tip, borderColor: C.axis, borderWidth: 1, cornerRadius: 8, padding: 10, titleColor: C.muted,
+            bodyColor: C.ink, boxWidth: 12, boxHeight: 2, boxPadding: 5 }
+        },
+        scales: {
+          x: { grid: { display: false }, border: { color: C.axis }, ticks: { color: C.muted, maxRotation: 0, autoSkip: true, autoSkipPadding: 18 } },
+          y: { beginAtZero: true, border: { display: false }, grid: { color: C.grid, drawTicks: false }, ticks: { color: C.muted, padding: 8, maxTicksLimit: 6 } }
+        }
+      }
+    });
+  }
+  function bindYear(el, o, ctx, rerender) {
+    const s = ctx.s;
+    el.querySelector("#ly-back").onclick = () => { o.tab = "prof"; rerender(); };
+    el.querySelector("#ly-sort").onchange = e => { o.ly.sort = e.target.value; rerender(); };
+    el.querySelectorAll("[data-ly-open]").forEach(b => b.onclick = () => {
+      const num = Number(b.dataset.lyOpen), m = M.machine(s, num); if (!m) return;
+      const x = FC.yearCompare(ctx, m, ctx.F.weeks);
+      openDetail(lyDetail(s, ctx, x), "ly-modal", root => lyDraw(root, s, ctx, x));
+    });
+    el.querySelector("#ly-x").onclick = () => {
+      const { W, list } = lyData(s, ctx, o);
+      const to = FC.addDays(ctx.today, -1), from = FC.addDays(ctx.today, -W * 7);
+      const ok = BA.Excel.exportYearCompare(s, { W, from, to, fromPrev: FC.addDays(from, -364), toPrev: FC.addDays(to, -364), list: list.slice().sort((a, b) => a.num - b.num),
+        note: x => lyNote(x), names: spNames });
+      if (!ok) { o.err = t("excel_missing"); rerender(); }
+    };
+  }
+
+
+  // ---------------- Commander : la période à venir vue l'an dernier (v4.8.5) ----------------
+  // Choisir une période (ex. novembre, 2 semaines, un jour), voir ce que chaque machine a vendu les MÊMES jours de semaine
+  // 52 semaines avant (↳ = ce que la prévision actuelle attend). Lecture seule.
+  const PRESETS = [1, 7, 14, 28, 56];
+  function orderLyState(s, o) {
+    const st0 = o.lyp = o.lyp || {};
+    const day = k => /^\d{4}-\d{2}-\d{2}$/.test(k || "");
+    if (!day(st0.from)) st0.from = M.dayKey(o.passageAt || s.now);
+    if (!day(st0.to) || st0.to < st0.from) st0.to = FC.addDays(st0.from, 6);
+    if (FC.diffDays(st0.from, st0.to) + 1 > FC.PERIOD_MAX) st0.to = FC.addDays(st0.from, FC.PERIOD_MAX - 1);
+    return st0;
+  }
+  // ---- « Utiliser l'an dernier » (v4.8.6) ----
+  const srcSelect = p => `<label>${t("pl_src")} <select id="pl-src" class="auto-w"><option value="adj" ${p.src !== "raw" ? "selected" : ""}>${t("pl_src_adj")}</option><option value="raw" ${p.src === "raw" ? "selected" : ""}>${t("pl_src_raw")}</option></select></label>`;
+  // décisions à enregistrer pour une machine : pains visés / jour de base de la machine (jours à venir, avec données l'an dernier)
+  function plChanges(s, ctx, x, src) {
+    const m = M.machine(s, x.num), today = M.dayKey(s.now), out = [];
+    if (!(x.base > 0)) return out;
+    const f = src === "raw" || x.trend == null ? 1 : 1 + x.trend;
+    x.rows.forEach(r => {
+      if (!r.use || r.k < today) return;
+      const target = r.prev * f, pct = Math.max(0, Math.min(400, Math.round(target / x.base * 100)));
+      out.push({ num: x.num, k: r.k, pct, ref: Math.round(FC.auto(ctx, m, r.k).auto * 100), now: r.exp, target });
+    });
+    return out;
+  }
+  function plDetail(s, ctx, x, p) {
+    if (!x) return "";
+    const m = M.machine(s, x.num), tl = x.tlist;
+    const wk = [];
+    x.rows.forEach((r, i) => { const w = wk[Math.floor(i / 7)] = wk[Math.floor(i / 7)] || { from: r.k, to: r.k, n: 0, t: {}, e: {} }; w.to = r.k; if (r.use) { w.n++; tl.forEach(ty => { w.t[ty] = (w.t[ty] || 0) + (r.pty[ty] || 0); w.e[ty] = (w.e[ty] || 0) + r.ety[ty]; }); } });
+    const allP = tl.reduce((a, ty) => a + x.tyPrev[ty], 0) || 1;
+    const cell = (a, b) => `${F.num(a)}<div class="ly-sub" title="${E(t("pl_sub_tip"))}">↳ ${F.num(b)}</div>`;
+    return `<div class="ly-detail"><div class="modal-head"><h2 id="det-title">#${x.num} — ${E(m.street)}, ${E(m.city)}</h2>
+        <button class="btn petit secondary" data-det-close>✖ ${t("ly_close")}</button></div>
+      <p class="petit">${t("pl_det_period", { a: F.key(x.from), b: F.key(x.to), c: F.key(FC.addDays(x.from, -FC.LY_SHIFT)), d: F.key(FC.addDays(x.to, -FC.LY_SHIFT)) })}</p>
+      ${x.enough ? "" : `<div class="alert warn">${t("pl_nodata")}</div>`}
+      <h4>${t("pl_bytype_days")}</h4>
+      <div class="table-scroll"><table class="compact ly-bytype">
+        <thead><tr><th>${t("ly_col_day")}</th><th>${t("ly_col_dayprev")}</th>${tl.map(ty => `<th>${U.prod(ty)}</th>`).join("")}<th>${t("pl_col_all")}</th></tr></thead>
+        <tbody>${x.rows.map(r => `<tr class="${r.use ? "" : "off"}"><td class="nowrap">${F.dayShort(FC.keyMs(r.k))}${r.spCur.length || r.spPrev.length ? ` <span title="${E(spNames(r.spCur.concat(r.spPrev)))}">🎉</span>` : ""}</td><td class="nowrap">${F.dayShort(FC.keyMs(r.kp))}/${r.kp.slice(2, 4)}</td>
+          ${tl.map(ty => `<td>${r.pty ? cell(r.pty[ty], r.ety[ty]) : "—"}</td>`).join("")}
+          <td><b>${r.prev == null ? "—" : F.num(r.prev)}</b><div class="ly-sub">↳ ${F.num(r.exp)}</div></td></tr>`).join("")}
+          <tr class="total-row"><td colspan="2">${t("pl_total_period")}</td>${tl.map(ty => `<td><b>${F.num(x.tyPrev[ty])}</b><div class="ly-sub">↳ ${F.num(x.tyExp[ty])}</div><div class="petit">${F.num(x.tyPrev[ty] / allP * 100)} %</div></td>`).join("")}<td><b>${F.num(x.prevTotal)}</b><div class="ly-sub">↳ ${F.num(x.expTotal)}</div></td></tr></tbody></table></div>
+      ${wk.length > 1 ? `<h4>${t("pl_bytype_weeks")}</h4><div class="table-scroll"><table class="compact">
+        <thead><tr><th>${t("ly_col_week")}</th>${tl.map(ty => `<th>${U.prod(ty)}</th>`).join("")}</tr></thead>
+        <tbody>${wk.map(w => `<tr><td>${F.keyShort(w.from)} → ${F.keyShort(w.to)}</td>${tl.map(ty => `<td>${w.n ? cell(w.t[ty], w.e[ty]) : "—"}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
+      <div class="pl-apply"><b>${t("pl_apply_one")}</b> <p class="petit">${t("pl_apply_one_help")}</p>
+        <div class="toolbar"><button class="btn" id="pl-apply-one" data-num="${x.num}" ${x.enough && x.base > 0 ? "" : "disabled"}>✔ ${t("pl_apply_one_btn")}</button></div></div>
+    </div>`;
+  }
+  function plConfirm(s, ctx, o, p, nums, rerender) {
+    const list = s.machines.filter(m => nums.includes(m.num)).map(m => FC.periodLY(ctx, m, p.from, p.to));
+    const ch = list.flatMap(x => plChanges(s, ctx, x, p.src));
+    if (!ch.length) { o.msg = ""; p.err = t("pl_apply_none"); rerender(); return; }
+    const rows = nums.length === 1
+      ? `<table class="compact"><thead><tr><th>${t("ly_col_day")}</th><th>${t("pl_now")}</th><th>${t("pl_new")}</th></tr></thead><tbody>${ch.map(c => `<tr><td>${F.dayShort(FC.keyMs(c.k))}</td><td>${F.num(c.now)}</td><td><b>${F.num(c.target)}</b> <span class="petit">(${c.pct} %)</span></td></tr>`).join("")}</tbody></table>`
+      : `<p>${t("pl_confirm_all", { m: new Set(ch.map(c => c.num)).size, d: ch.length })}</p>`;
+    U.confirmDialog({
+      title: "📆 " + t("pl_confirm_title"),
+      html: `<p>${t("pl_confirm_text", { s: t(p.src === "raw" ? "pl_src_raw" : "pl_src_adj") })}</p>${rows}<p class="petit">${t("pl_confirm_note")}</p>`,
+      ok: "✔ " + t("pl_confirm_ok"),
+      onOk: () => {
+        p.undo = BA.Actions.applyLastYear(ch.map(c => ({ num: c.num, k: c.k, pct: c.pct, ref: c.ref })));
+        o.msg = t("pl_applied", { d: ch.length, m: new Set(ch.map(c => c.num)).size });
+        rerender();
+      }
+    });
+  }
+
+  function orderLyHtml(s, o) {
+    if (!s.machines.length) return `<div class="alert info">${t("no_machine_admin")}</div>`;     // v5 : flotte vide possible
+    const p = orderLyState(s, o), ctx = FC.context(s);
+    const list = s.machines.map(m => FC.periodLY(ctx, m, p.from, p.to));
+    const errNow = p.err; p.err = "";
+    const days = list[0].days, weekly = days > 14;
+    // colonnes : un jour, ou une semaine (blocs de 7 jours)
+    const cols = [];
+    for (let i = 0; i < days; i += weekly ? 7 : 1) cols.push({ i0: i, i1: Math.min(days, i + (weekly ? 7 : 1)) - 1 });
+    const colOf = (x, c) => {
+      const r = x.rows.slice(c.i0, c.i1 + 1).filter(z => z.use);
+      return { n: r.length, prev: r.reduce((a, z) => a + z.prev, 0), exp: r.reduce((a, z) => a + z.exp, 0), of: c.i1 - c.i0 + 1 };
+    };
+    const cell = v => v.n ? `${F.num(v.prev)}<div class="ly-sub" title="${E(t("pl_sub_tip"))}">↳ ${F.num(v.exp)}</div>${weekly && v.n < v.of ? `<div class="petit">${v.n}/${v.of}</div>` : ""}` : "—";
+    const head = cols.map(c => {
+      const r0 = list[0].rows[c.i0], r1 = list[0].rows[c.i1];
+      const sp = new Set(); list.forEach(x => x.rows.slice(c.i0, c.i1 + 1).forEach(z => { z.spCur.concat(z.spPrev).forEach(e => sp.add(entryName(e))); }));
+      const lbl = weekly ? `${F.keyShort(r0.k)} → ${F.keyShort(r1.k)}` : F.dayShort(FC.keyMs(r0.k));
+      const sub = weekly ? "" : `<div class="petit">${F.dayShort(FC.keyMs(r0.kp)).split(" ")[1]}/${r0.kp.slice(2, 4)}</div>`;
+      return `<th class="nowrap">${lbl}${sub}${sp.size ? ` <span title="${E([...sp].join(", "))}">🎉</span>` : ""}</th>`;
+    }).join("");
+    const tot = list.filter(x => x.enough).reduce((a, x) => ({ p: a.p + x.prevTotal, e: a.e + x.expTotal }), { p: 0, e: 0 });
+    const fleetCells = cols.map(c => {
+      const v = list.reduce((a, x) => { const z = colOf(x, c); return { n: a.n + z.n, prev: a.prev + z.prev, exp: a.exp + z.exp, of: z.of }; }, { n: 0, prev: 0, exp: 0, of: 1 });
+      return `<td>${v.n ? cell({ n: 1, prev: v.prev, exp: v.exp, of: 1 }) : "—"}</td>`;
+    }).join("");
+    const diff = d => d == null ? "—" : Math.abs(d) < 0.005 ? "≈ 0 %" : `<span class="${d < 0 ? "down" : "up"}">${d < 0 ? "▼" : "▲"} ${F.signed(d * 100)}</span>`;
+    const rows = list.map(x => {
+      const m = M.machine(s, x.num);
+      return `<tr><td class="selno">${machBtn("data-pl-open", x.num)}<div class="petit">${E(m.city)}</div></td>
+        ${cols.map(c => `<td>${cell(colOf(x, c))}</td>`).join("")}
+        <td><b>${x.enough ? F.num(x.prevTotal) : "—"}</b>${x.enough ? `<div class="ly-sub">↳ ${F.num(x.expTotal)}</div>` : ""}</td>
+        <td>${x.enough ? diff(x.diff) : "—"}</td>
+        <td>${x.adj != null ? `<b title="${E(t("pl_adj_tip", { p: F.signed((x.trend || 0) * 100) }))}">${F.num(x.adj)}</b>` : "—"}</td>
+        <td class="petit">${x.enough ? (x.n < x.days ? t("pl_gaps", { n: x.n, d: x.days }) : "") : t("pl_nodata")}</td></tr>`;
+    }).join("");
+    const pre = PRESETS.map(n => `<button class="btn petit secondary ${days === n ? "active" : ""}" data-pl-n="${n}">${t("pl_n_" + n)}</button>`).join("");
+    return `
+      <p class="note">${t("pl_intro")}</p>
+      ${errNow ? `<div class="alert err">⚠️ ${E(errNow)}</div>` : ""}
+      ${o.msg ? `<div class="alert info">✅ ${o.msg}${p.undo && p.undo.length ? ` <button class="btn petit secondary" id="pl-undo">↩ ${t("pl_undo")}</button>` : ""}</div>` : ""}
+      <div class="card q-card"><div class="toolbar">
+        <label>${t("pl_from")} <input type="date" id="pl-from" value="${p.from}"></label>
+        <label>${t("pl_to")} <input type="date" id="pl-to" value="${p.to}" min="${p.from}"></label>
+        <button class="btn petit secondary" id="pl-deliv">📅 ${t("pl_deliv")}</button></div>
+        <div class="toolbar">${pre}</div>
+        <p class="petit">${t("pl_range", { a: F.key(p.from), b: F.key(p.to), c: F.key(FC.addDays(p.from, -FC.LY_SHIFT)), d: F.key(FC.addDays(p.to, -FC.LY_SHIFT)), n: days })}</p></div>
+      <div class="toolbar">${srcSelect(p)}<button class="btn" id="pl-apply-all">✔ ${t("pl_apply_all_btn")}</button><button class="btn secondary" id="pl-x">📥 ${t("pl_export")}</button></div>
+      <div class="table-scroll"><table class="compact ly-table">
+        <thead><tr><th>${t("machine")}</th>${head}<th>${t("pl_col_total")}</th><th>${t("pl_col_diff")}</th><th>${t("pl_col_adj")}</th><th>${t("ly_col_note")}</th></tr></thead>
+        <tbody><tr class="total-row"><td>${t("all_machines")}</td>${fleetCells}<td><b>${F.num(tot.p)}</b><div class="ly-sub">↳ ${F.num(tot.e)}</div></td><td>${diff(tot.p > 0 ? tot.e / tot.p - 1 : null)}</td><td></td><td class="petit">${t("pl_unit")}</td></tr>${rows}</tbody></table></div>
+      <p class="petit">🔍 ${t("det_hint")} ${t("pl_help")}</p>`;
+  }
+  function bindOrderLy(el, o, rerender) {
+    const s = BA.Store.get(), p = orderLyState(s, o);
+    const f = el.querySelector("#pl-from"), to = el.querySelector("#pl-to");
+    if (f) U.dateInput(f, v => { const len = FC.diffDays(p.from, p.to); p.from = v; p.to = FC.addDays(v, len); U.afterClick(rerender); });
+    if (to) U.dateInput(to, v => { p.to = v; U.afterClick(rerender); });
+    const d = el.querySelector("#pl-deliv"); if (d) d.onclick = () => { p.from = M.dayKey(o.passageAt || s.now); p.to = FC.addDays(p.from, 6); rerender(); };
+    el.querySelectorAll("[data-pl-n]").forEach(b => b.onclick = () => { p.to = FC.addDays(p.from, Number(b.dataset.plN) - 1); rerender(); });
+    el.querySelectorAll("[data-pl-open]").forEach(b => b.onclick = () => {
+      const num = Number(b.dataset.plOpen), m = M.machine(s, num); if (!m) return;
+      const c = FC.context(s), x = FC.periodLY(c, m, p.from, p.to);
+      openDetail(plDetail(s, c, x, p), "pl-modal", (root, close) => {
+        const a1 = root.querySelector("#pl-apply-one");
+        // la fenêtre se ferme d'abord : la confirmation prend sa place
+        if (a1) a1.onclick = () => { close(); plConfirm(s, c, o, p, [num], rerender); };
+      });
+    });
+    el.querySelectorAll("#pl-src").forEach(sel => sel.onchange = () => { p.src = sel.value === "raw" ? "raw" : "adj"; rerender(); });
+    const ctx2 = FC.context(s);
+    const aa = el.querySelector("#pl-apply-all"); if (aa) aa.onclick = () => plConfirm(s, ctx2, o, p, s.machines.map(m => m.num), rerender);
+    const un = el.querySelector("#pl-undo"); if (un) un.onclick = () => { BA.Actions.undoLastYear(p.undo); p.undo = null; o.msg = t("pl_undone"); rerender(); };
+    const x = el.querySelector("#pl-x"); if (x) x.onclick = () => {
+      const ctx = FC.context(s), list = s.machines.map(m => FC.periodLY(ctx, m, p.from, p.to));
+      o.msg = BA.Excel.exportPeriodLY(s, { from: p.from, to: p.to, list, names: spNames }) ? t("excel_ok") : t("excel_missing"); rerender();
+    };
   }
 
   // ---------------- Calendrier ----------------
@@ -433,16 +748,25 @@ window.BA = window.BA || {};
 
   // ---------------- Profils par jour ----------------
   function profilesHtml(s, ctx, o) {
-    const fl = ctx.fleet, unit = o.unit;
-    const cell = (idx, base, who, wd) => {
-      const man = who !== "fleet" && FC.manualState(ctx, who, wd).set;
-      return `<span class="idx pc-click ${idxCls(idx)} ${man ? "pc-man" : ""}" role="button" tabindex="0" data-pc="${who}|${wd}" title="${E(t("pc_tip"))}">${unit === "pct" ? pct(idx) : F.num(base * idx, 1)}</span>`;
+    // v4.8.4 : « Année » : cette année, l'an dernier (même période, 52 semaines avant) ou les deux côte à côte
+    const year = o.year = ["cur", "ly", "both"].includes(o.year) ? o.year : "cur";
+    const lyCtx = year === "cur" ? null : FC.lastYearContext(s);
+    const bc = year === "ly" ? lyCtx : ctx;                 // contexte affiché dans les colonnes principales
+    const editable = year !== "ly";                         // l'an dernier : lecture seule
+    const fl = bc.fleet, unit = o.unit;
+    const sub = v => `<div class="ly-sub" title="${E(t("ly_sub_tip"))}">↳ ${v}</div>`;
+    const val = (idx, base) => unit === "pct" ? pct(idx) : F.num(base * idx, 1);
+    const cell = (idx, base, who, wd, lyv) => {
+      const man = editable && who !== "fleet" && FC.manualState(bc, who, wd).set;
+      return `<span class="idx ${editable ? "pc-click" : ""} ${idxCls(idx)} ${man ? "pc-man" : ""}" ${editable ? `role="button" tabindex="0" data-pc="${who}|${wd}" title="${E(t("pc_tip"))}"` : ""}>${val(idx, base)}</span>${lyv != null ? sub(lyv) : ""}`;
     };
     const head = WDS.map(i => `<th>${F.wdName(i)}</th>`).join("");
-    const fleetBase = s.machines.reduce((a, m) => a + ctx.prof[m.num].base, 0);
+    const bases = c => s.machines.reduce((a, m) => a + c.prof[m.num].base, 0);
+    const fleetBase = bases(bc);
+    const lyFl = lyCtx && year === "both" ? lyCtx.fleet : null, lyFleetBase = lyCtx ? bases(lyCtx) : 0;
     const rows = s.machines.map(m => {
-      const p = ctx.prof[m.num];
-      if (o.edit === m.num) {
+      const p = bc.prof[m.num], lp = year === "both" ? lyCtx.prof[m.num] : null;
+      if (editable && o.edit === m.num) {
         const cur = p.idx;
         return `<tr class="hl"><td class="selno">#${m.num}</td>
           ${WDS.map(i => `<td><input type="number" class="num-in pm-in" data-pm="${i}" min="0" max="400" value="${R(cur[i])}"></td>`).join("")}
@@ -452,28 +776,37 @@ window.BA = window.BA || {};
       }
       const tr = p.trend;
       return `<tr><td class="selno">#${m.num}<div class="petit">${E(m.city)}</div></td>
-        ${WDS.map(i => `<td>${cell(p.idx[i], p.base, m.num, i)}</td>`).join("")}
-        <td>${F.num(p.base, 1)}</td>
+        ${WDS.map(i => `<td>${cell(p.idx[i], p.base, m.num, i, lp ? val(lp.idx[i], lp.base) : null)}</td>`).join("")}
+        <td>${F.num(p.base, 1)}${lp ? sub(F.num(lp.base, 1)) : ""}</td>
         <td><span class="tag">${t("psrc_" + p.src)}</span>${p.short ? `<div class="petit">${t("sg_n_weeks", { n: F.num(p.weeksData, 1) })}</div>` : ""}</td>
         <td>${relTag(p.rel)}</td>
         <td>${tr == null ? "—" : Math.abs(tr) < 0.05 ? "≈ 0 %" : `<span class="${tr < -0.1 ? "down" : tr > 0.1 ? "up" : ""}">${tr < 0 ? "▼" : "▲"} ${F.signed(tr * 100)}</span>`}</td>
         <td class="petit">${t("prof_excl", { a: p.anomalies.length, b: p.excluded.length - p.anomalies.length })}</td>
-        <td><button class="btn petit secondary" data-pm-edit="${m.num}" title="${t("prof_manual")}">✏</button></td></tr>`;
+        <td>${editable ? `<button class="btn petit secondary" data-pm-edit="${m.num}" title="${t("prof_manual")}">✏</button>` : ""}</td></tr>`;
     }).join("");
     const F2 = ctx.F;
+    const W = F2.weeks, ly0 = FC.addDays(FC.addDays(ctx.today, -FC.LY_SHIFT), -W * 7), ly1 = FC.addDays(FC.addDays(ctx.today, -FC.LY_SHIFT), -1);
+    const yearNote = year === "cur" ? "" : `<p class="note ly-note">📆 ${t(year === "ly" ? "prof_ly_note" : "prof_both_note", { a: F.key(ly0), b: F.key(ly1) })}</p>`;
     return `
       <p class="note">${t("prof_intro", { w: F2.weeks, g: t("weight_" + F2.weighting), src: t("source_" + F2.source) })}
         <button class="link-btn" id="prof-settings">⚙️ ${t("prof_settings")}</button></p>
       <div class="toolbar"><label>${t("prof_unit")} <select id="prof-unit" class="auto-w">
         <option value="pct" ${unit === "pct" ? "selected" : ""}>${t("prof_unit_pct")}</option>
-        <option value="n" ${unit === "n" ? "selected" : ""}>${t("prof_unit_n")}</option></select></label></div>
+        <option value="n" ${unit === "n" ? "selected" : ""}>${t("prof_unit_n")}</option></select></label>
+        <label>${t("prof_year")} <select id="prof-year" class="auto-w">
+        <option value="cur" ${year === "cur" ? "selected" : ""}>${t("prof_year_cur")}</option>
+        <option value="ly" ${year === "ly" ? "selected" : ""}>${t("prof_year_ly")}</option>
+        <option value="both" ${year === "both" ? "selected" : ""}>${t("prof_year_both")}</option></select></label></div>
+      ${yearNote}
       <div class="table-scroll"><table class="compact prof-table">
         <thead><tr><th>${t("machine")}</th>${head}<th>${t("prof_base")}</th><th>${t("prof_src")}</th><th>${t("fc_col_rel")}</th><th>${t("prof_trend")}</th><th>${t("prof_excluded")}</th><th></th></tr></thead>
         <tbody>
-          <tr class="total-row"><td>${t("all_machines")}</td>${WDS.map(i => `<td>${cell(fl.idx[i], fleetBase, "fleet", i)}</td>`).join("")}<td>${F.num(fleetBase)}</td><td colspan="5" class="petit">${t("prof_fleet_note", { n: fl.n })}</td></tr>
+          <tr class="total-row"><td>${t("all_machines")}</td>${WDS.map(i => `<td>${cell(fl.idx[i], fleetBase, "fleet", i, lyFl ? val(lyFl.idx[i], lyFleetBase) : null)}</td>`).join("")}<td>${F.num(fleetBase)}${lyFl ? sub(F.num(lyFleetBase)) : ""}</td><td colspan="5" class="petit">${t("prof_fleet_note", { n: fl.n })}</td></tr>
           ${rows}
         </tbody></table></div>
-      <p class="petit">${t("prof_help")}</p>`;
+      <p class="petit">${t("prof_help")}</p>
+      <div class="card ly-cta"><button class="btn" id="prof-ly">📆 ${t("ly_btn")}</button>
+        <span class="petit">${t("ly_btn_help", { w: F2.weeks })}</span></div>`;
   }
   // ---- Petite fenêtre : ventes par type de pain pour un jour de semaine (pains ou % selon « Afficher ») ----
   function profileModal(o, who, wd, rerender) {
@@ -541,6 +874,8 @@ window.BA = window.BA || {};
   }
 
   function bindProfiles(el, o, rerender) {
+    const ly = el.querySelector("#prof-ly");
+    if (ly) ly.onclick = () => { o.tab = "ly"; o.err = ""; o.msg = ""; rerender(); window.scrollTo(0, 0); };
     el.querySelectorAll("[data-pc]").forEach(c => {
       const open = () => { const [who, wd] = c.dataset.pc.split("|"); profileModal(o, who, Number(wd), rerender); };
       c.onclick = open; c.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
@@ -549,6 +884,8 @@ window.BA = window.BA || {};
     if (ps) ps.onclick = () => BA.Shell.go("settings");
     const pu = el.querySelector("#prof-unit");
     if (pu) pu.onchange = () => { o.unit = pu.value; rerender(); };
+    const py = el.querySelector("#prof-year");
+    if (py) py.onchange = () => { o.year = py.value; o.edit = null; rerender(); };
     el.querySelectorAll("[data-pm-edit]").forEach(b => b.onclick = () => { o.edit = Number(b.dataset.pmEdit); rerender(); });
     el.querySelectorAll("[data-pm-cancel]").forEach(b => b.onclick = () => { o.edit = null; rerender(); });
     el.querySelectorAll("[data-pm-auto]").forEach(b => b.onclick = () => { BA.Actions.setProfileManual(Number(b.dataset.pmAuto), null); o.edit = null; rerender(); });
@@ -591,5 +928,5 @@ window.BA = window.BA || {};
     };
   }
 
-  BA.AdminFC = { forecastSection, bindForecast, adviceHtml, bindAdvice, exportRows, renderForecastView, settingsCard, readSettingsCard, ensureOrderState };
+  BA.AdminFC = { renderForecastPane, forecastSection, bindForecast, adviceHtml, bindAdvice, exportRows, settingsCard, readSettingsCard, ensureOrderState, orderLyHtml, bindOrderLy, orderLyState };
 })();

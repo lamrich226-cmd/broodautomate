@@ -380,7 +380,7 @@ td.ld-cell .link-btn { font-size: .8rem; padding: 2px 0; }
 .tag.mv-rm, .tag.mv-seldel { background: rgba(245, 158, 11, .22); color: #fcd34d; }
 .tag.mv-load { background: rgba(59, 130, 246, .25); color: #bfdbfe; }
 .tag.mv-inv { background: rgba(168, 85, 247, .22); color: #e9d5ff; }
-.tag.mv-keep, .tag.mv-date, .tag.mv-seladd { background: #334155; color: #cbd5e1; }
+.tag.mv-keep, .tag.mv-date, .tag.mv-mv, .tag.mv-seladd { background: #334155; color: #cbd5e1; }
 .hist-tools input[type=date] { width: auto; }
 #hist-refresh.has-new { background: #2563eb; }
 .rm-modal { max-width: 640px; }
@@ -401,3 +401,92 @@ td.ld-cell .link-btn { font-size: .8rem; padding: 2px 0; }
 table.wz tr.must-row td { background: rgba(239, 68, 68, .10); }
 .chip.c-kept { border-color: #64748b; color: #cbd5e1; }
 table.wz tr.kept-row td { background: rgba(148, 163, 184, .08); }
+
+/* v4.8.2 — déplacer du pain entre deux sélections du même produit (flèches vertes) */
+.mv-arrows { color: #22c55e; font-weight: 700; font-size: 1.15em; line-height: 1; }
+.mv-btn { margin-left: 4px; }
+.mv-modal { max-width: 560px; }
+.mv-from { font-size: 1.05rem; margin: 8px 0; }
+.mv-prev { background: rgba(34, 197, 94, .08); border: 1px solid rgba(34, 197, 94, .35); border-radius: 10px; padding: 8px 12px; margin: 8px 0; }
+.mv-prev ol { margin: 6px 0 4px 20px; padding: 0; }
+.mv-prev li.mine { color: #86efac; font-weight: 600; }
+.mv-req { margin: 8px 0; }
+.mv-req-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-top: 6px; }
+.mv-req-btns { display: flex; gap: 6px; }
+.mv-machine { margin: 6px 0 12px; }
+
+/* v4.8.2 — sauvegardes */
+.bk-card { margin: 12px 0; }
+.bk-block { margin: 10px 0; display: grid; gap: 6px; }
+.bk-machines { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 4px 0; }
+.bk-period { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 2px 0 6px 26px; }
+.bk-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.bk-modal { max-width: 640px; }
+.bk-prev { background: rgba(59, 130, 246, .08); border: 1px solid rgba(59, 130, 246, .35); border-radius: 10px; padding: 8px 12px; }
+.case.off { opacity: .5; }
+
+/* v4.8.3 — comparaison avec l'an dernier */
+.ly-cta { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 12px 0; }
+.ly-detail { margin: 14px 0; }
+.ly-chart { max-width: 1100px; margin: 8px 0; }
+.ly-cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin: 10px 0; }
+.ly-days { margin-top: 10px; }
+.ly-days summary { cursor: pointer; font-weight: 600; margin-bottom: 6px; }
+.ly-table tr.hl, .ly-days tr.off { opacity: .95; }
+.ly-days tr.off td { opacity: .6; }
+
+/* v4.8.4 — profils : année précédente à côté */
+.ly-bytype td { vertical-align: top; }
+.pl-apply { margin-top: 12px; }
+.ly-sub { font-size: .78em; color: #fbbf24; opacity: .9; margin-top: 2px; white-space: nowrap; }
+.ly-note { border-left: 3px solid #fbbf24; padding-left: 10px; }
+/* v4.8.5 : période à venir vue l'an dernier (Commander) */
+.ly-table th .petit { font-weight: 400; }
+.ly-cta { margin-top: 14px; }
+/* v4.8.7 : onglet Prévision et ses sous-onglets */
+.sub-tabs, .mode-tabs { margin-top: 10px; }
+.mode-tabs button { font-size: .9em; }
+/* ---------- v4.8.8 : graphiques (palette vérifiée sur #1e293b : contraste ≥ 3:1, distinguable par les daltoniens) ---------- */
+:root {
+  --chart-surface: #1e293b; --chart-tip: #0f172a; --chart-ink: #e2e8f0; --chart-muted: #94a3b8;
+  --chart-grid: #2b3a52; --chart-axis: #475569; --chart-context: #64748b;
+  --chart-good: #0ca30c; --chart-bad: #d03b3b;
+  --chart-loaded: #3987e5; --chart-sold: #199e70; --chart-returned: #d95926; --chart-rev: #9085e9;
+}
+.chart-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 18px; margin: 8px 0 10px; }
+.chart-title { font-weight: 700; font-size: 1.05rem; }
+.chart-title .petit { font-weight: 400; color: var(--chart-muted); margin-left: 8px; }
+.chart-kpis { display: flex; flex-wrap: wrap; gap: 4px 16px; color: var(--chart-muted); font-size: .88rem; }
+.chart-kpis b { color: var(--chart-ink); font-weight: 600; }
+.chart-table { margin: -4px 0 14px; }
+.chart-table table { font-variant-numeric: tabular-nums; }
+/* ---------- v4.8.8 : détail d'une machine dans une fenêtre ---------- */
+.mach-btn { background: transparent; border: 1px solid #334155; color: #93c5fd; font: inherit; font-weight: 700; border-radius: 6px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
+.mach-btn:hover, .mach-btn:focus-visible { background: rgba(59, 130, 246, .15); border-color: #3b82f6; outline: none; }
+.det-modal { max-width: 1100px; }
+.det-modal .modal-head { position: sticky; top: 0; z-index: 2; background: #0f172a; padding: 6px 0; margin: -6px 0 10px; }
+.det-modal .chart-box { height: 260px; }
+.det-modal h4 { margin: 14px 0 6px; }
+.det-modal .ly-detail { margin: 0; }
+.det-modal .modal-head .btn { white-space: nowrap; flex: none; }
+/* ---------- v4.8.9 : À faire aujourd'hui (Dashboard), Zéro retour, Fiabilité de la prévision ---------- */
+.todo-card { margin-bottom: 12px; padding: 12px 14px; }
+.todo-head { font-weight: 700; margin-bottom: 8px; }
+.todo-head .petit { font-weight: 400; color: var(--c-ok); }
+.todo-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.todo-item { width: 100%; display: flex; align-items: center; gap: 8px; text-align: left; background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 7px 10px; color: #e2e8f0; font: inherit; cursor: pointer; }
+.todo-item:hover, .todo-item:focus-visible { background: rgba(59, 130, 246, .12); border-color: #3b82f6; outline: none; }
+.todo-item.td-bad { border-color: rgba(248, 113, 113, .65); }
+.todo-item.td-warn { border-color: rgba(251, 191, 36, .45); }
+.todo-item.td-ok, .todo-item.td-info { color: #cbd5e1; }
+.todo-go { margin-left: auto; color: #94a3b8; font-size: 1.1em; }
+.stats-top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; margin: 4px 0 12px; }
+.wk-box { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.rt { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.rt-ok { color: var(--c-ok); }
+.rt-warn { color: #fbbf24; }
+.rt-bad { color: #f87171; }
+.adv-ok { color: var(--c-ok); }
+.zr-table td:last-child { min-width: 230px; }
+.zr-cards .card .petit, .summary-cards .card.stat .petit { margin-top: 4px; }
+@media (max-width: 600px) { .zr-table .zr-old { display: none; } .zr-table td:last-child { min-width: 180px; } }

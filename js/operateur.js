@@ -28,6 +28,9 @@
       </div>`;
     };
     let html = `<h2>🧾 ${t("nav_missions")}</h2>`;
+    // Déplacements de pain demandés par l'admin (d'une sélection à l'autre, même produit)
+    const mvs = s.machines.filter(m => U.openMoves(s, m).length);
+    if (mvs.length) html += `<h3>⇄ ${t("mv_todo_title")}</h3>` + mvs.map(m => `<div class="mv-machine"><b>#${m.num}</b> <span class="petit">${E(m.street)}</span>${U.moveRequests(s, m)}</div>`).join("");
     if (open.length) {
       html += `<p class="note">${t("missions_note", { n: open.length })}</p>
         <div class="cards machines-grid">${open.map(ms => {
@@ -53,6 +56,7 @@
     }
     el.innerHTML = html;
     el.querySelectorAll("[data-fill]").forEach(b => b.onclick = e => { e.stopPropagation(); Wizard.open(Number(b.dataset.fill)); });
+    U.bindMoves(el);
   }
 
   // ================= Produits / Stock =================

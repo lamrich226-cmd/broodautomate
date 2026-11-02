@@ -80,6 +80,10 @@
     const s = BA.Store.get();
     const o = st().order = st().order || { tab: "order", q1: null, q2: null, passageAt: null, removeBefore: null, rbManual: false, margin: 0, plan: null, sent: null, msg: "", fc: false };
     // heure de passage déjà dépassée (page restée ouverte) : nouvelle proposition, en le disant
+    if (st().orderTab) { o.tab = st().orderTab; st().orderTab = null; o.msg = ""; }
+    if (st().orderSub) { o.sub = st().orderSub; st().orderSub = null; }
+    if (!["cal", "prof", "ly"].includes(o.sub)) o.sub = "cal";
+    if (o.lyMode !== "past") o.lyMode = "next";
     if (o.passageAt && o.passageAt < s.now) { o.passageMoved = o.passageAt; o.passageAt = null; o.plan = null; }
     if (!o.passageAt) o.passageAt = defaultPassage(s.now);
     if (!o.rbManual) o.removeBefore = o.passageAt - s.settings.thrHours * M.H;
@@ -93,7 +97,16 @@
     };
 
     let body = "";
-    if (o.tab === "stock") {
+    if (o.tab === "fc") {
+      const sb = (id, ic, k) => `<button data-sub="${id}" class="${o.sub === id ? "active" : ""}">${ic} ${t(k)}</button>`;
+      const md = (id, k) => `<button data-lymode="${id}" class="${o.lyMode === id ? "active" : ""}">${t(k)}</button>`;
+      body = `<div class="seg tabs sub-tabs">${sb("cal", "📅", "fv_tab_cal")}${sb("prof", "📊", "fv_tab_prof")}${sb("ly", "📆", "fv_tab_ly")}</div>
+        ${o.sub === "ly" ? `<div class="seg tabs mode-tabs">${md("next", "pl_mode_next")}${md("past", "pl_mode_past")}</div>` : ""}
+        ${o.lyBack && o.sub === "ly" && o.lyMode === "next" ? `<div class="toolbar"><button class="btn" id="pl-back-order">← ${t("pl_back_order")}</button></div>` : ""}
+        <div id="fc-host"></div>
+        <div class="carte-actions"><button class="btn secondary" id="go-bk">💾 ${t("pl_bk_btn")}</button> <span class="petit">${t("pl_bk_help")}</span></div>`;
+    } else if (o.tab === "bk") {
+      body = `<div class="toolbar"><button class="btn secondary" id="bk-back">← ${t("tab_fc")}</button></div><div id="bk-host"></div>`;    } else if (o.tab === "stock") {
       body = `
         <p class="note">${t("stock_check_note")}</p>
         <div class="carte-actions wrap-actions"><button class="btn" id="x-stock">📥 ${t("btn_excel_stock")}</button>
@@ -149,13 +162,25 @@
       <div class="seg tabs">
         <button data-tab="order" class="${o.tab === "order" ? "active" : ""}">🛒 ${t("tab_order")}</button>
         <button data-tab="stock" class="${o.tab === "stock" ? "active" : ""}">📋 ${t("tab_stock")}</button>
+        <button data-tab="fc" class="${o.tab === "fc" || o.tab === "bk" ? "active" : ""}">📅 ${t("tab_fc")}</button>
       </div>
-      ${BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard({ planAt: o.tab === "order" && o.plan ? o.planAt : 0 }) : ""}
-      ${BA.IA ? BA.IA.card() : ""}
+      ${(o.tab === "order" || o.tab === "stock") && BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard({ planAt: o.tab === "order" && o.plan ? o.planAt : 0 }) : ""}
+      ${(o.tab === "order" || o.tab === "stock") && BA.IA ? BA.IA.card() : ""}
       ${body}
       ${lastOrders(s)}`;
+    const fch = el.querySelector("#fc-host");
+    if (fch) {
+      if (o.sub === "ly" && o.lyMode === "next") { fch.innerHTML = (o.msg ? "" : "") + BA.AdminFC.orderLyHtml(s, o); BA.AdminFC.bindOrderLy(fch, o, () => renderOrder(el)); }
+      else BA.AdminFC.renderForecastPane(fch, o.sub === "ly" ? "fly" : o.sub, tab => { o.sub = tab === "fly" ? "ly" : (tab || o.sub); if (tab === "fly") o.lyMode = "past"; renderOrder(el); });
+    }
+    el.querySelectorAll("[data-sub]").forEach(b => b.onclick = () => { o.sub = b.dataset.sub; o.msg = ""; renderOrder(el); });
+    el.querySelectorAll("[data-lymode]").forEach(b => b.onclick = () => { o.lyMode = b.dataset.lymode === "past" ? "past" : "next"; o.msg = ""; renderOrder(el); });
+    const pbo = el.querySelector("#pl-back-order"); if (pbo) pbo.onclick = () => { o.tab = "order"; o.lyBack = false; o.msg = ""; renderOrder(el); const f = el.querySelector("#fc"); if (f && f.scrollIntoView) f.scrollIntoView({ block: "start" }); };
+    const gbk = el.querySelector("#go-bk"); if (gbk) gbk.onclick = () => { o.tab = "bk"; renderOrder(el); try { window.scrollTo({ top: 0 }); } catch (e) { /* rien */ } };
+    const bkh = el.querySelector("#bk-host"); if (bkh) BA.Backup.render(bkh);
+    const bkb = el.querySelector("#bk-back"); if (bkb) bkb.onclick = () => { o.tab = "fc"; renderOrder(el); };
 
-    el.querySelectorAll("[data-tab]").forEach(b => b.onclick = () => { o.tab = b.dataset.tab; o.msg = ""; renderOrder(el); });
+    el.querySelectorAll(".seg.tabs:not(.sub-tabs):not(.mode-tabs) [data-tab]").forEach(b => b.onclick = () => { o.tab = b.dataset.tab; o.msg = ""; if (o.tab !== "fc") o.lyBack = false; renderOrder(el); });
     el.querySelectorAll("[data-q]").forEach(b => b.onclick = () => {
       o[b.dataset.q] = b.dataset.v === "1"; o.plan = null; o.sent = null;
       if (b.dataset.q === "q1" && !o[b.dataset.q]) o.q2 = null;
@@ -313,16 +338,52 @@
 
   const METRICS = ["loaded", "sold", "returned", "rev", "profit"];
 
+  // v4.8.9 : trois onglets (rentabilité, objectif zéro retour, fiabilité de la prévision) + résumé de la semaine en Excel
+  function statsTabs(s, o) {
+    const b = (id, ic, k) => `<button data-sttab="${id}" class="${o.tab === id ? "active" : ""}">${ic} ${t(k)}</button>`;
+    const msg = o.wkMsg; o.wkMsg = "";
+    return `<div class="stats-top"><div class="seg tabs">${b("money", "💶", "st_tab_money")}${b("returns", "🎯", "st_tab_returns")}${b("acc", "📏", "st_tab_acc")}</div>
+        <div class="wk-box"><select id="wk-sel" class="auto-w" aria-label="${E(t("wk_btn"))}">${BA.Insights.weekOptions(s, o.wk)}</select>
+          <button class="btn secondary" id="wk-x" title="${E(t("wk_tip"))}">📥 ${t("wk_btn")}</button></div></div>
+      ${msg ? `<div class="alert info">${msg}</div>` : ""}`;
+  }
+  function bindStatsTabs(el, o) {
+    el.querySelectorAll("[data-sttab]").forEach(b => b.onclick = () => { o.tab = b.dataset.sttab; renderStats(el); });
+    const ws = el.querySelector("#wk-sel");
+    if (ws) ws.onchange = () => { o.wk = ws.value; };
+    const wx = el.querySelector("#wk-x");
+    if (wx) wx.onclick = () => {
+      o.wk = ws ? ws.value : o.wk;
+      o.wkMsg = BA.Insights.exportWeek(BA.Store.get(), o.wk) ? t("excel_ok") : t("excel_missing");
+      renderStats(el);
+    };
+  }
+
   function renderStats(el) {
     const s = BA.Store.get();
     const o = st().stats = st().stats || { machine: 0, period: "day", view: "numbers", metric: "rev", which: "last" };
+    if (!["money", "returns", "acc"].includes(o.tab)) o.tab = "money";
+    if (o.tab !== "money") {
+      if (chart) { chart.destroy(); chart = null; }
+      if (chart2) { chart2.destroy(); chart2 = null; }
+      el.innerHTML = `<h2>📈 ${t("nav_stats")}</h2>${statsTabs(s, o)}<div id="st-pane"></div>`;
+      const pane = el.querySelector("#st-pane");
+      pane.innerHTML = o.tab === "returns" ? BA.Insights.returnsHtml(s) : BA.Insights.accuracyHtml(s);
+      if (o.tab === "returns") BA.Insights.bindReturns(pane, () => renderStats(el));
+      else BA.Insights.bindAccuracy(pane, () => renderStats(el));
+      bindStatsTabs(el, o);
+      return;
+    }
     const { list, perMachine } = aggregate(s, o.period, o.machine);
     // « dernière période complète » (hier, semaine passée…) ou « période en cours »
     const iCur = o.which === "current" ? list.length - 1 : list.length - 2;
     const cur = list[iCur] || { loaded: 0, sold: 0, returned: 0, rev: 0, cost: 0, fixed: 0, fees: 0, profit: 0, waste: 0, k: "" };
     const prev = o.which === "current" ? null : list[iCur - 1];
     const nShow = { day: 30, week: 26, month: 12, year: 5 }[o.period];
-    const shown = list.slice(-nShow);
+    // graphique (v4.8.8) : la période pas encore finie n'est montrée que si « période en cours » est choisi
+    // (sinon la courbe finissait toujours par une chute trompeuse : la journée d'aujourd'hui n'est pas terminée)
+    const series = o.which === "current" ? list.slice(-nShow) : list.slice(0, -1).slice(-nShow);
+    let chartData = null;
 
     // inv = true : une hausse est une mauvaise nouvelle (pertes, coûts)
     const delta = (a, b, inv) => {
@@ -347,8 +408,30 @@
         <div class="card ${cur.profit >= 0 ? "c-ok-b" : "c-empty-b"}"><div class="label">${t("verdict")}</div><div class="value v-small">${cur.profit >= 0 ? "✔ " + t("profitable") : "✖ " + t("not_profitable")}</div></div>
       </div>
       <p class="note">${t("costs_detail", { a: F.eur(cur.cost), b: F.eur(cur.fixed), c: F.eur(cur.fees) })}</p>`;
+    } else if (o.view === "pie") {
+      main = `<div class="chart-box"><canvas id="stat-chart"></canvas></div><div class="chart-box"><canvas id="stat-chart2"></canvas></div>`;
     } else {
-      main = `<div class="chart-box"><canvas id="stat-chart"></canvas></div>${o.view === "pie" ? `<div class="chart-box"><canvas id="stat-chart2"></canvas></div>` : ""}`;
+      // Courbe / Barres / Cumul (v4.8.8) : titre + chiffres clés au-dessus, tableau des valeurs en dessous
+      const isMoney = o.metric === "rev" || o.metric === "profit";
+      const fmt = v => isMoney ? F.eur(v) : F.num(v);
+      const vals = series.map(b => Math.round(b[o.metric] * 100) / 100);
+      let run = 0;
+      const cum = vals.map(v => (run = Math.round((run + v) * 100) / 100));
+      const lab = i => bucketLabel(series[i].k, o.period);
+      const iMax = vals.reduce((bi, v, i) => v > vals[bi] ? i : bi, 0), iMin = vals.reduce((bi, v, i) => v < vals[bi] ? i : bi, 0);
+      const neg = vals.filter(v => v < 0).length, who = o.machine ? "#" + o.machine : t("all_machines");
+      const kpis = vals.length ? `<span>${t("ch_total")} <b>${fmt(run)}</b></span><span>${t("ch_avg")} <b>${fmt(run / vals.length)}</b></span>
+        <span>${t("ch_best")} <b>${fmt(vals[iMax])}</b> <span class="petit">${E(lab(iMax))}</span></span>
+        <span>${t("ch_worst")} <b>${fmt(vals[iMin])}</b> <span class="petit">${E(lab(iMin))}</span></span>
+        ${o.metric === "profit" ? `<span>${neg ? "✖" : "✔"} ${t("ch_loss_n", { n: neg })}</span>` : ""}` : "";
+      main = `<div class="chart-head"><div class="chart-title">${t("m_" + o.metric)}${o.view === "cumul" ? " · " + t("ch_cumul") : ""}
+          <span class="petit">${E(who)} · ${t("ch_last_" + o.period, { n: vals.length })}</span></div>
+          <div class="chart-kpis">${kpis}</div></div>
+        <div class="chart-box"><canvas id="stat-chart" role="img" aria-label="${E(t("m_" + o.metric) + " — " + who)}"></canvas></div>
+        <details class="chart-table"><summary>📋 ${t("ch_table")}</summary><div class="table-scroll"><table class="compact">
+          <thead><tr><th>${t("ch_col_when")}</th><th>${t("m_" + o.metric)}</th>${o.view === "cumul" ? `<th>${t("ch_cumul")}</th>` : ""}</tr></thead>
+          <tbody>${vals.map((v, i) => `<tr><td>${E(lab(i))}</td><td>${fmt(v)}</td>${o.view === "cumul" ? `<td>${fmt(cum[i])}</td>` : ""}</tr>`).join("")}</tbody></table></div></details>`;
+      chartData = { vals, cum, fmt, isMoney, labels: vals.map((v, i) => lab(i)) };
     }
 
     // Rentabilité par machine sur la période en cours
@@ -358,13 +441,14 @@
 
     el.innerHTML = `
       <h2>📈 ${t("nav_stats")}</h2>
+      ${statsTabs(s, o)}
       <div class="toolbar stats-controls">
         <label>${t("machine")} <select id="st-machine" class="auto-w"><option value="0">${t("all_machines")}</option>
           ${s.machines.map(m => `<option value="${m.num}" ${o.machine === m.num ? "selected" : ""}>#${m.num} — ${E(m.street)}</option>`).join("")}</select></label>
         <label>${t("period")} <select id="st-period" class="auto-w">${["day", "week", "month", "year"].map(p => `<option value="${p}" ${o.period === p ? "selected" : ""}>${t("p_" + p)}</option>`).join("")}</select></label>
         <label>${t("which")} <select id="st-which" class="auto-w">${["last", "current"].map(w => `<option value="${w}" ${o.which === w ? "selected" : ""}>${t("which_" + w)}</option>`).join("")}</select></label>
-        <label>${t("display")} <select id="st-view" class="auto-w">${["numbers", "line", "bar", "pie"].map(v => `<option value="${v}" ${o.view === v ? "selected" : ""}>${t("v_" + v)}</option>`).join("")}</select></label>
-        ${o.view === "line" || o.view === "bar" ? `<label>${t("metric")} <select id="st-metric" class="auto-w">${METRICS.map(k => `<option value="${k}" ${o.metric === k ? "selected" : ""}>${t("m_" + k)}</option>`).join("")}</select></label>` : ""}
+        <label>${t("display")} <select id="st-view" class="auto-w">${["numbers", "line", "bar", "cumul", "pie"].map(v => `<option value="${v}" ${o.view === v ? "selected" : ""}>${t("v_" + v)}</option>`).join("")}</select></label>
+        ${o.view === "line" || o.view === "bar" || o.view === "cumul" ? `<label>${t("metric")} <select id="st-metric" class="auto-w">${METRICS.map(k => `<option value="${k}" ${o.metric === k ? "selected" : ""}>${t("m_" + k)}</option>`).join("")}</select></label>` : ""}
       </div>
       <p class="note">${t("stats_period_now", { p: bucketLabel(cur.k, o.period) })}${o.which === "current" ? " · " + t("current_note") : ""} · ${t("stats_note")}</p>
       ${main}
@@ -376,6 +460,7 @@
           <td>${F.eur(x.rev)}</td><td>${F.eur(x.cost + x.fixed + x.fees)}</td><td><b>${F.eur(x.profit)}</b></td>
           <td>${!x.rev && !x.loaded ? `<span class="tag">${t("no_activity")}</span>` : x.profit >= 0 ? `<span class="tag c-ok">✔ ${t("profitable")}</span>` : `<span class="tag c-empty">✖ ${t("not_profitable")}</span>`}</td></tr>`).join("")}</tbody></table></div>`;
 
+    bindStatsTabs(el, o);
     el.querySelector("#st-machine").onchange = e => { o.machine = Number(e.target.value); renderStats(el); };
     el.querySelector("#st-period").onchange = e => { o.period = e.target.value; renderStats(el); };
     el.querySelector("#st-view").onchange = e => { o.view = e.target.value; renderStats(el); };
@@ -389,38 +474,73 @@
       el.querySelector(".chart-box").innerHTML = `<div class="alert warn">${t("chart_missing")}</div>`;
       return;
     }
-    Chart.defaults.color = "#cbd5e1";
-    Chart.defaults.borderColor = "#334155";
-    const isMoney = o.metric === "rev" || o.metric === "profit";
-    if (o.view === "line" || o.view === "bar") {
+    const C = U.chartTheme();
+    Chart.defaults.color = C.muted; Chart.defaults.borderColor = C.grid; Chart.defaults.font.family = C.font;
+    if (o.view !== "pie") {
+      // v4.8.8 : couleur selon ce qu'on regarde (bénéfice : vert au-dessus de 0, rouge en dessous), trait fin,
+      // voile léger, une seule valeur écrite (la dernière), trait vertical qui suit la souris, pas de légende inutile
+      const { vals, cum, fmt, isMoney, labels } = chartData;
+      const data = o.view === "cumul" ? cum : vals, last = data.length - 1;
+      const signed = o.metric === "profit", col = C[o.metric] || C.loaded, isBar = o.view === "bar";
+      const colorOf = v => signed ? (v < 0 ? C.bad : C.good) : col;
+      const name = t("m_" + o.metric);
+      const tip = v => signed ? `${v < 0 ? "✖ " + t("ch_loss") : "✔ " + t("ch_profit")} : ${fmt(v)}` : `${name} : ${fmt(v)}`;
+      const ds = isBar ? {
+        label: name, data,
+        backgroundColor: data.map(colorOf), hoverBackgroundColor: data.map(v => C.lighten(colorOf(v), 0.25)),
+        borderRadius: 4, borderSkipped: "start", maxBarThickness: 20, categoryPercentage: 0.8, barPercentage: 0.9
+      } : {
+        label: name, data, borderWidth: 2, borderColor: signed ? U.chartSignColor(C.good, C.bad) : col,
+        borderJoinStyle: "round", borderCapStyle: "round", cubicInterpolationMode: "monotone",
+        fill: { target: "origin", above: C.wash(signed ? C.good : col, 0.12), below: C.wash(signed ? C.bad : col, 0.14) },
+        pointRadius: data.map((v, i) => i === last ? 4 : 0), pointHoverRadius: 5, pointHitRadius: 14,
+        pointBackgroundColor: data.map(colorOf), pointBorderColor: C.surface, pointBorderWidth: 2,
+        pointHoverBackgroundColor: data.map(colorOf), pointHoverBorderColor: C.surface, pointHoverBorderWidth: 2
+      };
       chart = new Chart(el.querySelector("#stat-chart"), {
-        type: o.view,
-        data: {
-          labels: shown.map(b => bucketLabel(b.k, o.period)),
-          datasets: [{
-            label: t("m_" + o.metric) + (o.machine ? " — #" + o.machine : " — " + t("all_machines")),
-            data: shown.map(b => Math.round(b[o.metric] * 100) / 100),
-            borderColor: "#3b82f6", backgroundColor: o.view === "bar" ? shown.map(b => o.metric === "profit" && b.profit < 0 ? "#ef4444" : "#3b82f6") : "rgba(59,130,246,.18)",
-            fill: o.view === "line", tension: 0.25, pointRadius: 2
-          }]
-        },
+        type: isBar ? "bar" : "line",
+        data: { labels, datasets: [ds] },
+        plugins: isBar ? [] : [U.chartCrosshair, U.chartEndLabel],
         options: {
           responsive: true, maintainAspectRatio: false, animation: false,
-          plugins: { legend: { display: true }, tooltip: { callbacks: { label: c => isMoney ? F.eur(c.parsed.y) : F.num(c.parsed.y) } } },
-          scales: { y: { beginAtZero: true, ticks: { callback: v => isMoney ? F.eur(v) : F.num(v) } } }
+          layout: { padding: { top: 18, right: isBar ? 8 : (window.innerWidth < 600 ? 62 : 80), bottom: 0, left: 0 } },
+          interaction: { mode: "index", intersect: false },
+          plugins: {
+            legend: { display: false },
+            baCross: { color: C.muted },
+            baEnd: { text: !isBar && last >= 0 ? fmt(data[last]) : "", color: C.ink, font: C.font },
+            tooltip: {
+              backgroundColor: C.tip, borderColor: C.axis, borderWidth: 1, cornerRadius: 8, padding: 10,
+              titleColor: C.muted, titleFont: { weight: "normal", size: 12 }, bodyColor: C.ink, bodyFont: { weight: "bold", size: 13 },
+              displayColors: true, boxWidth: 12, boxHeight: 2, boxPadding: 5,
+              callbacks: {
+                label: c => (o.view === "cumul" ? t("ch_cumul") + " — " : "") + tip(c.parsed.y),
+                afterLabel: c => o.view === "cumul" ? `${t("ch_this_" + o.period)} : ${fmt(vals[c.dataIndex])}` : "",
+                labelColor: c => ({ borderColor: colorOf(c.parsed.y), backgroundColor: colorOf(c.parsed.y), borderWidth: 0 })
+              }
+            }
+          },
+          scales: {
+            x: { grid: { display: false }, border: { color: C.axis }, ticks: { color: C.muted, maxRotation: 0, autoSkip: true, autoSkipPadding: 18 } },
+            y: {
+              beginAtZero: true, border: { display: false },
+              grid: { color: c => c.tick && c.tick.value === 0 ? C.axis : C.grid, lineWidth: 1, drawTicks: false },
+              ticks: { color: C.muted, padding: 8, maxTicksLimit: 6, callback: v => isMoney ? F.num(v) + " €" : F.num(v) }
+            }
+          }
         }
       });
     } else {
       chart = new Chart(el.querySelector("#stat-chart"), {
         type: "doughnut",
-        data: { labels: [t("m_sold"), t("m_returned")], datasets: [{ data: [cur.sold, cur.returned], backgroundColor: ["#16a34a", "#f59e0b"], borderColor: "#1e293b" }] },
+        data: { labels: [t("m_sold"), t("m_returned")], datasets: [{ data: [cur.sold, cur.returned], backgroundColor: [C.sold, C.returned], borderColor: C.surface, borderWidth: 2 }] },
         options: { responsive: true, maintainAspectRatio: false, animation: false,
           plugins: { title: { display: true, text: t("pie_bread", { p: bucketLabel(cur.k, o.period) }) } } }
       });
       const money = [Math.max(0, cur.cost), Math.max(0, cur.fixed), Math.max(0, cur.fees), Math.max(0, cur.profit)];
       chart2 = new Chart(el.querySelector("#stat-chart2"), {
         type: "doughnut",
-        data: { labels: [t("pie_purchase"), t("pie_fixed"), t("pie_fees"), t("m_profit")], datasets: [{ data: money.map(v => Math.round(v * 100) / 100), backgroundColor: ["#64748b", "#a855f7", "#0ea5e9", "#16a34a"], borderColor: "#1e293b" }] },
+        data: { labels: [t("pie_purchase"), t("pie_fixed"), t("pie_fees"), t("m_profit")], datasets: [{ data: money.map(v => Math.round(v * 100) / 100), backgroundColor: ["#64748b", "#a855f7", "#0ea5e9", C.good], borderColor: C.surface, borderWidth: 2 }] },
         options: { responsive: true, maintainAspectRatio: false, animation: false,
           plugins: { title: { display: true, text: t("pie_money", { r: F.eur(cur.rev) }) }, tooltip: { callbacks: { label: c => c.label + " : " + F.eur(c.parsed) } } } }
       });
@@ -536,7 +656,6 @@
       { id: "products",  icon: "🍞", label: "nav_products",  render: renderProducts,    live: true },
       // « Commander » ne bouge pas pendant qu'on prépare la commande ; l'onglet « Vérifier l'état de stock » suit en direct
       { id: "order",     icon: "📦", label: "nav_order",     render: renderOrder,       live: () => !!st().order && st().order.tab === "stock" },
-      { id: "forecast",  icon: "📅", label: "nav_forecast",  render: BA.AdminFC.renderForecastView, live: false },
       { id: "stats",     icon: "📈", label: "nav_stats",     render: renderStats,       live: false },
       { id: "history",   icon: "🧾", label: "nav_history",   render: BA.History.render, live: false, tick: BA.History.tick },
       { id: "alerts",    icon: "⚠️", label: "nav_alerts",    render: U.renderAlerts,    live: true },

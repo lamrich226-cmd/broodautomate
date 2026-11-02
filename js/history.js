@@ -14,7 +14,7 @@ window.BA = window.BA || {};
   const t = (k, v) => BA.I18n.t(k, v);
   const st = () => BA.Shell.state;
   const PERIODS = ["today", "yesterday", "7", "30", "90", "365", "custom"];
-  const ICON = { sale: "🧾", rm: "➖", load: "🧺", inv: "🔢", keep: "👍", date: "📅", seladd: "➕", seldel: "🗑" };
+  const ICON = { sale: "🧾", rm: "➖", load: "🧺", inv: "🔢", keep: "👍", date: "📅", mv: "🔀", seladd: "➕", seldel: "🗑" };
 
   // ---------- Filtres ----------
   function filters(admin) {
@@ -39,7 +39,7 @@ window.BA = window.BA || {};
   function kindOk(e, kind) {
     if (kind === "all") return true;
     if (kind === "rm") return isRm(e);
-    if (kind === "other") return ["keep", "date", "seladd", "seldel"].includes(e.k);
+    if (kind === "other") return ["keep", "date", "mv", "seladd", "seldel"].includes(e.k);
     return e.k === kind;
   }
   // Mouvements filtrés, du plus récent au plus ancien
@@ -71,15 +71,16 @@ window.BA = window.BA || {};
     if (e.k === "sale") return -1;
     if (e.k === "rm" || e.k === "seldel") return e.q ? -e.q : "";
     if (e.k === "load" || e.k === "inv") return e.q;
-    if (e.k === "keep" || e.k === "date") return e.q || "";
+    if (e.k === "keep" || e.k === "date" || e.k === "mv") return e.q || "";
     return "";
   }
-  const qtyTxt = e => { const q = qtyNum(e); if (q === "") return ""; return (e.k === "keep" || e.k === "date") ? String(q) : q > 0 ? "+" + q : "−" + Math.abs(q); };
+  const qtyTxt = e => { const q = qtyNum(e); if (q === "") return ""; return (e.k === "keep" || e.k === "date" || e.k === "mv") ? String(q) : q > 0 ? "+" + q : "−" + Math.abs(q); };
   function detailText(e) {
     const p = [];
     if (e.k === "rm") p.push(t("rr_" + (e.r || "other")));
     if (e.k === "keep") p.push(t("hist_keep_once"));
     if (e.k === "date") p.push(t("hist_date_change", { a: F.dt(e.l), b: F.dt(e.l2) }));
+    if (e.k === "mv") p.push(t("hist_mv", { a: e.s, b: e.s2 }));
     if (e.k === "seladd" && e.c) p.push(t("hist_cap", { n: e.c }));
     if (e.k === "seldel" && e.q) p.push(t("hist_seldel_q", { q: e.q }));
     if (e.x) p.push(t("hist_note", { x: e.x }));
@@ -96,7 +97,7 @@ window.BA = window.BA || {};
       <td>${e.s != null ? e.s : ""}${e.y ? `<div class="petit only-phone">${U.prod(e.y)}</div>` : ""}</td>
       <td class="no-phone">${e.y ? U.prod(e.y) : ""}</td>
       <td><span class="tag mv mv-${e.k}">${ICON[e.k] || ""} ${moveName(e)}</span></td>
-      <td class="num ${qtyNum(e) < 0 ? "down" : qtyNum(e) > 0 && e.k !== "keep" && e.k !== "date" ? "up" : ""}"><b>${qtyTxt(e)}</b></td>
+      <td class="num ${qtyNum(e) < 0 ? "down" : qtyNum(e) > 0 && e.k !== "keep" && e.k !== "date" && e.k !== "mv" ? "up" : ""}"><b>${qtyTxt(e)}</b></td>
       <td class="nowrap no-phone">${e.l ? F.dt(e.l) : ""}</td>
       ${admin ? `<td>${e.k === "sale" && e.p != null ? F.eur(e.p) : ""}</td>` : ""}
       <td class="no-phone">${byName(e)}</td>

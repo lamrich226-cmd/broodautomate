@@ -1,8 +1,17 @@
+> **v5.6 — fonctions de la version test 4.8.9** (reprises dans le vrai logiciel, sur les vraies données) :
+> - **Commander & prévisions** : un seul menu. Onglets *Préparer une commande* · *Vérifier l'état de stock* · *Prévision* (Calendrier · Profils par jour · **L'an dernier**). L'entrée « Prévisions & calendrier » du menu n'existe plus.
+> - **L'an dernier** : *Période à venir (pour commander)* (dates libres, détail par type de pain, « Utiliser l'an dernier » avec ↩ Annuler, Excel) et *8 dernières semaines (comparaison)*. Depuis la commande : « Voir l'an dernier pour ces jours » puis « ← Retour à la commande ». La reprise de la v3 contient 400 jours de ventes : l'an dernier est complet à partir de ~420 jours d'historique.
+> - **Dashboard → « À faire aujourd'hui »** (admin) : pains invalides, porte ouverte, machines hors ligne, alertes, machines vides, pains trop vieux, retours de la semaine dernière ; le lundi, le résumé de la semaine à télécharger.
+> - **Statistiques** : onglets *Rentabilité* (nouveaux graphiques : courbe, barres, cumul), *Zéro retour* (objectif réglable, 5 % par défaut, ventes perdues, conseil par machine) et *Fiabilité de la prévision* ; bouton **Résumé de la semaine** (Excel, 3 feuilles).
+> - **💾 Sauvegardes et retour en arrière** (en bas de l'onglet Prévision) : besoins par machine, historique des ventes, réglages et calendrier ; jamais le stock, les lots ni les missions. Les sauvegardes « dans le logiciel » restent dans le navigateur de CE PC (fichier .json pour les garder ailleurs).
+> - **⇄ Déplacer du pain** entre deux sélections du même produit (Détails machine) : l'admin le fait ou le demande à l'opérateur (Missions → Fait). Noté dans l'Historique.
+> - Retour à la v5.5 : étiquette git `v5.5.0-avant-fusion-489`.
+
 > **Mode clair** : bouton ☀️/🌙 dans l'en-tête (fichier `js/theme.js`). Choix gardé sur l'appareil.
 
 > **v5.5 — nouveau design** : menu latéral à icônes fines et pastille bleue, cartes douces, pastilles d'état, écran de chargement en « squelette ». Fichier ajouté : `css/design.css` (retirer sa ligne dans index.html pour revenir à l'ancien look).
 
-# Broodautomate v5.4
+# Broodautomate v5.6
 
 Logiciel de suivi des distributeurs de pain FAS Power Lift.
 

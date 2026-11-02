@@ -238,7 +238,7 @@ window.BA = window.BA || {};
 
     // ---- Journal (historique) : chaque mouvement avec la date et l'heure exactes ----
     // k : sale (vente) · rm (retrait) · load (chargement) · inv (écart d'inventaire) · keep (encore bon)
-    //     date (date du lot changée) · seladd / seldel (sélection ajoutée / supprimée)
+    //     date (date du lot changée) · mv (pain déplacé d'une sélection à l'autre : s → s2) · seladd / seldel (sélection ajoutée / supprimée)
     // n machine · s sélection · y type de pain · q quantité · p prix · l date du lot · l2 nouvelle date
     // r raison · x note · b qui (sim = distributeur, admin, op = opérateur) · it / st : intervention et étape · i : numéro
     who() { return (BA.Shell && BA.Shell.ctx && BA.Shell.ctx.role) || "admin"; },
@@ -442,7 +442,7 @@ window.BA = window.BA || {};
       sim: { running: true, speed: 1, lastReal: now },
       settings: JSON.parse(JSON.stringify(C.defaults)),
       machines: [], events: [], journal: [], daily: {}, interventions: [], missions: [], orders: [], customTypes: [],
-      calendar: [], dayDecisions: {}, profileManual: {}
+      calendar: [], dayDecisions: {}, profileManual: {}, moves: []
     };
     const P = s.settings;
 
@@ -543,6 +543,7 @@ window.BA = window.BA || {};
         const o = JSON.parse(raw);
         if (o && o.v === 1 && Array.isArray(o.machines)) {
           o.customTypes = o.customTypes || [];
+          o.moves = o.moves || [];
           // (v4.7.1 : plus de lien avec l'intervention « Remplir » ; le pain gardé reste valable jusqu'au jour suivant)
           o.machines.forEach(m => m.sels.forEach(sel => { Model.sortLots(sel); sel.lots.forEach(l => { if (l.kept && !l.keptAt) l.keptAt = o.now; delete l.keptIt; }); }));
           // v4.6 : journal (historique). Les 300 dernières ventes d'avant sont reprises.

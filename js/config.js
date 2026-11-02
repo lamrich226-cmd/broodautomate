@@ -15,7 +15,7 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate", version: "5.5.0" },
+  app: { name: "Broodautomate", version: "5.6.0" },
   currency: "EUR",
 
   supabase: {
@@ -54,6 +54,7 @@ const BA_CONFIG = {
     salePrice: 2.50,       // prix de vente par défaut
     fixedMonthly: 150,     // frais fixes par machine et par mois (€) : emplacement, électricité, SIM…
     cardFeePct: 1.5,       // frais de paiement par carte (% du chiffre d'affaires)
+    returnTargetPct: 5,    // objectif « zéro retour » : au maximum 5 % des pains mis reviennent (réglable dans Statistiques)
 
     // Prévisions (onglet « Prévisions & calendrier » et « Commander »)
     forecast: {

@@ -112,7 +112,7 @@ window.BA = window.BA || {};
   }
   // Champs indispensables (données anciennes ou incomplètes)
   function fixup(o) {
-    ["machines", "events", "journal", "interventions", "missions", "orders", "customTypes", "calendar"].forEach(k => { if (!Array.isArray(o[k])) o[k] = []; });
+    ["machines", "events", "journal", "interventions", "missions", "orders", "customTypes", "calendar", "moves"].forEach(k => { if (!Array.isArray(o[k])) o[k] = []; });
     ["daily", "dayDecisions", "profileManual"].forEach(k => { if (!o[k] || typeof o[k] !== "object") o[k] = {}; });
     o.settings = Object.assign(clone(C.defaults), o.settings || {});
     o.settings.forecast = Object.assign({}, C.defaults.forecast, o.settings.forecast || {});
@@ -128,7 +128,7 @@ window.BA = window.BA || {};
       real: { v: 5, created: now },
       settings: clone(C.defaults),
       machines: [], events: [], journal: [], daily: {}, interventions: [], missions: [], orders: [], customTypes: [],
-      calendar: [], dayDecisions: {}, profileManual: {}
+      calendar: [], dayDecisions: {}, profileManual: {}, moves: []      // moves : pain à déplacer d'une sélection à l'autre (v5.6)
     };
     s.calendar = BA.Forecast.seedCalendar(now);
     s.calendar.forEach(e => { e.id = s.seq++; });

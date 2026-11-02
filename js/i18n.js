@@ -17,7 +17,7 @@ window.BA = window.BA || {};
     yes: "Oui", no: "Non", machine: "Machine", breads: "pains",
 
     nav_dashboard: "Dashboard", nav_details: "Détails machine", nav_products: "Produits / Stock",
-    nav_order: "Commander / Extraction", nav_stats: "Statistiques & rentabilité", nav_alerts: "Alertes",
+    nav_order: "Commander & prévisions", nav_stats: "Statistiques & rentabilité", nav_alerts: "Alertes",
     nav_rs232: "Connexion RS232", nav_settings: "Paramètres", nav_missions: "Missions",
 
     prod_blanc: "Pain blanc", prod_gris: "Pain gris", prod_complet: "Pain complet", prod_maya: "Pain MAYA", prod_sandwich: "Sandwich",
@@ -224,7 +224,7 @@ window.BA = window.BA || {};
     yes: "Ja", no: "Nee", machine: "Automaat", breads: "broden",
 
     nav_dashboard: "Dashboard", nav_details: "Automaatdetails", nav_products: "Producten / Voorraad",
-    nav_order: "Bestellen / Export", nav_stats: "Statistieken & rendabiliteit", nav_alerts: "Meldingen",
+    nav_order: "Bestellen & prognoses", nav_stats: "Statistieken & rendabiliteit", nav_alerts: "Meldingen",
     nav_rs232: "RS232-verbinding", nav_settings: "Instellingen", nav_missions: "Opdrachten",
 
     prod_blanc: "Wit brood", prod_gris: "Grijs brood", prod_complet: "Volkorenbrood", prod_maya: "MAYA-brood", prod_sandwich: "Sandwich",
@@ -422,7 +422,7 @@ window.BA = window.BA || {};
     yes: "Yes", no: "No", machine: "Machine", breads: "breads",
 
     nav_dashboard: "Dashboard", nav_details: "Machine details", nav_products: "Products / Stock",
-    nav_order: "Order / Export", nav_stats: "Statistics & profitability", nav_alerts: "Alerts",
+    nav_order: "Order & forecasts", nav_stats: "Statistics & profitability", nav_alerts: "Alerts",
     nav_rs232: "RS232 connection", nav_settings: "Settings", nav_missions: "Missions",
 
     prod_blanc: "White bread", prod_gris: "Brown bread", prod_complet: "Wholemeal bread", prod_maya: "MAYA bread", prod_sandwich: "Sandwich",

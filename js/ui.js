@@ -181,10 +181,15 @@ window.BA = window.BA || {};
         </div>
         <div id="dash-body"></div>`;
       el.querySelector("#dash-search").addEventListener("input", () => renderDashboard(el, ctx));
+      // v4.8.9 : lignes « À faire aujourd'hui » (admin) — un seul écouteur, le bloc est redessiné chaque seconde
+      el.querySelector("#dash-sum").addEventListener("click", e => {
+        const b = e.target.closest("[data-todo]");
+        if (b && BA.Insights) BA.Insights.todoGo(b.dataset.todo, b.dataset.num);
+      });
     }
     const q = (el.querySelector("#dash-search").value || "").trim().toLowerCase();
     const all = s.machines.map(m => ({ m, x: M.stats(s, m) }));
-    el.querySelector("#dash-sum").innerHTML = summaryCards(s, all, ctx.admin);
+    el.querySelector("#dash-sum").innerHTML = (ctx.admin && BA.Insights ? BA.Insights.todoHtml(s, all) : "") + summaryCards(s, all, ctx.admin);
     // v5.3 : « Lire toutes les machines » (admin, boîtiers 4G)
     el.querySelector("#dash-bx").innerHTML = ctx.admin && BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard() : "";
     const shown = all
@@ -222,7 +227,9 @@ window.BA = window.BA || {};
         const invalid = l.kept && M.isMandatory(s, l);
         const hot = old || planned || invalid;
         // « ➖ Retirer » sur chaque lot : on choisit combien de pains enlever (admin et opérateur)
-        const rmBtn = `<button class="btn petit ${hot ? "" : "secondary"}" data-act="rm-bread" data-sel="${sel.n}" data-lot="${l.id}" title="${E(t("btn_rm_tip"))}">➖ ${t("btn_withdraw")}</button>`;
+        const mvBtn = !invalid && m.sels.some(x => x !== sel && x.type === sel.type)
+          ? `<button class="btn petit secondary mv-btn" data-act="move" data-sel="${sel.n}" data-lot="${l.id}" title="${E(t("btn_move_tip"))}"><span class="mv-arrows">⇄</span> ${t("btn_move")}</button>` : "";
+        const rmBtn = `<button class="btn petit ${hot ? "" : "secondary"}" data-act="rm-bread" data-sel="${sel.n}" data-lot="${l.id}" title="${E(t("btn_rm_tip"))}">➖ ${t("btn_withdraw")}</button>${mvBtn}`;
         let status;
         // gardé une fois (encore bon) : valable jusqu'au jour suivant, puis invalide (à retirer) ; pas de 2e « Encore bon »
         if (invalid) status = `<span class="tag c-must">⛔ ${t("lot_invalid")}</span>${l.keptAt ? `<div class="petit">${t("kept_on", { d: F.dt(l.keptAt) })}</div>` : ""}${rmBtn}`;
@@ -240,7 +247,7 @@ window.BA = window.BA || {};
           <td class="wrap">${status}</td></tr>`;
       });
     });
-    return `<div class="table-scroll"><table class="lots">
+    return moveRequests(s, m) + `<div class="table-scroll"><table class="lots">
       <thead><tr><th>${t("col_sel")}</th><th>${t("col_type")}</th><th>${t("col_qty")}</th><th>${t("col_lotdate")}</th><th>${t("col_age")}</th><th>${t("col_status")}</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;
   }
@@ -337,7 +344,111 @@ window.BA = window.BA || {};
     if (first) { first.focus(); first.select(); }
   }
 
+  // ---------- Déplacer du pain entre deux sélections du même produit ----------
+  // Demandes en attente d'une machine encore valables (sélections et lot toujours là)
+  function openMoves(s, m) {
+    return (s.moves || []).filter(r => {
+      if (r.num !== m.num) return false;
+      const a = M.sel(m, r.from), b = M.sel(m, r.to);
+      if (!a || !b || a.type !== b.type) return false;
+      return a.lots.some(l => Math.floor(l.date / M.MIN) === Math.floor(r.date / M.MIN) && l.qty > 0);
+    });
+  }
+  function moveRequests(s, m) {
+    const list = openMoves(s, m);
+    if (!list.length) return "";
+    return `<div class="alert info mv-req"><b>⇄ ${t("mv_todo_title")}</b>${list.map(r => `
+      <div class="mv-req-row"><span>${t("mv_todo", { q: r.qty, d: F.dt(r.date), a: r.from, b: r.to, type: prod(r.type) })}</span>
+        <span class="mv-req-btns"><button class="btn petit" data-act="mv-done" data-req="${r.id}">✔ ${t("mv_done")}</button>
+        <button class="btn petit secondary" data-act="mv-cancel" data-req="${r.id}">✖ ${t("mv_cancel")}</button></span></div>`).join("")}</div>`;
+  }
+  function moveDialog(num, selN, lotId) {
+    const s = BA.Store.get(), m = M.machine(s, num), from = m && M.sel(m, selN);
+    if (!from) return;
+    M.sortLots(from);
+    const movable = () => from.lots.filter(l => !(l.kept && M.isMandatory(s, l)));      // un pain invalide ne se déplace pas
+    let lot = movable().find(l => l.id === Number(lotId)) || movable()[0];           // sans lot choisi : le plus ancien
+    const targets = m.sels.filter(x => x !== from && x.type === from.type);
+    if (!targets.length) { toast(t("mv_err_type")); return; }
+    if (!lot) { toast(t("mv_err_invalid")); return; }
+    const admin = M.who() === "admin";
+    const free = x => Math.max(0, x.cap - M.qty(x));
+    const root = document.getElementById("modal-root");
+    const back = document.activeElement;
+    const key = e => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+    const close = () => { document.removeEventListener("keydown", key, true); root.innerHTML = ""; if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true }); };
+    const best = targets.slice().sort((a, b) => free(b) - free(a))[0];
+    root.innerHTML = `<div class="modal-back dlg-back"><div class="modal mv-modal" role="dialog" aria-modal="true" aria-labelledby="mv-title">
+      <div class="modal-head"><div><h2 id="mv-title"><span class="mv-arrows">⇄</span> ${t("mv_title")}</h2>
+        <div class="petit">#${m.num} · ${prod(from.type)} · ${E(m.street)}</div></div></div>
+      <p class="mv-from" id="mv-from"></p>
+      <div class="rm-fields">
+        ${movable().length > 1 ? `<label>${t("mv_lot")} <select id="mv-lot" class="auto-w">${movable().map(l => `<option value="${l.id}" ${l === lot ? "selected" : ""}>${F.dt(l.date)} — ${t("n_breads", { n: l.qty })}${l.kept ? " ⏳" : ""}</option>`).join("")}</select></label>` : ""}
+        <label>${t("mv_to")} <select id="mv-to" class="auto-w">${targets.map(x => `<option value="${x.n}" ${x === best ? "selected" : ""}>${t("col_sel")} ${x.n} — ${M.qty(x)}/${x.cap}</option>`).join("")}</select></label>
+        <label>${t("mv_qty")} <input type="number" id="mv-qty" class="num-in big-in" min="1" step="1"></label>
+      </div>
+      <div id="mv-preview"></div>
+      <p class="note">${t("mv_fifo")}</p>
+      <div id="mv-err"></div>
+      <div class="wz-actions">
+        <button class="btn big" id="mv-ok">✔ ${admin ? t("mv_now") : t("mv_ok_op")}</button>
+        ${admin ? `<button class="btn big secondary" id="mv-ask">📨 ${t("mv_ask")}</button>` : ""}
+        <button class="btn big secondary" id="mv-cancel">${t("btn_cancel_short")}</button></div>
+    </div></div>`;
+    document.addEventListener("keydown", key, true);
+    const toSel = () => M.sel(m, root.querySelector("#mv-to").value);
+    const qtyIn = root.querySelector("#mv-qty");
+    const refresh = (reset) => {
+      const to = toSel(), room = Math.min(lot.qty, free(to));
+      qtyIn.max = Math.max(1, room);
+      root.querySelector("#mv-from").innerHTML = t("mv_from", { s: from.n, q: lot.qty, d: F.dt(lot.date), age: F.age(s.now - lot.date) }) + (lot.kept ? ` <span class="tag c-kept">⏳ ${t("lot_kept_short")}</span>` : "");
+      if (reset || !qtyIn.value) qtyIn.value = 1;                      // un seul pain par défaut (on peut en mettre 2, 3…)
+      if (Number(qtyIn.value) > Math.max(1, room)) qtyIn.value = Math.max(1, room);
+      const q = Math.max(0, Math.round(Number(qtyIn.value) || 0));
+      // ordre de sortie dans la sélection d'arrivée après le déplacement (le plus ancien d'abord)
+      const after = to.lots.map(l => ({ d: l.date, q: l.qty, mine: false })).concat(q > 0 ? [{ d: lot.date, q, mine: true }] : []).sort((a, b) => a.d - b.d);
+      root.querySelector("#mv-preview").innerHTML = `<div class="mv-prev"><b>${t("mv_after", { s: to.n })}</b><ol>${after.map((x, i) => `<li class="${x.mine ? "mine" : ""}">${t("n_breads", { n: x.q })} · ${F.dt(x.d)}${i === 0 ? ` <span class="tag c-ok">${t("mv_first")}</span>` : ""}${x.mine ? ` ← ${t("mv_moved")}` : ""}</li>`).join("")}</ol>
+        <div class="petit">${t("mv_left", { s: from.n, q: lot.qty - q })}</div></div>`;
+      root.querySelector("#mv-ok").disabled = room < 1; if (root.querySelector("#mv-ask")) root.querySelector("#mv-ask").disabled = room < 1;
+      root.querySelector("#mv-err").innerHTML = room < 1 ? `<div class="alert err">${t("mv_err_space")}</div>` : "";
+    };
+    root.querySelector("#mv-to").onchange = () => refresh(true);
+    const lotSel = root.querySelector("#mv-lot");
+    if (lotSel) lotSel.onchange = () => { lot = movable().find(l => l.id === Number(lotSel.value)) || lot; refresh(true); };
+    qtyIn.oninput = () => refresh(false);
+    refresh(true);
+    const go = fn => {
+      const to = Number(root.querySelector("#mv-to").value);
+      const res = fn(to, Math.round(Number(qtyIn.value))) || {};
+      if (res.err) { root.querySelector("#mv-err").innerHTML = `<div class="alert err">${t(res.err)}</div>`; return; }
+      close();
+      return Object.assign({ to }, res);
+    };
+    root.querySelector("#mv-cancel").onclick = close;
+    root.querySelector(".dlg-back").onclick = e => { if (e.target.classList.contains("dlg-back")) close(); };
+    root.querySelector("#mv-ok").onclick = () => {
+      const res = go((to, q) => BA.Actions.moveLot(num, from.n, to, lot.id, q));
+      if (res) { toast("✅ " + t("mv_done_msg", { q: res.qty, a: from.n, b: res.to })); BA.Shell.renderView(); }
+    };
+    if (root.querySelector("#mv-ask")) root.querySelector("#mv-ask").onclick = () => {
+      const res = go((to, q) => BA.Actions.requestMove(num, from.n, to, lot.id, q));
+      if (res) { toast("📨 " + t("mv_asked")); BA.Shell.renderView(); }
+    };
+    qtyIn.focus(); qtyIn.select();
+  }
+
+  function bindMoves(el) {
+    el.querySelectorAll("[data-act=mv-done]").forEach(b => b.onclick = () => {
+      const res = BA.Actions.doMove(b.dataset.req) || {};
+      toast(res.err ? "⚠️ " + t(res.err) : "✅ " + t("mv_done_ok", { q: res.qty }));
+      BA.Shell.renderView();
+    });
+    el.querySelectorAll("[data-act=mv-cancel]").forEach(b => b.onclick = () => { BA.Actions.cancelMove(b.dataset.req); BA.Shell.renderView(); });
+  }
+
   function bindLotActions(el, num) {
+    el.querySelectorAll("[data-act=move]").forEach(b => b.onclick = () => moveDialog(num, b.dataset.sel, b.dataset.lot));
+    bindMoves(el);
     el.querySelectorAll("[data-act=keep]").forEach(b => b.onclick = () => BA.Actions.keepLot(num, b.dataset.sel, b.dataset.lot));
     el.querySelectorAll("[data-act=rm-bread]").forEach(b => b.onclick = () => removeDialog(num, b.dataset.sel, b.dataset.lot));
     el.querySelectorAll("[data-act=split]").forEach(b => b.onclick = () => splitDialog(num, b.dataset.sel, b.dataset.lot));
@@ -444,7 +555,7 @@ window.BA = window.BA || {};
         <td class="no-phone">${o ? `${F.dt(o.date)} <span class="petit">(${t("n_breads", { n: o.qty })} · ${F.age(s.now - o.date)})</span>` : "—"}</td>
         ${admin ? `<td><input id="ps-price-${m.num}-${sel.n}" class="ps-price num-in" type="number" min="0" step="0.1" value="${sel.price.toFixed(2)}" data-sel="${sel.n}"></td>` : ""}
         <td>${status}</td>
-        <td>${m.sels.length > 1 ? `<button class="btn petit secondary sel-del" data-act="sel-del" data-sel="${sel.n}" title="${E(t("btn_del_sel"))}" aria-label="${E(t("btn_del_sel"))} ${sel.n}">🗑</button>` : ""}</td></tr>`;
+        <td class="nowrap">${q > 0 && m.sels.some(x => x !== sel && x.type === sel.type) ? `<button class="btn petit secondary mv-btn" data-act="sel-move" data-sel="${sel.n}" title="${E(t("btn_move_tip"))}" aria-label="${E(t("btn_move"))} ${sel.n}"><span class="mv-arrows">⇄</span></button> ` : ""}${m.sels.length > 1 ? `<button class="btn petit secondary sel-del" data-act="sel-del" data-sel="${sel.n}" title="${E(t("btn_del_sel"))}" aria-label="${E(t("btn_del_sel"))} ${sel.n}">🗑</button>` : ""}</td></tr>`;
     }).join("");
     return `
       ${msg ? `<div class="alert ${msg.kind === "ok" ? "info" : "err"}">${msg.kind === "ok" ? "✅" : "⚠️"} ${E(msg.text)}</div>` : ""}
@@ -496,6 +607,7 @@ window.BA = window.BA || {};
     el.querySelectorAll(".ps-cap").forEach(i => i.onchange = () => say(BA.Actions.updateSelection(num, i.dataset.sel, { cap: Number(i.value) }), "saved_sel"));
     if (admin) el.querySelectorAll(".ps-price").forEach(i => i.onchange = () => { const v = Number(i.value); if (v >= 0) say(BA.Actions.updateSelection(num, i.dataset.sel, { price: v }), "saved_sel"); });
     el.querySelectorAll('.sel-table [data-act="rm-bread"]').forEach(b => b.onclick = () => removeDialog(num, b.dataset.sel));
+    el.querySelectorAll('.sel-table [data-act="sel-move"]').forEach(b => b.onclick = () => moveDialog(num, b.dataset.sel, null));
     // Suppression : une fenêtre demande toujours de confirmer (avec un avertissement s'il reste du pain dedans)
     el.querySelectorAll('[data-act="sel-del"]').forEach(b => b.onclick = () => {
       const m = M.machine(BA.Store.get(), num), cur = b.closest("tr") && b.closest("tr").querySelector(".ps-n");
@@ -627,11 +739,89 @@ window.BA = window.BA || {};
           <td>${F.clock(m.lastSeen || s.now)}</td></tr>`).join("")}</tbody></table></div>`;
   }
 
+
+  // ---------------- Fenêtre de détail (v4.8.9) ----------------
+  // S'ouvre par-dessus la page, visible tout de suite (PC et téléphone). Fermer : ✖ (data-det-close), Échap, clic à côté.
+  // bind(root, close) peut rendre une fonction de nettoyage (par exemple détruire un graphique).
+  function openWindow(html, cls, bind) {
+    const root = document.getElementById("modal-root"), back = document.activeElement;
+    let cleanup = null;
+    const key = e => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+    const close = () => {
+      document.removeEventListener("keydown", key, true);
+      if (cleanup) { try { cleanup(); } catch (e) { console.error(e); } cleanup = null; }
+      root.innerHTML = "";
+      if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true });
+    };
+    root.innerHTML = `<div class="modal-back det-back"><div class="modal det-modal ${cls || ""}" role="dialog" aria-modal="true" aria-labelledby="det-title">${html}</div></div>`;
+    document.addEventListener("keydown", key, true);
+    root.querySelector(".det-back").onclick = e => { if (e.target.classList.contains("det-back")) close(); };
+    root.querySelectorAll("[data-det-close]").forEach(b => { b.onclick = close; });
+    const f = root.querySelector("[data-det-close]"); if (f) f.focus({ preventScroll: true });
+    if (bind) cleanup = bind(root, close) || null;
+    return close;
+  }
+
+  // ================= GRAPHIQUES (v4.8.8) =================
+  // Couleurs lues dans les variables CSS --chart-* (un seul endroit à changer, par exemple pour un thème clair).
+  // Palette vérifiée sur le fond des graphiques (#1e293b) : contraste ≥ 3:1, distinguable par les daltoniens.
+  function chartTheme() {
+    const css = getComputedStyle(document.documentElement);
+    const v = (n, fb) => (css.getPropertyValue(n) || "").trim() || fb;
+    const rgb = hex => { const h = String(hex).replace("#", ""); const n = parseInt(h.length === 3 ? h.replace(/./g, c => c + c) : h, 16); return [n >> 16 & 255, n >> 8 & 255, n & 255]; };
+    return {
+      surface: v("--chart-surface", "#1e293b"), tip: v("--chart-tip", "#0f172a"), ink: v("--chart-ink", "#e2e8f0"), muted: v("--chart-muted", "#94a3b8"),
+      grid: v("--chart-grid", "#2b3a52"), axis: v("--chart-axis", "#475569"), context: v("--chart-context", "#64748b"),
+      good: v("--chart-good", "#0ca30c"), bad: v("--chart-bad", "#d03b3b"),
+      loaded: v("--chart-loaded", "#3987e5"), sold: v("--chart-sold", "#199e70"), returned: v("--chart-returned", "#d95926"), rev: v("--chart-rev", "#9085e9"),
+      font: getComputedStyle(document.body).fontFamily || "system-ui, sans-serif",
+      wash(hex, a) { const [r, g, b] = rgb(hex); return `rgba(${r}, ${g}, ${b}, ${a})`; },
+      lighten(hex, f) { const [r, g, b] = rgb(hex).map(x => Math.round(x + (255 - x) * f)); return `rgb(${r}, ${g}, ${b})`; }
+    };
+  }
+  // Trait vertical qui suit la souris : on vise une date, pas une ligne de 2 px
+  const chartCrosshair = {
+    id: "baCross",
+    afterDatasetsDraw(ch, args, opts) {
+      const act = ch.tooltip && ch.tooltip.getActiveElements ? ch.tooltip.getActiveElements() : [];
+      if (!act.length) return;
+      const x = Math.round(act[0].element.x) + 0.5, a = ch.chartArea, g = ch.ctx;
+      g.save(); g.strokeStyle = opts.color || "#94a3b8"; g.globalAlpha = 0.45; g.lineWidth = 1;
+      g.beginPath(); g.moveTo(x, a.top); g.lineTo(x, a.bottom); g.stroke(); g.restore();
+    }
+  };
+  // Une seule valeur écrite sur le graphique : la dernière (au bout de la courbe, ou au-dessus de la dernière barre)
+  const chartEndLabel = {
+    id: "baEnd",
+    afterDatasetsDraw(ch, args, opts) {
+      if (!opts || !opts.text) return;
+      const meta = ch.getDatasetMeta(0), i = meta.data.length - 1, el = i >= 0 ? meta.data[i] : null;
+      if (!el) return;
+      const v = ch.data.datasets[0].data[i], g = ch.ctx;
+      g.save(); g.font = `600 12px ${opts.font || "system-ui, sans-serif"}`; g.fillStyle = opts.color || "#e2e8f0";
+      if (opts.bar) { g.textAlign = "center"; g.textBaseline = v < 0 ? "top" : "bottom"; g.fillText(opts.text, el.x, el.y + (v < 0 ? 6 : -6)); }
+      else { g.textAlign = "left"; g.textBaseline = "middle"; g.fillText(opts.text, el.x + 9, el.y); }
+      g.restore();
+    }
+  };
+  // Couleur qui change exactement à zéro : « bon » au-dessus, « mauvais » en dessous (bénéfice / perte)
+  function chartSignColor(good, bad) {
+    return c => {
+      const ch = c.chart, a = ch.chartArea;
+      if (!a || !ch.scales.y) return good;
+      const y0 = ch.scales.y.getPixelForValue(0), r = Math.min(1, Math.max(0, (y0 - a.top) / Math.max(1, a.bottom - a.top)));
+      const gr = ch.ctx.createLinearGradient(0, a.top, 0, a.bottom);
+      gr.addColorStop(0, good); gr.addColorStop(r, good); gr.addColorStop(r, bad); gr.addColorStop(1, bad);
+      return gr;
+    };
+  }
+
   BA.UI = {
     F, E, t, prod, pill, ICON,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
-    machinePicker, lotsTable, bindLotActions, stockTable, bindStockTable, eventHtml, interventionsTable, prodText,
-    confirmDialog, dateInput, afterClick, removeDialog, toast
+    machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, interventionsTable, prodText,
+    confirmDialog, dateInput, afterClick, removeDialog, toast, openWindow,
+    chartTheme, chartCrosshair, chartEndLabel, chartSignColor
   };
 
   // ================= COQUILLE DE L'APPLI =================

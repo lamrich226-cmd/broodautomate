@@ -111,6 +111,97 @@ window.BA = window.BA || {};
       return true;
     },
 
+    // Comparaison avec l'an dernier (une feuille par machine résumée, une feuille jour par jour)
+    exportYearCompare(s, o) {
+      if (!this.ready()) return false;
+      const F = BA.UI.F, wb = XLSX.utils.book_new();
+      const addr = n => { const m = M.machine(s, n); return m ? m.street + ", " + m.city : ""; };
+      const pc = (a, b) => b > 0 ? Math.round((a / b - 1) * 1000) / 10 : "";
+      const info = [[t("x_ly_title")], [t("x_ly_period"), F.key(o.from) + " → " + F.key(o.to) + "  /  " + F.key(o.fromPrev) + " → " + F.key(o.toPrev)], [t("x_created"), dt(s.now)], [t("x_ly_help")], []];
+      const sum = info.concat([[t("x_machine"), t("x_address"), t("ly_col_this"), t("ly_col_prev"), t("ly_col_diff") + " (%)", t("ly_col_days"), t("ly_col_note")]]);
+      let ta = 0, tb = 0;
+      o.list.forEach(x => {
+        if (x.enough) { ta += x.a; tb += x.b; }
+        sum.push(["#" + x.num, addr(x.num), x.enough ? x.a : "", x.enough ? x.b : "", x.enough ? pc(x.a, x.b) : "", x.n + " / " + x.days, o.note(x)]);
+      });
+      sum.push([t("x_total"), "", ta, tb, pc(ta, tb), "", ""]);
+      XLSX.utils.book_append_sheet(wb, sheet(sum, [9, 30, 13, 13, 12, 14, 44]), t("x_sheet_ly"));
+      const days = info.concat([[t("x_machine"), t("x_address"), t("ly_col_day"), t("ly_col_dayprev"), t("ly_col_this"), t("ly_col_prev"), t("ly_col_diff") + " (%)", t("ly_x_used"), t("ly_this") + " : " + t("ly_x_special"), t("ly_prev") + " : " + t("ly_x_special")]]);
+      o.list.forEach(x => x.rows.forEach(r => days.push(["#" + x.num, addr(x.num), F.key(r.k), F.key(r.kp), r.cur == null ? "" : r.cur, r.prev == null ? "" : r.prev,
+        r.use ? pc(r.cur, r.prev) : "", r.use ? t("yes") : t("no"), o.names(r.spCur), o.names(r.spPrev)])));
+      XLSX.utils.book_append_sheet(wb, sheet(days, [9, 30, 12, 12, 11, 11, 12, 12, 30, 30]), t("x_sheet_ly_days"));
+      save(wb, "broodautomate-an-dernier_" + o.from + "_" + o.to + ".xlsx");
+      return true;
+    },
+
+    // La période à venir vue l'an dernier (Commander) : totaux par machine + jour par jour
+    exportPeriodLY(s, o) {
+      if (!this.ready()) return false;
+      const F = BA.UI.F, wb = XLSX.utils.book_new(), FC = BA.Forecast;
+      const addr = n => { const m = M.machine(s, n); return m ? m.street + ", " + m.city : ""; };
+      const pc = (a, b) => a > 0 ? Math.round((b / a - 1) * 1000) / 10 : "";
+      const info = [[t("x_pl_title")], [t("x_ly_period"), F.key(o.from) + " → " + F.key(o.to) + "  /  " + F.key(FC.addDays(o.from, -FC.LY_SHIFT)) + " → " + F.key(FC.addDays(o.to, -FC.LY_SHIFT))], [t("x_created"), dt(s.now)], [t("x_pl_help")], []];
+      const sum = info.concat([[t("x_machine"), t("x_address"), t("pl_col_total"), t("pl_col_exp"), t("pl_col_diff") + " (%)", t("pl_col_adj"), t("ly_col_days")]]);
+      let ta = 0, tb = 0;
+      o.list.forEach(x => {
+        if (x.enough) { ta += x.prevTotal; tb += x.expTotal; }
+        sum.push(["#" + x.num, addr(x.num), x.enough ? x.prevTotal : "", x.enough ? Math.round(x.expTotal * 10) / 10 : "", x.enough ? pc(x.prevTotal, x.expTotal) : "", x.adj != null ? Math.round(x.adj * 10) / 10 : "", x.n + " / " + x.days]);
+      });
+      sum.push([t("x_total"), "", ta, Math.round(tb * 10) / 10, pc(ta, tb), "", ""]);
+      XLSX.utils.book_append_sheet(wb, sheet(sum, [9, 30, 16, 16, 12, 16, 12]), t("x_sheet_pl"));
+      const days = info.concat([[t("x_machine"), t("x_address"), t("ly_col_day"), t("ly_col_dayprev"), t("pl_col_total"), t("pl_col_exp"), t("ly_this") + " : " + t("ly_x_special"), t("ly_prev") + " : " + t("ly_x_special")]]);
+      o.list.forEach(x => x.rows.forEach(r => days.push(["#" + x.num, addr(x.num), F.key(r.k), F.key(r.kp), r.prev == null ? "" : r.prev, Math.round(r.exp * 10) / 10, o.names(r.spCur), o.names(r.spPrev)])));
+      XLSX.utils.book_append_sheet(wb, sheet(days, [9, 30, 12, 12, 14, 14, 30, 30]), t("x_sheet_pl_days"));
+      save(wb, "broodautomate-commande-an-dernier_" + o.from + "_" + o.to + ".xlsx");
+      return true;
+    },
+
+    // Résumé de la semaine (v4.8.9) : résumé avec la semaine d'avant, une ligne par machine, jour par jour
+    exportWeekly(s, R) {
+      if (!this.ready()) return false;
+      const F = BA.UI.F, wb = XLSX.utils.book_new();
+      const r1 = v => Math.round((v || 0) * 10) / 10, eur = v => Math.round((v || 0) * 100) / 100;
+      const pc = v => v == null ? "" : Math.round(v * 1000) / 10;
+      const chg = (a, b) => b ? Math.round((a - b) / Math.abs(b) * 1000) / 10 : "";
+      const costs = o => o.c + o.fixed + o.fees;
+      const sum = [
+        [t("x_wk_title", { a: F.key(R.w.from), b: F.key(R.w.to) })],
+        [t("x_created"), dt(s.now)],
+        [t("x_wk_help")],
+        [],
+        [t("x_wk_col_what"), t("x_wk_col_week"), t("x_wk_col_prev", { a: F.key(R.pw.from), b: F.key(R.pw.to) }), t("x_wk_col_chg")],
+        [t("m_loaded"), R.tot.l, R.ptot.l, chg(R.tot.l, R.ptot.l)],
+        [t("m_sold"), R.tot.s, R.ptot.s, chg(R.tot.s, R.ptot.s)],
+        [t("m_returned"), R.tot.x, R.ptot.x, chg(R.tot.x, R.ptot.x)],
+        [t("x_wk_rate"), pc(R.tot.rate), pc(R.ptot.rate), ""],
+        [t("x_wk_lost"), r1(R.tot.lost), r1(R.ptot.lost), chg(R.tot.lost, R.ptot.lost)],
+        [t("m_rev") + " (€)", eur(R.tot.r), eur(R.ptot.r), chg(R.tot.r, R.ptot.r)],
+        [t("m_costs") + " (€)", eur(costs(R.tot)), eur(costs(R.ptot)), chg(costs(R.tot), costs(R.ptot))],
+        [t("m_profit") + " (€)", eur(R.tot.profit), eur(R.ptot.profit), chg(R.tot.profit, R.ptot.profit)],
+        [],
+        [t("x_wk_target"), Math.round(R.tg * 1000) / 10],
+        [t("x_wk_in_target"), R.inT + " / " + R.active],
+        [t("x_wk_acc"), pc(R.acc.acc)],
+        [t("x_wk_alerts"), R.alerts],
+        [],
+        [t("x_wk_best")]
+      ];
+      R.best.forEach(x => sum.push(["#" + x.num + " — " + x.addr, eur(x.profit)]));
+      sum.push([], [t("x_wk_watch")]);
+      if (!R.watch.length) sum.push([t("x_wk_watch_none")]);
+      R.watch.forEach(x => sum.push(["#" + x.num + " — " + x.addr, pc(x.rate), R.adviceText(x.adv)]));
+      XLSX.utils.book_append_sheet(wb, sheet(sum, [44, 18, 26, 14]), t("x_sheet_wk"));
+      const mach = [[t("x_machine"), t("x_address"), t("m_loaded"), t("m_sold"), t("m_returned"), t("x_wk_rate"), t("x_wk_lost"),
+        t("m_rev") + " (€)", t("m_profit") + " (€)", t("x_wk_acc_col"), t("x_wk_advice")]];
+      R.machines.forEach(x => mach.push(["#" + x.num, x.addr, x.l, x.s, x.x, pc(x.rate), r1(x.lost), eur(x.r), eur(x.profit), x.accN >= 4 ? pc(x.acc) : "", R.adviceText(x.adv)]));
+      XLSX.utils.book_append_sheet(wb, sheet(mach, [9, 30, 11, 11, 11, 16, 16, 14, 14, 18, 46]), t("x_sheet_wk_m"));
+      const days = [[t("ly_col_day"), t("m_loaded"), t("m_sold"), t("m_returned"), t("x_wk_rate"), t("x_wk_lost"), t("m_rev") + " (€)", t("m_profit") + " (€)"]];
+      R.perDay.forEach(d => days.push([F.key(d.k), d.l, d.s, d.x, pc(d.rate), r1(d.lost), eur(d.r), eur(d.profit)]));
+      XLSX.utils.book_append_sheet(wb, sheet(days, [14, 11, 11, 11, 16, 16, 14, 14]), t("x_sheet_wk_d"));
+      save(wb, "broodautomate-semaine_" + R.w.from + "_" + R.w.to + ".xlsx");
+      return true;
+    },
+
     exportOrder(s, plan, opts) {
       if (!this.ready()) return false;
       const wb = XLSX.utils.book_new();

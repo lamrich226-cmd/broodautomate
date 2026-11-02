@@ -87,9 +87,11 @@ window.BA = window.BA || {};
 
   // ================= CONTEXTE DE CALCUL =================
   // Calculé une fois par écran : profils de toutes les machines + calendrier indexé par jour
-  function context(s) {
+  // atKey (v4.8.4) : le profil tel qu'il était à cette date (ex. il y a 52 semaines) : mêmes calculs, mêmes réglages,
+  // sans les réglages à la main d'aujourd'hui ; pour comparer avec l'an dernier (lecture seule).
+  function context(s, atKey) {
     const F = Object.assign({}, C.defaults.forecast, s.settings.forecast || {});
-    const ctx = { s, F, today: dayKey(s.now), cal: s.calendar || [], byDay: {}, prof: {}, fleet: null, cache: {}, flat: F.hourly === "flat" };
+    const ctx = { s, F, today: atKey || dayKey(s.now), ly: !!atKey, cal: s.calendar || [], byDay: {}, prof: {}, fleet: null, cache: {}, flat: F.hourly === "flat" };
     ctx.cal.forEach(e => {
       for (let k = e.from, g = 0; k && k <= e.to && g < 450; k = addDays(k, 1), g++) (ctx.byDay[k] = ctx.byDay[k] || []).push(e);
     });
@@ -151,6 +153,7 @@ window.BA = window.BA || {};
 
   // Réglages manuels encore valables (ceux de plus de N semaines sont ignorés : retour à l'historique)
   function manualState(ctx, num, wd) {
+    if (ctx.ly) return { set: false };
     const man = (ctx.s.profileManual || {})[num];
     if (!man || man[wd] == null) return { set: false };
     const at = ((ctx.s.profileManualAt || {})[num] || {})[wd];
@@ -159,6 +162,7 @@ window.BA = window.BA || {};
     return ctx.s.now > until ? { set: false, expired: true } : { set: true, at, until };
   }
   function activeManual(ctx, num) {
+    if (ctx.ly) return null;                              // l'an dernier : pas de réglage à la main
     const man = (ctx.s.profileManual || {})[num];
     if (!man || man.length !== 7) return man;
     return man.map((v, wd) => manualState(ctx, num, wd).set ? v : null);
@@ -467,6 +471,13 @@ window.BA = window.BA || {};
     const sh = {}; Object.keys(cap).forEach(ty => { sh[ty] = cap[ty] / tot; });
     return sh;
   }
+  // Ventes d'une journée réparties par type de pain (même méthode que typeDetail : proportions des ventes enregistrées, sinon capacités)
+  function typeSplit(ctx, m, r) {
+    if (!r) return null;
+    const cs = capShares(m), ys = r.y ? Object.values(r.y).reduce((a, v) => a + v, 0) : 0, o = {};
+    Object.keys(cs).forEach(ty => { o[ty] = ys > 0 ? (r.y[ty] || 0) / ys * r.s : cs[ty] * r.s; });
+    return o;
+  }
   // Pour une machine : types, historique moyen par jour de semaine et par type (même filtres que le profil)
   function typeDetail(ctx, m) {
     ctx.td = ctx.td || {};
@@ -520,11 +531,74 @@ window.BA = window.BA || {};
     return out;
   }
 
+  // ================= COMPARAISON AVEC L'AN DERNIER (v4.8.3) =================
+  // Les W dernières semaines (jusqu'à hier) face aux MÊMES jours de semaine 52 semaines avant (364 jours : lundi ↔ lundi).
+  // Un jour compte dans les totaux seulement si les deux années ont des données (un trou n'est PAS un zéro) et, selon les
+  // réglages, sans jour de machine vide / coupure. Les jours spéciaux (fériés, vacances) restent comptés mais signalés :
+  // Pâques, l'Ascension… ne tombent pas aux mêmes dates. Lecture seule : rien ici ne change la prévision ni la commande.
+  const LY_SHIFT = 364;                                   // 52 semaines : le même jour de semaine, un an avant
+  const LY_MIN_DAYS = 7;                                  // en dessous : pas assez de jours comparables pour un écart
+  function yearCompare(ctx, m, W) {
+    const s = ctx.s, rows = [], types = {};
+    let a = 0, b = 0, n = 0, haveNow = 0, havePrev = 0, anom = 0;
+    const sp = k => (ctx.byDay[k] || []).filter(e => applies(e, m));
+    for (let i = 1; i <= W * 7; i++) {
+      const k = addDays(ctx.today, -i), kp = addDays(k, -364);
+      const r = (s.daily[k] || {})[m.num] || null, p = (s.daily[kp] || {})[m.num] || null;
+      const anCur = !!r && isAnomaly(ctx, r), anPrev = !!p && isAnomaly(ctx, p);
+      const use = !!r && !!p && !(ctx.F.excludeAnomalies && (anCur || anPrev));
+      if (r) haveNow++;
+      if (p) havePrev++;
+      if (r && p && !use) anom++;
+      if (use) {
+        a += r.s; b += p.s; n++;
+        Object.keys(r.y || {}).forEach(ty => { (types[ty] = types[ty] || { a: 0, b: 0 }).a += r.y[ty]; });
+        Object.keys(p.y || {}).forEach(ty => { (types[ty] = types[ty] || { a: 0, b: 0 }).b += p.y[ty]; });
+      }
+      rows.push({ k, kp, wk: Math.ceil(i / 7), cur: r ? r.s : null, prev: p ? p.s : null, anCur, anPrev, use, spCur: sp(k), spPrev: sp(kp), cty: typeSplit(ctx, m, r), pty: typeSplit(ctx, m, p) });
+    }
+    rows.reverse();                                       // du plus ancien au plus récent
+    return { num: m.num, W, rows, tlist: Object.keys(capShares(m)), a, b, n, haveNow, havePrev, anom, days: W * 7, enough: n >= LY_MIN_DAYS, diff: n >= LY_MIN_DAYS && b > 0 ? a / b - 1 : null, types };
+  }
+
+
+  // ================= PÉRIODE À VENIR VUE L'AN DERNIER (v4.8.5) =================
+  // Pour commander : les jours de from à to (n'importe quelle période, par exemple novembre) face aux MÊMES jours de semaine
+  // 52 semaines avant (k − 364). Pour chaque jour : ce qui s'est vendu (pains), ce que la prévision actuelle attend, les jours
+  // spéciaux des deux années. Un jour sans donnée l'an dernier n'est PAS un zéro (il ne compte pas dans le total).
+  // « adj » = suggestion corrigée : le total de l'an dernier × (ventes des W dernières semaines / mêmes semaines un an avant).
+  // Lecture seule : rien ici ne change la prévision, ni la commande.
+  const PERIOD_MAX = 62;
+  function periodLY(ctx, m, from, to) {
+    const rows = [], days = Math.min(PERIOD_MAX, Math.max(1, diffDays(from, to) + 1));
+    const p = ctx.prof[m.num], sp = k => (ctx.byDay[k] || []).filter(e => applies(e, m));
+    const td = typeDetail(ctx, m), tlist = td.types, tp = {}, te = {};
+    tlist.forEach(ty => { tp[ty] = 0; te[ty] = 0; });
+    let a = 0, b = 0, n = 0;
+    for (let i = 0; i < days; i++) {
+      const k = addDays(from, i), kp = addDays(k, -LY_SHIFT);
+      const r = (ctx.s.daily[kp] || {})[m.num] || null;
+      const prev = r ? r.s : null, an = !!r && isAnomaly(ctx, r);
+      const exp = p.base * final(ctx, m, k), wd = wday(k);
+      const pty = typeSplit(ctx, m, r), ety = {};
+      tlist.forEach(ty => { ety[ty] = exp * (td.shareWd[wd][ty] || 0); });
+      const use = prev != null && !(ctx.F.excludeAnomalies && an);
+      if (use) { a += prev; b += exp; n++; tlist.forEach(ty => { tp[ty] += pty[ty] || 0; te[ty] += ety[ty]; }); }
+      rows.push({ k, kp, prev, exp, an, use, pty, ety, spCur: sp(k), spPrev: sp(kp) });
+    }
+    const yc = yearCompare(ctx, m, ctx.F.weeks);
+    const adj = n > 0 && yc.enough ? a * (1 + (yc.diff || 0)) : null;
+    return { num: m.num, from, to, days, rows, tlist, tyPrev: tp, tyExp: te, base: p.base, prevTotal: a, expTotal: b, n, enough: n > 0, diff: n > 0 && a > 0 ? b / a - 1 : null, trend: yc.enough ? yc.diff : null, adj };
+  }
+
+  // Contexte de calcul de la même période l'an dernier (52 semaines avant aujourd'hui)
+  function lastYearContext(s) { return context(s, addDays(dayKey(s.now), -LY_SHIFT)); }
+
   BA.Forecast = {
     typeDetail, selShares, manualState,
     KINDS, DEF_EFFECT,
     keyMs, addDays, wday, diffDays, easter, publicHolidays, holidayEntries, schoolEntries, seedCalendar, sortCal, makeEntry,
     applies, effectFor, context, auto, final, fleetAuto, fleetFinal, fleetWd, salesBetween, dayRows,
-    machineDecision, fleetDecision, learnEntry, lastYearMatch, suggestions, rawProfile
+    machineDecision, fleetDecision, learnEntry, lastYearMatch, suggestions, rawProfile, yearCompare, LY_MIN_DAYS, LY_SHIFT, lastYearContext, periodLY, PERIOD_MAX, typeSplit
   };
 })();

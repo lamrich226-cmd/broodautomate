@@ -16,6 +16,37 @@ window.BA = window.BA || {};
     return { sel, lot: i >= 0 ? sel.lots[i] : null, i };
   }
 
+  // ---- Déplacement d'un lot (voir BA.Actions.moveLot) ----
+  // Un lot peut changer de numéro quand deux lots de même date se rejoignent : une demande retient donc la date.
+  function moveLotByDate(sel, date, kept) {
+    const same = sel.lots.filter(l => Math.floor(l.date / M.MIN) === Math.floor(date / M.MIN));
+    return same.find(l => !!l.kept === !!kept) || same[0] || null;
+  }
+  function checkMove(s, m, fromN, toN, lot, qty) {
+    const from = M.sel(m, fromN), to = M.sel(m, toN);
+    if (!from || !to || from === to) return { err: "err_sel_missing" };
+    if (from.type !== to.type) return { err: "mv_err_type" };
+    if (!lot) return { err: "mv_err_gone" };
+    if (lot.kept && M.isMandatory(s, lot)) return { err: "mv_err_invalid" };
+    const q = Math.round(Number(qty));
+    if (!(q >= 1) || q > lot.qty) return { err: "mv_err_qty" };
+    if (q > to.cap - M.qty(to)) return { err: "mv_err_space" };
+    return { qty: q, from, to };
+  }
+  function applyMove(s, m, fromN, toN, lot, qty, fromRequest) {
+    const chk = checkMove(s, m, fromN, toN, lot, qty);
+    if (chk.err) return chk;
+    const { from, to, qty: q } = chk;
+    lot.qty -= q;
+    to.lots.push({ id: s.seq++, qty: q, date: lot.date, kept: !!lot.kept, estimated: !!lot.estimated, ...(lot.kept ? { keptAt: lot.keptAt || s.now } : {}) });
+    from.lots = from.lots.filter(l => l.qty > 0);
+    M.sortLots(from); M.sortLots(to);
+    M.log(s, { k: "mv", n: m.num, s: from.n, s2: to.n, y: from.type, q, l: lot.date, r: fromRequest ? "req" : "" });
+    if (M.qty(from) === 0) M.addEvent(s, m.num, "SEL_EMPTY", { sel: from.n, type: from.type });
+    if (m.sels.every(x => M.qty(x) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
+    return { ok: true, qty: q };
+  }
+
   // Copie / restauration des lots d'une machine (retour arrière dans « Remplir »)
   function snapLots(m) {
     const o = {};
@@ -116,6 +147,49 @@ window.BA = window.BA || {};
       });
     },
 
+    // ---------- Déplacer du pain d'une sélection à une autre (même produit) ----------
+    // Règles : même type de pain ; de la place dans la sélection d'arrivée ; un pain invalide (gardé une fois, délai
+    // dépassé) ne se déplace pas, il se retire. FIFO : le pain garde SA date de livraison (et son « gardé une fois »,
+    // sans nouveau sursis) et il est rangé par date : le plus ancien sort toujours en premier.
+    // L'admin peut déplacer directement, ou demander à l'opérateur (requestMove) qui confirme sur place (doMove).
+    moveLot(num, fromN, toN, lotId, qty) {
+      return Store.update(s => {
+        const m = M.machine(s, num); if (!m) return { err: "err_sel_missing" };
+        const { lot } = findLot(m, fromN, lotId);
+        return applyMove(s, m, fromN, toN, lot, qty, false);
+      });
+    },
+    // Demande de déplacement (l'opérateur la voit sur la machine et la fait sur place)
+    requestMove(num, fromN, toN, lotId, qty) {
+      return Store.update(s => {
+        const m = M.machine(s, num); if (!m) return { err: "err_sel_missing" };
+        const { sel, lot } = findLot(m, fromN, lotId);
+        const chk = checkMove(s, m, fromN, toN, lot, qty);
+        if (chk.err) return chk;
+        s.moves = s.moves || [];
+        s.moves.push({ id: s.seq++, num: m.num, from: Number(fromN), to: Number(toN), date: lot.date, kept: !!lot.kept, type: sel.type, qty: chk.qty, at: s.now, by: M.who() });
+        return { ok: true, qty: chk.qty };
+      });
+    },
+    // L'opérateur confirme qu'il a fait le déplacement demandé
+    doMove(reqId) {
+      return Store.update(s => {
+        const r = (s.moves || []).find(x => x.id === Number(reqId)); if (!r) return { err: "mv_err_gone" };
+        const m = M.machine(s, r.num); if (!m) return { err: "err_sel_missing" };
+        const from = M.sel(m, r.from);
+        const lot = from && moveLotByDate(from, r.date, r.kept);
+        const to = M.sel(m, r.to);
+        if (lot && to && to.cap - M.qty(to) < 1) return { err: "mv_err_space" };
+        const q = lot && to ? Math.min(r.qty, lot.qty, Math.max(0, to.cap - M.qty(to))) : 0;
+        const res = applyMove(s, m, r.from, r.to, lot, q, true);
+        if (!res.err) s.moves = s.moves.filter(x => x.id !== r.id);
+        return res;
+      });
+    },
+    cancelMove(reqId) {
+      Store.update(s => { s.moves = (s.moves || []).filter(x => x.id !== Number(reqId)); });
+    },
+
     // ---------- Alertes ----------
     archiveEvent(id, value) {
       Store.update(s => { const e = s.events.find(x => x.id === Number(id)); if (e) e.archived = !!value; });
@@ -128,6 +202,7 @@ window.BA = window.BA || {};
 
     // ---------- Paramètres ----------
     saveSettings(values) {
+      if (BA.Backup) BA.Backup.auto();            // sauvegarde automatique avant le changement (admin)
       Store.update(s => { Object.assign(s.settings, values); });
     },
     // Frais fixes mensuels par machine : map = { numéro: euros | null (null = valeur par défaut) }
@@ -150,6 +225,8 @@ window.BA = window.BA || {};
           const n = Number(values.n);
           if (!Number.isInteger(n) || n < 1 || n > 999) return "err_sel_number";
           if (n !== sel.n && M.sel(m, n)) return "err_sel_exists";
+          // (les déplacements demandés qui parlent de cette sélection suivent son nouveau numéro)
+          (s.moves || []).forEach(r => { if (r.num === m.num) { if (r.from === sel.n) r.from = n; if (r.to === sel.n) r.to = n; } });
           sel.n = n;
           m.sels.sort((a, b) => a.n - b.n);
         }
@@ -195,6 +272,7 @@ window.BA = window.BA || {};
         if (q > 0) M.addDaily(s, s.now, m.num, { x: q });
         M.log(s, { k: "seldel", n: m.num, s: sel.n, y: sel.type, q: q || null, l: sel.lots.length ? sel.lots[0].date : null });
         m.sels = m.sels.filter(x => x !== sel);
+        s.moves = (s.moves || []).filter(r => !(r.num === m.num && (r.from === sel.n || r.to === sel.n)));
         M.resolveEvents(s, m.num, "SEL_EMPTY", e => e.data.sel === sel.n);
         M.resolveEvents(s, m.num, "OLD_BREAD", e => e.data.sel === sel.n);
         return null;
@@ -254,6 +332,33 @@ window.BA = window.BA || {};
           const d = all[x.k] || (all[x.k] = {});
           d.m = d.m || {};
           d.m[num] = { st: "mod", pct: x.pct, ref: x.ref, at: s.now, why: "trend" };
+        });
+      });
+    },
+
+    // v4.8.6 : « Utiliser l'an dernier » : décisions « modifié » par machine et par jour. list = [{ num, k, pct, ref }]
+    // Renvoie les anciennes décisions (pour pouvoir annuler).
+    applyLastYear(list) {
+      let prev = [];
+      Store.update(s => {
+        prev = [];
+        const all = s.dayDecisions || (s.dayDecisions = {});
+        list.forEach(x => {
+          const d = all[x.k] || (all[x.k] = {});
+          d.m = d.m || {};
+          prev.push({ k: x.k, num: x.num, old: d.m[x.num] ? JSON.parse(JSON.stringify(d.m[x.num])) : null });
+          d.m[x.num] = { st: "mod", pct: x.pct, ref: x.ref, at: s.now, why: "ly" };
+        });
+      });
+      return prev;
+    },
+    undoLastYear(prev) {
+      Store.update(s => {
+        const all = s.dayDecisions || (s.dayDecisions = {});
+        (prev || []).forEach(x => {
+          const d = all[x.k] || (all[x.k] = {});
+          d.m = d.m || {};
+          if (x.old) d.m[x.num] = x.old; else delete d.m[x.num];
         });
       });
     },
@@ -321,6 +426,7 @@ window.BA = window.BA || {};
     },
     // Profil manuel d'une machine (7 valeurs en %, dimanche → samedi), null = automatique
     setProfileManual(num, vals) {
+      if (BA.Backup) BA.Backup.auto();            // sauvegarde automatique avant le changement (admin)
       Store.update(s => {
         s.profileManual = s.profileManual || {};
         if (s.profileTypes) delete s.profileTypes[num];
@@ -332,6 +438,7 @@ window.BA = window.BA || {};
     // Un jour de semaine d'une machine réglé à la main, par type de pain : perType = { type: pains par jour }
     // Le total du jour devient le profil (en % d'une journée normale) ; la répartition par type sert à la commande.
     setProfileDay(num, wd, perType) {
+      if (BA.Backup) BA.Backup.auto();            // sauvegarde automatique avant le changement (admin)
       Store.update(s => {
         const p = BA.Forecast.context(s).prof[num]; if (!p) return;
         const clean = {}; let total = 0;
@@ -348,6 +455,7 @@ window.BA = window.BA || {};
     },
     // Remet un jour de semaine d'une machine en automatique
     resetProfileDay(num, wd) {
+      if (BA.Backup) BA.Backup.auto();            // sauvegarde automatique avant le changement (admin)
       Store.update(s => {
         const man = (s.profileManual || {})[num];
         if (man) { man[wd] = null; if (!man.some(v => v != null)) delete s.profileManual[num]; }
@@ -357,6 +465,7 @@ window.BA = window.BA || {};
       });
     },
     saveForecastSettings(values) {
+      if (BA.Backup) BA.Backup.auto();            // sauvegarde automatique avant le changement (admin)
       Store.update(s => { s.settings.forecast = Object.assign({}, BA_CONFIG.defaults.forecast, s.settings.forecast || {}, values); });
     },
 
