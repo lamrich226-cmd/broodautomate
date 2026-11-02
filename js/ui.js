@@ -709,8 +709,8 @@ window.BA = window.BA || {};
       nav.className = rail ? "rail" : "";
       nav.setAttribute("aria-label", t("nav_menu"));
       nav.innerHTML = rail
-        ? `<button type="button" class="rail-toggle" aria-pressed="false"><span class="ni" aria-hidden="true">☰</span><span class="nl"></span></button>`
-          + c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${v.icon}</span><span class="nl">${t(v.label)}</span></button>`).join("")
+        ? `<button type="button" class="rail-toggle" aria-pressed="false"><span class="ni" aria-hidden="true">${this.icon("menu", "☰")}</span><span class="nl"></span></button>`
+          + c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`).join("")
         : c.views.map(v => `<button data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}">${v.icon} ${t(v.label)}</button>`).join("");
       nav.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => { this.go(b.dataset.view); if (rail) this.railClose(); });
       if (rail) this.railInit();
@@ -722,6 +722,25 @@ window.BA = window.BA || {};
       const lo = $("#btn-logout"); if (lo) lo.onclick = async () => { try { await BA.DB.signOut(); } catch (e) { /* on recharge quand même */ } location.reload(); };
       this.renderView();
       this.refreshChrome();
+    },
+
+    // v5.5 : icônes fines (traits) pour la barre latérale ; repli sur l'emoji de la vue si l'id est inconnu
+    ICONS: {
+      dashboard: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+      details: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
+      products: '<path d="M4 15c0-4 3-7 8-7s8 3 8 7v2H4z"/><path d="M9 12l1 2M13 11l1 2M16 13l1 1"/>',
+      order: '<path d="M21 8l-9-5-9 5 9 5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+      forecast: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+      stats: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+      history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
+      alerts: '<path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
+      rs232: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>',
+      settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/>',
+      menu: '<path d="M4 6h16M4 12h16M4 18h16"/>'
+    },
+    icon(id, fallback) {
+      const d = this.ICONS[id];
+      return d ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>` : (fallback || "");
     },
 
     // ---------- Barre latérale flottante (admin, v5.4) ----------
@@ -749,7 +768,7 @@ window.BA = window.BA || {};
       try { document.body.classList.toggle("rail-pinned", localStorage.getItem("ba_rail_pinned") === "1"); } catch (e) { /* mémoire du navigateur bloquée : tant pis */ }
       // bouton rond (téléphone) et fond
       if (!document.getElementById("rail-fab")) {
-        const fab = document.createElement("button"); fab.id = "rail-fab"; fab.type = "button"; fab.className = "rail-fab"; fab.textContent = "☰";
+        const fab = document.createElement("button"); fab.id = "rail-fab"; fab.type = "button"; fab.className = "rail-fab"; fab.innerHTML = this.icon("menu", "☰");
         const bk = document.createElement("div"); bk.id = "rail-back"; bk.className = "rail-back";
         document.body.appendChild(bk); document.body.appendChild(fab);
         fab.addEventListener("click", () => {

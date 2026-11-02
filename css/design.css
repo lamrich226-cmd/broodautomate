@@ -1,0 +1,94 @@
+/* ============================================================
+   BROODAUTOMATE v5.5 — nouveau design (posé PAR-DESSUS app.css et reel.css, rien n'est supprimé)
+   Fond ardoise de nuit, cartes douces aux bords fins, pastilles d'état, icônes en traits fins,
+   menu à pastille bleue pleine, écran de chargement en « squelette ».
+   ============================================================ */
+:root {
+  --bg: #0b1220; --surface: #121b2e; --surface-2: #17223a; --line: #263450; --line-soft: #1e2b44;
+  --ink: #e6ecf5; --ink-dim: #93a1b8; --blue: #3b82f6; --blue-2: #2563eb; --ok: #22c55e; --warn: #f59e0b; --bad: #ef4444;
+  --r: 14px; --r-sm: 10px;
+  --shadow: 0 1px 0 rgba(255,255,255,.03) inset, 0 8px 24px rgba(2,6,23,.28);
+  --ease: cubic-bezier(.22, 1, .36, 1);
+  --rail-bg: #101a2e; --rail-line: #263450; --rail-accent: var(--blue-2); --rail-soft: #ffffff;
+}
+body { background: var(--bg); color: var(--ink); font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; -webkit-font-smoothing: antialiased; line-height: 1.45; }
+h2 { font-size: 1.35rem; font-weight: 650; letter-spacing: -.01em; }
+h3 { font-weight: 600; letter-spacing: -.005em; }
+
+/* En-tête : plus léger, sans trait dur */
+header { background: rgba(18, 27, 46, .85); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line-soft); padding: 10px 20px; }
+header h1 { font-size: 1.15rem; font-weight: 650; letter-spacing: -.01em; }
+
+/* Pastilles d'état (status bar, liens) */
+.badge { padding: 4px 11px; border-radius: 999px; font-size: .78rem; font-weight: 550; border: 1px solid transparent; }
+.badge.on { background: rgba(34,197,94,.14); color: #86efac; border-color: rgba(34,197,94,.35); }
+.badge.off { background: rgba(148,163,184,.12); color: var(--ink-dim); border-color: rgba(148,163,184,.25); }
+.badge.warn { background: rgba(245,158,11,.14); color: #fcd34d; border-color: rgba(245,158,11,.35); }
+.badge.err { background: rgba(239,68,68,.14); color: #fca5a5; border-color: rgba(239,68,68,.35); }
+.badge.link { background: var(--surface-2); color: var(--ink); border-color: var(--line); text-decoration: none; transition: background .15s var(--ease), border-color .15s var(--ease); }
+.badge.link:hover { background: #1d2b49; border-color: var(--blue); }
+select#lang-select { border-radius: 999px; padding: 4px 10px; background: var(--surface-2); border-color: var(--line); }
+
+/* Cartes, tableaux, détails */
+.card, details, table, .alert, .bx-all, .ia-card, .bx-detail { border-radius: var(--r); }
+.card { background: var(--surface); border: 1px solid var(--line); box-shadow: var(--shadow); }
+.card .label { color: var(--ink-dim); font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; }
+.card .value { font-weight: 700; letter-spacing: -.02em; }
+table { background: var(--surface); border: 1px solid var(--line); border-collapse: separate; border-spacing: 0; }
+th { background: var(--surface-2); color: var(--ink-dim); font-size: .76rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+th, td { border-bottom: 1px solid var(--line-soft); }
+tbody tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background .12s var(--ease); }
+tbody tr:hover { background: rgba(59,130,246,.06); }
+details { background: var(--surface); border-color: var(--line); }
+.bx-all, .ia-card, .bx-detail { background: var(--surface); border-color: var(--line); }
+.alert { border-left-width: 3px; }
+
+/* Boutons */
+.btn, footer button, nav:not(.rail) button.active { background: var(--blue-2); }
+.btn { border-radius: var(--r-sm); font-weight: 550; transition: transform .12s var(--ease), background .15s var(--ease), box-shadow .15s var(--ease); box-shadow: 0 1px 2px rgba(2,6,23,.4); }
+.btn:hover:not(:disabled) { background: #1d4ed8; }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn.secondary { background: var(--surface-2); border: 1px solid var(--line); }
+.btn.secondary:hover:not(:disabled) { background: #1d2b49; }
+input, select, textarea { border-radius: var(--r-sm); background: var(--bg); border-color: var(--line); transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline: none; border-color: var(--blue); box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+:focus-visible { outline-color: var(--blue); }
+
+/* Cartes machines */
+.carte-machine { transition: border-color .15s var(--ease), transform .15s var(--ease); }
+.carte-machine:hover { border-color: var(--blue); transform: translateY(-1px); }
+
+/* Barre latérale : icônes en traits fins, pastille bleue pleine pour la page active */
+nav.rail { background: var(--rail-bg); border-radius: 20px; padding: 8px; gap: 3px; }
+nav.rail .ni { display: grid; place-items: center; }
+nav.rail .ico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+nav.rail button { color: var(--ink-dim); border-radius: 12px; transition: background .14s var(--ease), color .14s var(--ease); }
+nav.rail button:hover { background: rgba(148,163,184,.1); color: var(--ink); }
+nav.rail button.active { background: var(--blue-2); color: #fff; box-shadow: 0 4px 14px rgba(37,99,235,.4); }
+nav.rail button.active::before { display: none; }
+nav.rail .nl { font-weight: 550; font-size: .9rem; }
+nav.rail .rail-toggle { color: var(--ink-dim); border-bottom: 1px solid var(--line); border-radius: 12px 12px 6px 6px; }
+body.rail-pinned nav.rail .rail-toggle { color: #93c5fd; }
+.rail-fab { background: var(--blue-2); color: #fff; border-color: transparent; }
+.rail-fab .ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+.rail-fab { place-items: center; }
+
+/* Écran de chargement : squelette au lieu d'un simple « Chargement… » */
+.boot-loading { max-width: 560px; }
+.boot-loading .note { margin: 4px 0 14px; }
+.sk { display: block; border-radius: 8px; background: linear-gradient(100deg, var(--surface-2) 30%, #223152 50%, var(--surface-2) 70%); background-size: 220% 100%; animation: sk-shimmer 1.3s linear infinite; }
+.sk-row { display: flex; gap: 10px; margin-bottom: 12px; }
+.sk-row .sk { height: 14px; }
+.sk-w40 { width: 40%; } .sk-w25 { width: 25%; }
+.sk-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; }
+.sk-card { height: 76px; border-radius: var(--r-sm); }
+@keyframes sk-shimmer { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .sk { animation: none; }
+  .btn, .carte-machine, tbody tr { transition: none; }
+}
+
+/* Pied de page assorti */
+footer { background: var(--bg); border-top: 1px solid var(--line-soft); }
+footer button { border-radius: var(--r-sm); }

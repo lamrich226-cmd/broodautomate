@@ -71,7 +71,9 @@ window.BA = window.BA || {};
     },
 
     async load(ctx) {
-      screen(`<div class="card"><h2>🥖 Broodautomate</h2><p class="note">⏳ ${E(t("loading"))}</p></div>`);
+      screen(`<div class="card boot-loading" role="status" aria-live="polite"><h2>🥖 Broodautomate</h2><p class="note">${E(t("loading"))}</p>
+        <div class="sk-row"><span class="sk sk-w40"></span><span class="sk sk-w25"></span></div>
+        <div class="sk-grid"><span class="sk sk-card"></span><span class="sk sk-card"></span><span class="sk sk-card"></span><span class="sk sk-card"></span></div></div>`);
       try {
         await BA.Store.init();
       } catch (e) {

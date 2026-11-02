@@ -1,3 +1,5 @@
+> **v5.5 — nouveau design** : menu latéral à icônes fines et pastille bleue, cartes douces, pastilles d'état, écran de chargement en « squelette ». Fichier ajouté : `css/design.css` (retirer sa ligne dans index.html pour revenir à l'ancien look).
+
 # Broodautomate v5.4
 
 Logiciel de suivi des distributeurs de pain FAS Power Lift.
