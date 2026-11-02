@@ -47,20 +47,41 @@ inline bool releveComplet(const std::string& s) {
   return a != std::string::npos && s.compare(a, 3, "DXS") == 0 && s.find("DXE") != std::string::npos;
 }
 
-// Réponse de la fonction ingest : {"ok":true,"t":1761794340,...} → t (heure UTC du serveur)
+// Position de la valeur d'une clé dans une réponse JSON. Accepte les espaces autour des deux-points :
+// la fonction ingest répond {"ok":true,"t":1761794340}, la base de données {"ok" : true, "t" : 1761794340}.
+inline size_t apresCle(const std::string& r, const char* cle) {
+  std::string k = std::string("\"") + cle + "\"";
+  size_t p = 0;
+  while ((p = r.find(k, p)) != std::string::npos) {
+    size_t q = p + k.size();
+    while (q < r.size() && (r[q] == ' ' || r[q] == '\t')) q++;
+    if (q < r.size() && r[q] == ':') {
+      q++;
+      while (q < r.size() && (r[q] == ' ' || r[q] == '\t')) q++;
+      return q;
+    }
+    p = q;
+  }
+  return std::string::npos;
+}
+// {"t":1761794340} → t (heure UTC du serveur) ; {"dem":12} → n° de la demande de lecture
 inline bool lireNombre(const std::string& r, const char* cle, uint32_t& v) {
-  std::string k = std::string("\"") + cle + "\":";
-  size_t p = r.find(k);
+  size_t p = apresCle(r, cle);
   if (p == std::string::npos) return false;
-  p += k.size();
-  while (p < r.size() && r[p] == ' ') p++;
   uint64_t x = 0; size_t d = p;
   while (p < r.size() && r[p] >= '0' && r[p] <= '9' && p - d < 12) { x = x * 10 + (uint64_t)(r[p] - '0'); p++; }
   if (p == d || x > 0xFFFFFFFFull) return false;
   v = (uint32_t)x;
   return true;
 }
-inline bool reponseOk(const std::string& r) { return r.find("\"ok\":true") != std::string::npos; }
+inline bool lireBool(const std::string& r, const char* cle, bool& v) {
+  size_t p = apresCle(r, cle);
+  if (p == std::string::npos) return false;
+  if (r.compare(p, 4, "true") == 0) { v = true; return true; }
+  if (r.compare(p, 5, "false") == 0) { v = false; return true; }
+  return false;
+}
+inline bool reponseOk(const std::string& r) { bool v = false; return lireBool(r, "ok", v) && v; }
 
 }  // namespace envoi
 }  // namespace ba

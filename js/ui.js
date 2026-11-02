@@ -376,6 +376,7 @@ window.BA = window.BA || {};
     el.innerHTML = `
       <h2>📊 ${t("nav_details")}</h2>
       ${machinePicker(s, m.num, "det-machine")}
+      ${ctx.admin && BA.Boitiers && BA.Boitiers.detail ? BA.Boitiers.detail(m) : ""}
       ${m.door ? `<div class="alert door">🚪 <b>${t("door_banner")}</b> — ${t("door_explain")}</div>` : ""}
       ${mission ? `<div class="alert info">🧾 ${t("mission_banner", { n: mission.load })}${mission.removeBefore ? " " + t("mission_remove_before", { d: F.dt(mission.removeBefore) }) : ""}${mission.mandatory ? " " + t("mission_must", { n: mission.mandatory }) : ""}</div>` : ""}
       <div class="cards">

@@ -172,8 +172,9 @@ class Modem {
   }
 
   // ---------- HTTPS POST (pile HTTP du modem) ----------
-  // Renvoie le code HTTP (200 = bon), ou un code d'erreur du modem (7xx), ou -1
-  int post(const std::string& corps, std::string& reponse) {
+  // Renvoie le code HTTP (200 = bon), ou un code d'erreur du modem (7xx), ou -1.
+  // url : fonction ingest (par défaut) ou base de données ; entete : en-tête en plus (ex. « apikey: … »)
+  int post(const std::string& corps, std::string& reponse, const char* url = SERVER_URL, const char* entete = nullptr) {
     reponse.clear();
     at("AT+HTTPTERM", "OK", 2000);
     if (!at("AT+HTTPINIT", "OK", 15000)) { derniereErreur = "HTTPINIT : " + nettoie(rep_); Serial.println("[4G] ✖ " + derniereErreur); return -1; }
@@ -181,8 +182,10 @@ class Modem {
     at("AT+CSSLCFG=\"authmode\",0,0", "OK", 2000);
     at("AT+CSSLCFG=\"enableSNI\",0,1", "OK", 2000);
     at("AT+HTTPPARA=\"SSLCFG\",0", "OK", 2000);
-    if (!at(String("AT+HTTPPARA=\"URL\",\"") + SERVER_URL + "\"", "OK", 5000)) { derniereErreur = "URL refusée"; terminer(); return -1; }
+    if (!at(String("AT+HTTPPARA=\"URL\",\"") + url + "\"", "OK", 5000)) { derniereErreur = "URL refusée"; terminer(); return -1; }
     at("AT+HTTPPARA=\"CONTENT\",\"application/json\"", "OK", 2000);
+    if (entete && entete[0] && !at(String("AT+HTTPPARA=\"USERDATA\",\"") + entete + "\"", "OK", 2000))
+      Serial.println("[4G] ⚠ Le modem refuse l'en-tête HTTP en plus : " + nettoie(rep_));
     int code = -1;
     if (!at("AT+HTTPDATA=" + String((unsigned)corps.size()) + ",30", "DOWNLOAD", 8000)) {
       derniereErreur = "HTTPDATA : " + nettoie(rep_); Serial.println("[4G] ✖ " + derniereErreur); terminer(); return -1;

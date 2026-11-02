@@ -1,5 +1,5 @@
 // ============================================================
-// BROODAUTOMATE v5.1 — Textes des boîtiers 4G (FR / NL / EN)
+// BROODAUTOMATE v5.2 — Textes des boîtiers 4G (FR / NL / EN) ; v5.2 : bouton « Lire maintenant »
 // ============================================================
 
 (function () {
@@ -7,8 +7,8 @@
 
   Object.assign(D.fr, {
     rs_boxes: "Boîtiers 4G (lecture à distance)",
-    bx_intro: "Le boîtier 4G (LILYGO + module MAX3232) reste branché sur la prise RS232 de la machine : il la lit tout seul (liste 2, comme le câble, rien n'est remis à zéro) et envoie les relevés par la 4G. Ils sont traités ici exactement comme un relevé par câble : ventes, stock, alertes.",
-    bx_step1: "Supabase : 9 commandes SQL, une par une (une seule fois).",
+    bx_intro: "Le boîtier 4G (LILYGO + module MAX3232) reste branché sur la prise RS232 de la machine : il la lit tout seul chaque heure (liste 2, comme le câble, rien n'est remis à zéro), reçoit ce que la machine envoie d'elle-même (télémétrie), et lit la machine quand tu cliques sur « 📡 Lire maintenant ». Les relevés sont traités ici exactement comme un relevé par câble : ventes, stock, alertes.",
+    bx_step1: "Supabase : 17 commandes SQL, une par une (une seule fois ; déjà fait 1 à 9 ? fais 10 à 17).",
     bx_step2: "Supabase : la fonction « ingest » qui reçoit les envois (une seule fois).",
     bx_step3: "Ici : « Ajouter un boîtier » → copie sa clé dans config.h du programme du LILYGO.",
     bx_step4: "Arduino IDE : téléverser le programme dans le LILYGO, puis le brancher sur la machine.",
@@ -54,13 +54,29 @@
     ev_BOX_WRONG: "Boîtier 4G : relevé d'une autre machine",
     evd_BOX_WRONG: "Le boîtier envoie le relevé de la machine n° {msg}, qui n'est pas celle choisie pour ce boîtier : rien n'a été compté. Choisis la bonne machine dans Connexion RS232 → Boîtiers 4G.",
     ev_BOX_SILENT: "Boîtier 4G muet",
-    evd_BOX_SILENT: "« {msg} » n'a plus rien envoyé depuis {when}. Vérifie son alimentation (câble USB), l'antenne 4G et la carte SIM (forfait, code PIN)."
+    evd_BOX_SILENT: "« {msg} » n'a plus rien envoyé depuis {when}. Vérifie son alimentation (câble USB), l'antenne 4G et la carte SIM (forfait, code PIN).",
+    bx_read_btn: "Lire maintenant",
+    bx_read_title: "Le boîtier lit la machine dès qu'il voit la demande (2 à 3 minutes au plus).",
+    bx_read_wait: "Une demande de lecture est déjà en cours pour ce boîtier.",
+    bx_read_offline: "Boîtier hors ligne : il ne verrait pas la demande.",
+    bx_read_fw: "« Lire maintenant » : mets à jour le programme du boîtier (v1.1).",
+    bx_read_sent: "Demande envoyée : le boîtier lira la machine dans 2 à 3 minutes au plus.",
+    bx_read_waiting: "Demande envoyée à {h} : le boîtier la prendra dans 2 min au plus.",
+    bx_read_taken: "Le boîtier lit la machine (depuis {h})…",
+    bx_read_ok: "Lue à {h}.",
+    bx_read_ko: "Lecture impossible ({h}) : {e}",
+    bx_read_timeout: "Pas de réponse du boîtier depuis {h} (hors ligne ? programme pas à jour ?).",
+    bx_read_done: "« {b} » : lecture reçue, ventes et alertes à jour.",
+    bx_read_failed: "« {b} » : lecture impossible — {e}",
+    bx_read_install: "Nouveau : bouton « Lire maintenant ». Pour l'activer, passe les commandes SQL 10 à 17 (les 1 à 9 sont déjà faites).",
+    bx_sql_new: "Les commandes 10 à 17 ajoutent le bouton « Lire maintenant ». Si tu avais déjà fait les commandes 1 à 9, commence directement à la 10.",
+    bx_sql_new_tag: "Nouveau : bouton « Lire maintenant »"
   });
 
   Object.assign(D.nl, {
     rs_boxes: "4G-modules (uitlezen op afstand)",
-    bx_intro: "De 4G-module (LILYGO + MAX3232-module) blijft op de RS232-aansluiting van de automaat: hij leest hem zelf uit (lijst 2, zoals de kabel, er wordt niets gewist) en stuurt de uitlezingen via 4G. Ze worden hier verwerkt precies zoals een kabeluitlezing: verkoop, voorraad, meldingen.",
-    bx_step1: "Supabase: 9 SQL-opdrachten, één voor één (één keer).",
+    bx_intro: "De 4G-module (LILYGO + MAX3232-module) blijft op de RS232-aansluiting van de automaat: hij leest hem elk uur zelf uit (lijst 2, zoals de kabel, er wordt niets gewist), ontvangt wat de automaat zelf verstuurt (telemetrie) en leest de automaat uit wanneer je op « 📡 Nu uitlezen » klikt. De uitlezingen worden hier verwerkt precies zoals een kabeluitlezing: verkoop, voorraad, meldingen.",
+    bx_step1: "Supabase: 17 SQL-opdrachten, één voor één (één keer; 1 tot 9 al gedaan? doe 10 tot 17).",
     bx_step2: "Supabase: de functie « ingest » die de berichten ontvangt (één keer).",
     bx_step3: "Hier: « Module toevoegen » → kopieer de sleutel in config.h van het LILYGO-programma.",
     bx_step4: "Arduino IDE: het programma in de LILYGO laden, dan op de automaat aansluiten.",
@@ -106,13 +122,29 @@
     ev_BOX_WRONG: "4G-module: uitlezing van een andere automaat",
     evd_BOX_WRONG: "De module stuurt de uitlezing van automaat nr. {msg}, die niet gekozen is voor deze module: er is niets geteld. Kies de juiste automaat in RS232-verbinding → 4G-modules.",
     ev_BOX_SILENT: "4G-module stil",
-    evd_BOX_SILENT: "« {msg} » heeft niets meer gestuurd sinds {when}. Controleer de voeding (USB-kabel), de 4G-antenne en de simkaart (bundel, pincode)."
+    evd_BOX_SILENT: "« {msg} » heeft niets meer gestuurd sinds {when}. Controleer de voeding (USB-kabel), de 4G-antenne en de simkaart (bundel, pincode).",
+    bx_read_btn: "Nu uitlezen",
+    bx_read_title: "De module leest de automaat uit zodra hij de aanvraag ziet (hoogstens 2 tot 3 minuten).",
+    bx_read_wait: "Er loopt al een uitleesaanvraag voor deze module.",
+    bx_read_offline: "Module offline: hij zou de aanvraag niet zien.",
+    bx_read_fw: "« Nu uitlezen »: werk het programma van de module bij (v1.1).",
+    bx_read_sent: "Aanvraag verstuurd: de module leest de automaat binnen hoogstens 2 tot 3 minuten uit.",
+    bx_read_waiting: "Aanvraag verstuurd om {h}: de module neemt ze binnen hoogstens 2 min.",
+    bx_read_taken: "De module leest de automaat uit (sinds {h})…",
+    bx_read_ok: "Uitgelezen om {h}.",
+    bx_read_ko: "Uitlezen onmogelijk ({h}): {e}",
+    bx_read_timeout: "Geen antwoord van de module sinds {h} (offline? programma niet bijgewerkt?).",
+    bx_read_done: "« {b} »: uitlezing ontvangen, verkoop en meldingen bijgewerkt.",
+    bx_read_failed: "« {b} »: uitlezen onmogelijk — {e}",
+    bx_read_install: "Nieuw: knop « Nu uitlezen ». Om hem te activeren: SQL-opdrachten 10 tot 17 (1 tot 9 zijn al gedaan).",
+    bx_sql_new: "Opdrachten 10 tot 17 voegen de knop « Nu uitlezen » toe. Had je 1 tot 9 al gedaan, begin dan meteen bij 10.",
+    bx_sql_new_tag: "Nieuw: knop « Nu uitlezen »"
   });
 
   Object.assign(D.en, {
     rs_boxes: "4G boxes (remote reading)",
-    bx_intro: "The 4G box (LILYGO + MAX3232 module) stays plugged into the machine's RS232 socket: it reads the machine by itself (list 2, like the cable, nothing is reset) and sends the readings over 4G. They are processed here exactly like a cable reading: sales, stock, alerts.",
-    bx_step1: "Supabase: 9 SQL commands, one by one (once).",
+    bx_intro: "The 4G box (LILYGO + MAX3232 module) stays plugged into the machine's RS232 socket: it reads the machine by itself every hour (list 2, like the cable, nothing is reset), receives what the machine sends on its own (telemetry), and reads the machine when you click « 📡 Read now ». The readings are processed here exactly like a cable reading: sales, stock, alerts.",
+    bx_step1: "Supabase: 17 SQL commands, one by one (once; already did 1 to 9? do 10 to 17).",
     bx_step2: "Supabase: the « ingest » function that receives the messages (once).",
     bx_step3: "Here: « Add a box » → copy its key into config.h of the LILYGO program.",
     bx_step4: "Arduino IDE: upload the program to the LILYGO, then plug it into the machine.",
@@ -158,6 +190,22 @@
     ev_BOX_WRONG: "4G box: reading from another machine",
     evd_BOX_WRONG: "The box sends the reading of machine no. {msg}, which is not the one chosen for this box: nothing was counted. Choose the right machine in RS232 connection → 4G boxes.",
     ev_BOX_SILENT: "4G box silent",
-    evd_BOX_SILENT: "« {msg} » has sent nothing since {when}. Check its power supply (USB cable), the 4G antenna and the SIM card (plan, PIN code)."
+    evd_BOX_SILENT: "« {msg} » has sent nothing since {when}. Check its power supply (USB cable), the 4G antenna and the SIM card (plan, PIN code).",
+    bx_read_btn: "Read now",
+    bx_read_title: "The box reads the machine as soon as it sees the request (2 to 3 minutes at most).",
+    bx_read_wait: "A reading request is already in progress for this box.",
+    bx_read_offline: "Box offline: it would not see the request.",
+    bx_read_fw: "« Read now »: update the box program (v1.1).",
+    bx_read_sent: "Request sent: the box will read the machine within 2 to 3 minutes at most.",
+    bx_read_waiting: "Request sent at {h}: the box will pick it up within 2 min at most.",
+    bx_read_taken: "The box is reading the machine (since {h})…",
+    bx_read_ok: "Read at {h}.",
+    bx_read_ko: "Reading impossible ({h}): {e}",
+    bx_read_timeout: "No answer from the box since {h} (offline? program not updated?).",
+    bx_read_done: "« {b} »: reading received, sales and alerts up to date.",
+    bx_read_failed: "« {b} »: reading impossible — {e}",
+    bx_read_install: "New: « Read now » button. To turn it on, run SQL commands 10 to 17 (1 to 9 are already done).",
+    bx_sql_new: "Commands 10 to 17 add the « Read now » button. If you already ran commands 1 to 9, start directly at 10.",
+    bx_sql_new_tag: "New: « Read now » button"
   });
 })();

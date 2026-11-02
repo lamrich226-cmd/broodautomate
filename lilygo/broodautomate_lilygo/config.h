@@ -21,12 +21,18 @@
 #define SIM_PIN  ""                       // vide si la carte SIM n'a pas de code PIN (conseillé)
 
 // ---------- 4. Supabase (ne pas changer) ----------
-#define SERVER_URL  "https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest"
+#define SERVER_URL    "https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest"          // relevés et signaux de vie
+#define DEMANDE_URL   "https://ujvihkryzjrawamekwpu.supabase.co/rest/v1/rpc/ba_boitier"       // bouton « Lire maintenant »
+#define SUPABASE_KEY  "sb_publishable_s6F8C6S_gDlh68L5BfJ47Q_coFMjWKI"                        // clé publique (pas secrète)
 
 // ---------- 5. Machine (mêmes réglages que le câble RS232 de Broodautomate) ----------
 #define MACHINE_BAUD     9600     // vitesse de la commande 90 de la machine
-#define READ_EVERY_MIN   5        // lecture de contrôle (liste 2) toutes les N minutes ; 0 = jamais (écoute seulement)
+#define READ_EVERY_MIN   60       // lecture de contrôle (liste 2) toutes les N minutes : erreurs, alertes, ventes ; 0 = jamais
 #define HEARTBEAT_MIN    30       // « je suis vivant » au moins toutes les N minutes, même sans changement
+#define DEMANDE_EVERY_SEC 120     // bouton « Lire maintenant » de Broodautomate : le boîtier regarde toutes les N secondes
+                                  // s'il y a une demande (120 = réponse en 2 à 3 min) ; 0 = bouton désactivé
+#define LIRE_APRES_ENVOI_MACHINE 1  // 1 = quand la machine envoie elle-même (télémétrie = 1 : vente, porte…),
+                                    //     le boîtier relit la machine juste après pour mettre les ventes à jour
 
 // ---------- 6. Moniteur série ----------
 #define DETAILS_DDCMP    1        // 1 = affiche chaque trame échangée avec la machine (utile pour les essais)

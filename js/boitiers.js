@@ -1,9 +1,13 @@
 // ============================================================
-// BROODAUTOMATE v5.1 — Boîtiers 4G (LILYGO T-A7670E) : BA.Boitiers
+// BROODAUTOMATE v5.2 — Boîtiers 4G (LILYGO T-A7670E) : BA.Boitiers
 //
 // Le boîtier, branché sur la prise RS232 de la machine, la lit tout seul
-// (liste 2, comme le câble) et envoie les relevés à Supabase par la 4G
-// (fonction « ingest » → table device_reports). Ici :
+// (liste 2, comme le câble : chaque heure, et juste après chaque envoi de la
+// machine — télémétrie) et envoie les relevés à Supabase par la 4G
+// (fonction « ingest » → table device_reports).
+// v5.2 : bouton « 📡 Lire maintenant » (table ba_demandes ; le boîtier v1.1
+// regarde toutes les 2 min s'il y a une demande, par la fonction ba_boitier).
+// Ici :
 // - les relevés reçus sont traités EXACTEMENT comme un relevé par câble
 //   (BA.Reel.applyAudit : ventes retirées des lots les plus anciens,
 //   porte, température, coupures, erreurs → Alertes) ;
@@ -48,8 +52,18 @@ window.BA = window.BA || {};
     "create policy \"devices_authenticated\" on public.devices for all to authenticated using (true) with check (true);",
     "create policy \"device_reports_authenticated\" on public.device_reports for all to authenticated using (true) with check (true);",
     "grant select, insert, update, delete on public.devices, public.device_reports to authenticated;",
-    "grant all on public.devices, public.device_reports to service_role;"
+    "grant all on public.devices, public.device_reports to service_role;",
+    // v5.2 : bouton « Lire maintenant » (commandes 10 à 17)
+    "create table if not exists public.ba_demandes (id bigint generated always as identity primary key, device_id uuid not null references public.devices(id) on delete cascade, machine_id text not null, statut text not null default 'attente', message text, cree_at timestamptz not null default now(), prise_at timestamptz, fini_at timestamptz);",
+    "create index if not exists ba_demandes_device on public.ba_demandes (device_id, statut, id);",
+    "alter table public.ba_demandes enable row level security;",
+    "create policy \"ba_demandes_authenticated\" on public.ba_demandes for all to authenticated using (true) with check (true);",
+    "grant select, insert, update, delete on public.ba_demandes to authenticated;",
+    "grant all on public.ba_demandes to service_role;",
+    "create or replace function public.ba_boitier(k text, fait bigint default 0, ok boolean default true, msg text default '') returns json language sql security definer set search_path = '' as $$ with d as (update public.devices set last_seen = now() where key_hash = encode(sha256(convert_to(k, 'UTF8')), 'hex') returning id), f as (update public.ba_demandes set statut = case when ok then 'faite' else 'echec' end, fini_at = now(), message = left(coalesce(msg, ''), 240) where fait > 0 and id = fait and statut in ('attente', 'prise') and device_id in (select id from d) returning id), p as (update public.ba_demandes set statut = 'prise', prise_at = now() where id = (select id from public.ba_demandes where statut = 'attente' and cree_at > now() - interval '1 hour' and id <> coalesce(fait, 0) and device_id in (select id from d) order by id limit 1) returning id) select json_build_object('ok', exists (select 1 from d), 't', floor(extract(epoch from now()))::bigint, 'dem', coalesce((select id from p), 0), 'fait', (select count(*) from f)) $$;",
+    "grant execute on function public.ba_boitier(text, bigint, boolean, text) to anon;"
   ];
+  const SQL_DEM = 9;            // les commandes 10 à 17 (index 9 à 16) : bouton « Lire maintenant »
   const FN_URL = () => C.supabase.url.replace(/\/+$/, "") + "/functions/v1/ingest";
 
   // ---------------- État ----------------
@@ -62,6 +76,16 @@ window.BA = window.BA || {};
   let lastKey = null;           // clé affichée une seule fois
 
   const missing = err => /(devices|device_reports)/i.test(err && err.message || "") && /(does not exist|could not find|schema cache|relation)/i.test(err.message || "");
+  // Bouton « Lire maintenant »
+  const DEM_TIMEOUT = 10 * MIN;  // sans réponse du boîtier après 10 min : « pas de réponse »
+  let demandes = new Map();      // n° du boîtier → sa dernière demande (ligne de ba_demandes)
+  let demInstalled = null;       // null : pas vérifié ; false : commandes 10 à 17 pas encore faites ; true
+  let watchT = null, demCheck = 0, demForce = false;
+  const DEM_COLS = "id, device_id, machine_id, statut, message, cree_at, prise_at, fini_at";
+  const demMissing = err => /ba_demandes/i.test(err && err.message || "") && /(does not exist|could not find|schema cache|relation)/i.test(err.message || "");
+  const demAt = d => Date.parse(d && d.cree_at || "") || 0;
+  const pending = d => !!d && (d.statut === "attente" || d.statut === "prise") && Date.now() - demAt(d) < DEM_TIMEOUT;
+  const fwOk = d => { const v = parseFloat(d && d.info && d.info.fw); return isFinite(v) && v >= 1.1; };
   const machines = () => (BA.Store.get() || { machines: [] }).machines;
   const nomM = m => m ? "#" + m.num + " — " + (m.street || m.id) + (m.city ? ", " + m.city : "") : "—";
   const seenMs = d => d && d.last_seen ? Date.parse(d.last_seen) || 0 : 0;
@@ -113,6 +137,12 @@ window.BA = window.BA || {};
     return last;
   }
 
+  // Le relevé contient-il toutes les sélections du relevé de départ, avec des totaux qui n'ont pas baissé ?
+  function couvre(ancien, audit) {
+    const have = new Set((audit.selections || []).map(s => String(s.selection)));
+    return (ancien.selections || []).every(s => have.has(String(s.selection))) && Number(audit.total_count) >= Number(ancien.total_count);
+  }
+
   // ---------------- Un relevé reçu par la 4G ----------------
   // Renvoie "done" (déjà traité), "ok", "gone" (machine supprimée)
   async function applyReport(id, R) {
@@ -147,12 +177,16 @@ window.BA = window.BA || {};
       BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.readBad(s, x.num); x.g4 = Object.assign({}, x.g4, { rid: R.id }); });
       return "ok";
     }
-    if (analyse.type !== "audit") {                         // envoi de la machine sans compteurs : événements seulement
+    const audit = analyse.type === "audit" ? BA.EvaDts.toAudit(analyse) : null;
+    const ancien = audit ? await baseline(m0) : null;
+    // Envoi de la machine (télémétrie) avec des compteurs incomplets (quelques sélections seulement) : ses événements
+    // sont repris, mais il ne devient pas le relevé de départ (sinon le relevé complet suivant compterait de fausses
+    // ventes) ; les ventes arrivent avec la lecture que le boîtier fait juste après
+    const partiel = !!audit && R.role === "machine" && !!ancien && !couvre(ancien, audit);
+    if (!audit || partiel) {                                 // envoi de la machine sans compteurs : événements seulement
       BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.applyEvents(s, x.num, { t: tm, src: "4g", analyse: lite }); x.g4 = Object.assign({}, x.g4, { rid: R.id }); });
       return "ok";
     }
-    const audit = BA.EvaDts.toAudit(analyse);
-    const ancien = await baseline(m0);
     const diff = BA.EvaDts.compare(ancien, audit);
     const nv = BA.EvaDts.nouveautes(ancien ? ancien.errors : null, audit.errors);
     const nouveaux = diff.baseline ? 0 : nv.eva.length + nv.fas.length + nv.pow.length + nv.activations.length;
@@ -238,6 +272,118 @@ window.BA = window.BA || {};
     const old = new Date(Date.now() - 30 * 24 * 60 * MIN).toISOString();
     const res = await sb().from("device_reports").delete().lt("received_at", old).lt("id", keep);
     if (res.error) console.warn("Ménage des relevés 4G :", res.error.message);
+    if (demInstalled) {                                      // demandes « Lire maintenant » de plus de 7 jours
+      const r2 = await sb().from("ba_demandes").delete().lt("cree_at", new Date(Date.now() - 7 * 24 * 60 * MIN).toISOString());
+      if (r2.error) console.warn("Ménage des demandes de lecture :", r2.error.message);
+    }
+  }
+
+  // ---------------- Bouton « 📡 Lire maintenant » ----------------
+  // L'appli écrit une demande (ba_demandes, statut « attente ») ; le boîtier la voit au plus tard 2 min après
+  // (fonction ba_boitier), la marque « prise », lit la machine, envoie le relevé, puis la marque « faite »
+  // (ou « echec » avec la raison). Pendant l'attente, l'appli regarde où en est la demande toutes les 10 s.
+  const fixDem = d => (d && typeof d.message === "string" ? Object.assign({}, d, { message: fixUtf8(d.message) }) : d);
+  // Lignes lues dans ba_demandes : la plus récente par boîtier est gardée ; une demande que cet appareil voyait
+  // en cours et qui vient de se terminer est annoncée (« lecture reçue » ou « lecture impossible »).
+  // tout = true : toutes les demandes récentes (sinon : seulement celles en cours)
+  function merge(rows, tout) {
+    let fini = false;
+    const m = tout ? new Map() : new Map(demandes);
+    (rows || []).forEach(d0 => {
+      const d = fixDem(d0), cur = m.get(d.device_id), old = demandes.get(d.device_id);
+      if (cur && cur.id > d.id && (tout || cur.id !== d.id)) return;      // une demande plus récente existe
+      if (old && old.id === d.id && (old.statut === "attente" || old.statut === "prise") && (d.statut === "faite" || d.statut === "echec")) { fini = true; announce(d); }
+      m.set(d.device_id, d);
+    });
+    // une demande créée ici à l'instant, pas encore relue : gardée
+    if (tout) demandes.forEach((d, k) => { if (!m.has(k) || m.get(k).id < d.id) m.set(k, d); });
+    demandes = m;
+    return fini;
+  }
+  async function loadDemandes() {
+    const since = new Date(Date.now() - 24 * 60 * MIN).toISOString();
+    const res = await sb().from("ba_demandes").select(DEM_COLS).gt("cree_at", since).order("id", { ascending: false }).limit(200);
+    if (res.error) {
+      if (demMissing(res.error)) { demInstalled = false; demandes = new Map(); return false; }
+      throw new Error(res.error.message);
+    }
+    demInstalled = true;
+    return merge(res.data, true);
+  }
+  // Pendant qu'une demande est en cours : où en est-elle ? (toutes les 10 s)
+  function watch() {
+    clearTimeout(watchT); watchT = null;
+    if (!CLOUD() || ![...demandes.values()].some(pending)) return;
+    watchT = setTimeout(async () => {
+      watchT = null;
+      const open = [...demandes.values()].filter(pending);
+      if (!open.length) { showDem(); return; }
+      let fini = false;
+      try {
+        const res = await sb().from("ba_demandes").select(DEM_COLS).in("id", open.map(d => d.id));
+        if (res.error) throw new Error(res.error.message);
+        fini = merge(res.data, false);
+      } catch (e) { console.warn("Lire maintenant :", e.message); }
+      if (fini) await refresh(true);                         // le relevé de la demande est traité tout de suite
+      else { showDem(); watch(); }
+    }, 10000);
+  }
+  function announce(d) {
+    const b = devices.find(x => x.id === d.device_id);
+    const n = b ? b.name : "";
+    if (d.statut === "faite") U().toast("✅ " + t("bx_read_done", { b: n }), 6000);
+    else U().toast("⚠️ " + t("bx_read_failed", { b: n, e: d.message || "—" }), 9000);
+  }
+  async function readNow(id) {
+    const d = devices.find(x => x.id === id); if (!d) return;
+    if (pending(demandes.get(id))) { U().toast("⏳ " + t("bx_read_wait")); return; }
+    const res = await sb().from("ba_demandes").insert({ device_id: d.id, machine_id: d.machine_id }).select(DEM_COLS);
+    if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return; }
+    const row = (res.data || [])[0] || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
+    demandes.set(d.id, row);
+    U().toast("📡 " + t("bx_read_sent"), 6000);
+    showDem();
+    watch();
+  }
+  // Texte d'état de la dernière demande d'un boîtier
+  function demText(d) {
+    const x = demandes.get(d.id); if (!x) return "";
+    const F = U().F, at = v => F.time(Date.parse(v) || Date.now());
+    if (x.statut === "attente" || x.statut === "prise") {
+      if (!pending(x)) return "⌛ " + t("bx_read_timeout", { h: at(x.cree_at) });
+      return x.statut === "prise" ? "📥 " + t("bx_read_taken", { h: at(x.prise_at || x.cree_at) }) : "⏳ " + t("bx_read_waiting", { h: at(x.cree_at) });
+    }
+    if (x.statut === "faite") return "✅ " + t("bx_read_ok", { h: at(x.fini_at || x.cree_at) });
+    return "⚠️ " + t("bx_read_ko", { h: at(x.fini_at || x.cree_at), e: x.message || "—" });
+  }
+  // Bouton (désactivé : ancien programme, boîtier hors ligne, demande en cours)
+  function readBtn(d) {
+    if (demInstalled !== true) return "";
+    if (!fwOk(d)) return `<span class="petit">⬆️ ${E(t("bx_read_fw"))}</span>`;
+    const st = btnState(d);
+    return `<button class="btn petit" data-bxread="${E(d.id)}" ${st.disabled ? "disabled" : ""} title="${E(st.title)}">${E(st.label)}</button>`;
+  }
+  function btnState(d) {
+    if (pending(demandes.get(d.id))) return { disabled: true, label: "⏳ " + t("bx_read_btn"), title: t("bx_read_wait") };
+    if (!isAlive(d)) return { disabled: true, label: "📡 " + t("bx_read_btn"), title: t("bx_read_offline") };
+    return { disabled: false, label: "📡 " + t("bx_read_btn"), title: t("bx_read_title") };
+  }
+  // Met à jour les boutons et les états affichés (onglet Connexion RS232, page Détails) sans tout redessiner
+  function showDem() {
+    document.querySelectorAll("[data-bxdem]").forEach(el => { const d = devices.find(x => x.id === el.dataset.bxdem); if (d) el.textContent = demText(d); });
+    document.querySelectorAll("button[data-bxread]").forEach(b => {
+      const d = devices.find(x => x.id === b.dataset.bxread); if (!d) return;
+      const st = btnState(d); b.disabled = st.disabled; b.title = st.title; b.textContent = st.label;
+    });
+  }
+  // Page Détails (admin) : boîtier de la machine + bouton
+  function detail(m) {
+    if (!m || !m.id || !CLOUD()) return "";
+    const list = devices.filter(d => d.machine_id === m.id);
+    if (!list.length) return "";
+    const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
+    return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(isAlive(d) ? t("bx_tag_ok", { h: U().F.time(seenMs(d)) }) : t("bx_tag_silent"))}</span>
+      ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>`;
   }
 
   // ---------------- Tour complet (toutes les 60 s, et à la demande) ----------------
@@ -259,6 +405,12 @@ window.BA = window.BA || {};
     lastCheck = Date.now();
     try {
       if (await loadDevices()) {
+        // les demandes d'abord : le relevé d'une demande « faite » est déjà arrivé, il est traité juste après
+        // (commandes SQL 10 à 17 pas encore faites : revérifié toutes les 15 min, ou après « J'ai fini : vérifier »)
+        if (demInstalled !== false || demForce || Date.now() - demCheck > 15 * MIN) {
+          demCheck = Date.now(); demForce = false;
+          try { await loadDemandes(); } catch (e) { console.warn("Lire maintenant :", e.message); }
+        }
         await processReports();
         boxAlerts();
         await cleanup();
@@ -269,6 +421,8 @@ window.BA = window.BA || {};
       console.warn("Boîtiers 4G :", lastError);
     } finally {
       redraw();
+      showDem();
+      watch();
     }
   }
 
@@ -277,6 +431,11 @@ window.BA = window.BA || {};
     setTimeout(() => refresh(true), 2500);
     timer = setInterval(() => refresh(false), 60000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - lastCheck > 20000) refresh(false); });
+    // bouton « Lire maintenant » : onglet Connexion RS232 et page Détails
+    document.addEventListener("click", e => {
+      const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
+      if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
+    });
   }
 
   // ---------------- Affichage ----------------
@@ -323,7 +482,8 @@ window.BA = window.BA || {};
             ${ms.some(m => m.id === d.machine_id) ? "" : `<option value="${E(d.machine_id)}" selected>${E(t("bx_unknown_machine", { id: d.machine_id }))}</option>`}</select></td>
           <td>${alive ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${E(ago(seenMs(d)))}</div></td>
           <td class="nowrap">${E(signal(i.rssi))}</td>
-          <td>${i.stok === true ? "✅ " : i.stok === false && Number(i.mode || 0) === 0 ? "⚠️ " : ""}${E(st)}${i.lu != null ? `<div class="petit">${E(t("bx_reads", { n: i.lu, k: i.ko || 0 }))}</div>` : ""}</td>
+          <td>${i.stok === true ? "✅ " : i.stok === false && Number(i.mode || 0) === 0 ? "⚠️ " : ""}${E(st)}${i.lu != null ? `<div class="petit">${E(t("bx_reads", { n: i.lu, k: i.ko || 0 }))}</div>` : ""}
+            ${demInstalled === true ? `<div class="bx-read">${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>` : ""}</td>
           <td class="nowrap"><button class="btn petit secondary" data-bxkey="${E(d.id)}" title="${E(t("bx_newkey"))}">🔑</button><button class="btn petit secondary" data-bxdel="${E(d.id)}" title="${E(t("bx_del"))}">🗑</button></td>
         </tr>`;
       }).join("")}</tbody></table></div>`;
@@ -343,7 +503,8 @@ window.BA = window.BA || {};
     if (installed === null) body = `<p class="note">⏳ ${E(t("loading"))}</p>`;
     else if (installed === false) body = `<div class="alert warn">${E(t("bx_not_installed"))}</div>
       <div class="carte-actions wrap-actions"><button class="btn" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button><button class="btn secondary" data-bx="check">🔄 ${E(t("bx_check"))}</button></div>`;
-    else body = `${htmlList()}<h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
+    else body = `${demInstalled === false ? `<div class="alert info">📡 ${E(t("bx_read_install"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></div>` : ""}
+      ${htmlList()}<h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
     return `<p class="note">${E(t("bx_intro"))}</p>
       ${htmlSteps()}
       ${lastError ? `<div class="alert err">${E(t("bx_error", { e: lastError }))}</div>` : ""}
@@ -378,10 +539,11 @@ window.BA = window.BA || {};
     U().confirmDialog({
       title: "📋 " + t("bx_sql_title"),
       html: `<p>${E(t("bx_sql_text"))}</p>
-        <ol class="sql-steps">${SQL.map((q, i) => `<li><code>${E(q)}</code><button class="btn petit" data-copy-sql="${i}">📋 ${E(t("bx_copy"))}</button></li>`).join("")}</ol>
+        <div class="alert info">${E(t("bx_sql_new"))}</div>
+        <ol class="sql-steps">${SQL.map((q, i) => `<li>${i === SQL_DEM ? `<b class="bx-new">🆕 ${E(t("bx_sql_new_tag"))}</b>` : ""}<code>${E(q)}</code><button class="btn petit" data-copy-sql="${i}">📋 ${E(t("bx_copy"))}</button></li>`).join("")}</ol>
         <p class="note">${E(t("bx_sql_note"))}</p>`,
       ok: "✔ " + t("bx_sql_done"), cancel: t("bx_close"),
-      onOk: () => refresh(true)
+      onOk: () => { demForce = true; refresh(true); }
     });
     document.querySelectorAll("[data-copy-sql]").forEach(b => b.onclick = () => copy(SQL[Number(b.dataset.copySql)], b));
   }
@@ -473,7 +635,7 @@ window.BA = window.BA || {};
       const a = b.dataset.bx;
       if (a === "sql") sqlDialog();
       else if (a === "fn") fnDialog();
-      else if (a === "check") refresh(true);
+      else if (a === "check") { demForce = true; refresh(true); }
     });
     const add = el.querySelector("#bx-add"); if (add) add.onclick = () => addBox();
     el.querySelectorAll("[data-bxdel]").forEach(b => b.onclick = () => delBox(b.dataset.bxdel));
@@ -482,7 +644,8 @@ window.BA = window.BA || {};
   }
 
   BA.Boitiers = {
-    SQL, start, refresh, mount, redraw, tag,
+    SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, readNow,
+    demandes: () => new Map(demandes), demInstalled: () => demInstalled,
     alive(id, now) { return !!id && devices.some(d => d.machine_id === id && isAlive(d, now)); },
     has(id) { return !!id && devices.some(d => d.machine_id === id); },
     devices: () => devices.slice(),

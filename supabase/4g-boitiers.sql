@@ -1,10 +1,12 @@
 -- ============================================================
--- Broodautomate — boîtiers 4G (LILYGO) : 2 nouvelles tables
+-- Broodautomate — boîtiers 4G (LILYGO) : 3 tables et 1 fonction
 -- Les tables actuelles (ba_state, machines, products, sales, events, audits) ne changent pas.
 --
 -- L'éditeur SQL de Supabase n'accepte qu'UNE commande à la fois :
 -- copie UNE ligne (une commande), colle-la dans SQL Editor → Run → « Success »,
--- efface, puis passe à la ligne suivante. 9 commandes en tout.
+-- efface, puis passe à la ligne suivante. 17 commandes en tout.
+-- Déjà fait les commandes 1 à 9 (boîtiers 4G, octobre 2026) ? Fais seulement 10 à 17
+-- (bouton « Lire maintenant »).
 -- (Broodautomate les montre aussi une par une, avec un bouton « Copier » :
 --  onglet Connexion RS232 → Boîtiers 4G → « Commandes SQL ».)
 -- ============================================================
@@ -32,3 +34,26 @@ create policy "device_reports_authenticated" on public.device_reports for all to
 grant select, insert, update, delete on public.devices, public.device_reports to authenticated;
 
 grant all on public.devices, public.device_reports to service_role;
+
+-- 10. Bouton « Lire maintenant » : les demandes de lecture (attente → prise par le boîtier → faite ou echec)
+create table if not exists public.ba_demandes (id bigint generated always as identity primary key, device_id uuid not null references public.devices(id) on delete cascade, machine_id text not null, statut text not null default 'attente', message text, cree_at timestamptz not null default now(), prise_at timestamptz, fini_at timestamptz);
+
+-- 11. Index (demandes d'un boîtier)
+create index if not exists ba_demandes_device on public.ba_demandes (device_id, statut, id);
+
+-- 12. à 15. Sécurité et droits (comme les autres tables)
+alter table public.ba_demandes enable row level security;
+
+create policy "ba_demandes_authenticated" on public.ba_demandes for all to authenticated using (true) with check (true);
+
+grant select, insert, update, delete on public.ba_demandes to authenticated;
+
+grant all on public.ba_demandes to service_role;
+
+-- 16. La fonction que le boîtier appelle toutes les 2 minutes : vérifie SA clé (empreinte SHA-256),
+--     note « vu à », enregistre le résultat de la demande terminée, et lui donne la demande en attente
+--     (une demande de plus d'une heure n'est plus donnée : le boîtier était hors ligne)
+create or replace function public.ba_boitier(k text, fait bigint default 0, ok boolean default true, msg text default '') returns json language sql security definer set search_path = '' as $$ with d as (update public.devices set last_seen = now() where key_hash = encode(sha256(convert_to(k, 'UTF8')), 'hex') returning id), f as (update public.ba_demandes set statut = case when ok then 'faite' else 'echec' end, fini_at = now(), message = left(coalesce(msg, ''), 240) where fait > 0 and id = fait and statut in ('attente', 'prise') and device_id in (select id from d) returning id), p as (update public.ba_demandes set statut = 'prise', prise_at = now() where id = (select id from public.ba_demandes where statut = 'attente' and cree_at > now() - interval '1 hour' and id <> coalesce(fait, 0) and device_id in (select id from d) order by id limit 1) returning id) select json_build_object('ok', exists (select 1 from d), 't', floor(extract(epoch from now()))::bigint, 'dem', coalesce((select id from p), 0), 'fait', (select count(*) from f)) $$;
+
+-- 17. Le boîtier appelle la fonction avec la clé publique (sans compte) : seulement cette fonction
+grant execute on function public.ba_boitier(text, bigint, boolean, text) to anon;

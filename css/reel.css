@@ -41,6 +41,11 @@ ol.bx-steps li { margin: 4px 0; }
 table.bx-table td { vertical-align: middle; }
 table.bx-table select { max-width: 230px; }
 pre.bx-key { white-space: pre-wrap; word-break: break-all; background: #0b1220; border: 1px solid #334155; border-radius: 6px; padding: 10px; font-size: .9rem; color: #fde68a; user-select: all; }
+/* bouton « Lire maintenant » (v5.2) : tableau des boîtiers et page Détails */
+.bx-read { margin-top: 6px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bx-read .btn.petit, .bx-detail .btn.petit { margin-left: 0; }
+.bx-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; padding: 8px 12px; border: 1px solid #334155; border-radius: 8px; background: #111c30; font-size: .9rem; }
+ol.sql-steps .bx-new { display: block; margin: 10px 0 4px; color: #fde68a; }
 .dlg-body textarea.zone-texte { width: 100%; font-family: monospace; font-size: .75rem; }
 
 @media (max-width: 600px) {

@@ -1,7 +1,12 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.0)
+// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.1)
 // Lit la machine FAS en RS232 (EVA-DTS DDCMP, lecture seule, comme le câble
 // de Broodautomate) et envoie les relevés à Supabase par la 4G (HTTPS).
+//   • lecture de contrôle toutes les READ_EVERY_MIN minutes (60 : chaque heure) ;
+//   • la machine peut envoyer elle-même (télémétrie = 1 : vente, porte…) : son envoi
+//     part tout de suite, puis le boîtier relit la machine pour mettre les ventes à jour ;
+//   • bouton « Lire maintenant » de Broodautomate : toutes les DEMANDE_EVERY_SEC
+//     secondes, le boîtier demande à Supabase s'il y a une demande de lecture.
 // Réglages : config.h (le seul fichier à modifier).
 // ============================================================
 #include <Arduino.h>
@@ -13,7 +18,7 @@
 #include "envoi.h"
 #include "modem.h"
 
-#define FW_VERSION "1.0"
+#define FW_VERSION "1.1"
 
 using namespace ba;
 
@@ -37,8 +42,10 @@ static void reglerHeure(uint32_t utc, const char* source) {
 }
 
 // ---------------- État ----------------
-struct Releve { std::string texte; bool machineMaitre; uint8_t liste; };
+// no : numéro du relevé dans la file ; dem : n° de la demande « Lire maintenant » à laquelle il répond (0 = lecture ordinaire)
+struct Releve { std::string texte; bool machineMaitre; uint8_t liste; uint32_t dem; uint32_t no; };
 static std::deque<Releve> file;
+static uint32_t numeroReleve = 0;
 static size_t octetsEnFile = 0;
 static bool premierEnvoi = true, empreinteConnue = false;
 static uint32_t derniereEmpreinte = 0;
@@ -50,6 +57,15 @@ static uint32_t derniereLecture = 0, dernierEnvoiOk = 0, prochainEssaiEnvoi = 0,
 static uint32_t delaiReseau = 0, echecsSuite = 0, dernierPing = 0;
 static bool lectureDemandee = true;       // première lecture dès que l'heure est connue
 static uint32_t utcDerniereLectureOk = 0;
+// Bouton « Lire maintenant » de Broodautomate
+static uint32_t demandeId = 0;            // demande reçue, lecture pas encore lancée ou en cours
+static uint32_t lectureDem = 0;           // demande à laquelle répond la lecture en cours
+static uint32_t demandeFaite = 0;         // demande terminée, résultat pas encore annoncé à Supabase
+static bool demandeOk = true;
+static String demandeMsg = "";
+static uint32_t prochaineDemande = 0, demandesRatees = 0;
+// Envoi fait par la machine (télémétrie) : lecture de contrôle juste après
+static uint32_t lireApres = 0, envoiMachineA = 0, finDerniereLecture = 0;
 
 // ---------------- Liaison avec la machine (UART 2 → module MAX3232) ----------------
 struct MachineIo : MoteurDdcmp::Io {
@@ -59,7 +75,9 @@ struct MachineIo : MoteurDdcmp::Io {
   uint32_t ms() override { return millis(); }
   void wait(uint32_t m) override { delay(m); }
 };
-static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste);
+static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem);
+static void demandeTerminee(uint32_t d, bool ok, const String& msg);
+static bool demandeEnFile(uint32_t d) { for (auto& r : file) if (r.dem == d) return true; return false; }
 
 struct Ecoute : MoteurDdcmp::Ecouteur {
   void journal(const std::string& t, char n) override {
@@ -72,17 +90,31 @@ struct Ecoute : MoteurDdcmp::Ecouteur {
 #endif
   }
   void rapport(const std::string& texte, bool machineMaitre, int liste, const std::string& serie) override {
-    ajouterReleve(texte, machineMaitre, liste);
+    ajouterReleve(texte, machineMaitre, liste, machineMaitre ? 0 : lectureDem);
+    // La machine a envoyé d'elle-même (vente, porte, erreur…) : relire ses compteurs juste après,
+    // sauf si cet envoi suit de près notre propre lecture (il en est sans doute la conséquence)
+    if (machineMaitre && LIRE_APRES_ENVOI_MACHINE && MODE == 0) {
+      if (finDerniereLecture && millis() - finDerniereLecture < 20000UL)
+        Serial.println(F("[RS232] (envoi de la machine juste après notre lecture : pas de nouvelle lecture)"));
+      else { lireApres = millis() + 5000UL; envoiMachineA = millis(); }
+    }
   }
   void etat(const char* t) override {}
   void lectureFinie(bool ok, bool cede, const std::string& erreur) override {
+    finDerniereLecture = millis();
     if (ok) {
       statut = "ok"; statutOk = true; utcDerniereLectureOk = horlogeOk ? utcMaintenant() : 0;
+      // cette lecture a commencé après l'envoi de la machine : ses compteurs sont déjà à jour
+      if (lireApres && (int32_t)(derniereLecture - envoiMachineA) >= 0) lireApres = 0;
     } else {
       nbEchecs++; statutOk = false;
       statut = String(erreur.c_str());
       Serial.println("[RS232] ✖ Lecture impossible : " + statut);
     }
+    // Lecture demandée par Broodautomate : si aucun relevé n'attend d'être envoyé pour elle,
+    // le résultat (échec) est annoncé tout de suite ; sinon il le sera après l'envoi du relevé
+    uint32_t d = lectureDem; lectureDem = 0;
+    if (d && !demandeEnFile(d)) demandeTerminee(d, false, ok ? String("relevé reçu incomplet") : statut);
   }
   bool heure(HeureLocale& h) override {
     if (!horlogeOk) return false;
@@ -96,26 +128,80 @@ static MoteurDdcmp::Reglages reglagesDdcmp() { MoteurDdcmp::Reglages r; r.identi
 static MoteurDdcmp moteur(machineIo, ecoute, reglagesDdcmp());
 static void pompe() { moteur.poll(); }
 
-// Relevé reçu : gardé pour l'envoi (les relevés de contrôle identiques au précédent ne sont pas renvoyés)
-static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste) {
+// Relevé reçu : gardé pour l'envoi (les relevés de contrôle identiques au précédent ne sont pas renvoyés,
+// sauf celui d'une lecture demandée avec « Lire maintenant » : Broodautomate attend sa réponse)
+static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem) {
   if (!envoi::releveComplet(texte)) { Serial.println(F("[Relevé] Texte reçu incomplet (sans DXS … DXE) : ignoré.")); return; }
   if (!machineMaitre) {
     uint32_t e = envoi::empreinte(texte);
-    if (empreinteConnue && e == derniereEmpreinte) { Serial.println(F("[Relevé] Aucun changement depuis le relevé précédent : rien à envoyer.")); return; }
+    bool pareil = empreinteConnue && e == derniereEmpreinte;
     derniereEmpreinte = e; empreinteConnue = true;
+    if (pareil && !dem) { Serial.println(F("[Relevé] Aucun changement depuis le relevé précédent : rien à envoyer.")); return; }
   }
   // place limitée : on enlève d'abord les anciens relevés de contrôle (le suivant contient les mêmes compteurs)
   while (file.size() >= 8 || octetsEnFile + texte.size() > 65000) {
     auto it = file.begin();
-    while (it != file.end() && it->machineMaitre) ++it;
+    while (it != file.end() && (it->machineMaitre || it->dem)) ++it;
     if (it == file.end()) it = file.begin();
     if (it == file.end()) break;
     octetsEnFile -= it->texte.size();
     file.erase(it);
   }
-  file.push_back({texte, machineMaitre, (uint8_t)liste});
+  file.push_back({texte, machineMaitre, (uint8_t)liste, dem, ++numeroReleve});
   octetsEnFile += texte.size();
-  Serial.printf("[Relevé] %u octets %s → à envoyer (%u en attente).\n", (unsigned)texte.size(), machineMaitre ? "envoyés par la machine" : "lus (liste 2)", (unsigned)file.size());
+  Serial.printf("[Relevé] %u octets %s → à envoyer (%u en attente).\n", (unsigned)texte.size(), machineMaitre ? "envoyés par la machine" : dem ? "lus à la demande de Broodautomate" : "lus (liste 2)", (unsigned)file.size());
+}
+
+// ---------------- Bouton « Lire maintenant » ----------------
+// Résultat d'une demande : annoncé à Supabase au prochain passage (tout de suite)
+static void demandeTerminee(uint32_t d, bool ok, const String& msg) {
+  demandeFaite = d; demandeOk = ok;
+  demandeMsg = msg.length() > 200 ? msg.substring(0, 200) : msg;
+  if (demandeId == d) demandeId = 0;
+  prochaineDemande = millis();
+  if (ok) Serial.printf("[Demande] ✔ Lecture n°%u faite et envoyée.\n", (unsigned)d);
+  else Serial.printf("[Demande] ✖ Lecture n°%u impossible : %s\n", (unsigned)d, demandeMsg.c_str());
+}
+static void nouvelleDemande(uint32_t d) {
+  if (d == demandeId || d == lectureDem) return;            // déjà en cours
+  Serial.printf("[Demande] Broodautomate demande une lecture maintenant (n°%u).\n", (unsigned)d);
+  if (MODE != 0) { demandeTerminee(d, false, "boîtier en mode essai : il ne lit pas la machine"); return; }
+  demandeId = d;
+  lectureDemandee = true;
+}
+// Passage chez Supabase (fonction ba_boitier de la base) : annonce le résultat de la demande terminée,
+// et reçoit la demande en attente s'il y en a une. Réponse : {"ok" : true, "t" : 1793330340, "dem" : 12}
+static bool demander() {
+  std::string b;
+  b.reserve(192);
+  b += "{\"k\":"; envoi::json(b, DEVICE_KEY);
+  b += ",\"fait\":" + std::to_string(demandeFaite);
+  b += std::string(",\"ok\":") + (demandeOk ? "true" : "false");
+  b += ",\"msg\":"; envoi::json(b, demandeMsg.c_str());
+  b += "}";
+  std::string rep;
+  int code = modem.post(b, rep, DEMANDE_URL, "apikey: " SUPABASE_KEY);
+  uint32_t t;
+  if (envoi::lireNombre(rep, "t", t) && (!horlogeOk || millis() - derniereSynchro > 3600000UL)) reglerHeure(t, "serveur Supabase");
+  if (code == 200 && envoi::reponseOk(rep)) {
+    if (demandesRatees) Serial.println(F("[Demande] ✔ Supabase répond de nouveau."));
+    demandesRatees = 0;
+    if (demandeFaite) {
+      Serial.printf("[Demande] Résultat de la demande n°%u annoncé à Broodautomate.\n", (unsigned)demandeFaite);
+      demandeFaite = 0; demandeOk = true; demandeMsg = "";
+    }
+    uint32_t d = 0;
+    if (envoi::lireNombre(rep, "dem", d) && d) nouvelleDemande(d);
+    return true;
+  }
+  demandesRatees++;
+  if (demandesRatees == 1 || demandesRatees % 10 == 0) {
+    if (code == 200) Serial.println(F("[Demande] ✖ Clé du boîtier inconnue (DEVICE_KEY) : le bouton « Lire maintenant » ne marche pas pour ce boîtier."));
+    else if (code == 404) Serial.println(F("[Demande] ✖ La fonction « ba_boitier » n'existe pas encore dans Supabase : passe les nouvelles commandes SQL (Broodautomate → Connexion RS232 → Boîtiers 4G → Commandes SQL)."));
+    else if (code == 401) Serial.println(F("[Demande] ✖ Supabase refuse la clé publique (SUPABASE_KEY dans config.h)."));
+    else Serial.printf("[Demande] ✖ Échec (code %d) : %s\n", code, modem.derniereErreur.c_str());
+  }
+  return false;
 }
 
 // ---------------- Envoi vers Supabase ----------------
@@ -189,7 +275,11 @@ static void afficherEtat() {
   else Serial.println(F("Heure : pas encore connue"));
   Serial.printf("Machine : %s ; lectures %u, échecs %u ; relevés en attente : %u\n", statut.c_str(), (unsigned)nbLectures, (unsigned)nbEchecs, (unsigned)file.size());
   Serial.printf("Envois réussis %u, ratés %u ; dernier envoi réussi il y a %lu s\n", (unsigned)nbEnvois, (unsigned)nbEnvoisRates, dernierEnvoiOk ? (unsigned long)((millis() - dernierEnvoiOk) / 1000) : 0UL);
-  Serial.println(F("Commandes : etat, lire, envoi, aide, ou une commande AT (ex. AT+CSQ)"));
+  Serial.printf("Lecture chaque %d min ; bouton « Lire maintenant » vérifié toutes les %d s", READ_EVERY_MIN, DEMANDE_EVERY_SEC);
+  if (demandeId || lectureDem) Serial.printf(" ; demande en cours n°%u", (unsigned)(lectureDem ? lectureDem : demandeId));
+  if (demandesRatees) Serial.printf(" ; %u vérifications ratées", (unsigned)demandesRatees);
+  Serial.println();
+  Serial.println(F("Commandes : etat, lire, envoi, demande, aide, ou une commande AT (ex. AT+CSQ)"));
   Serial.println(F("------------------------------------------------------------"));
 }
 static void console() {
@@ -203,11 +293,12 @@ static void console() {
     if (m == "etat" || m == "état" || m == "aide" || m == "help") afficherEtat();
     else if (m == "lire") { lectureDemandee = true; Serial.println(F("[Console] Lecture de la machine demandée.")); }
     else if (m == "envoi") { dernierPing = 0; prochainEssaiEnvoi = 0; dernierEnvoiOk = millis() - (uint32_t)HEARTBEAT_MIN * 60000UL - 1; Serial.println(F("[Console] Signal de vie demandé.")); }
+    else if (m == "demande") { prochaineDemande = millis(); Serial.println(F("[Console] Je regarde tout de suite s'il y a une demande de lecture.")); }
     else if (m.startsWith("at")) {
       if (MODE == 2) { Serial.println(F("[Console] Modem éteint en mode 2.")); continue; }
       Serial.println("[Console] " + cmd + " →");
       Serial.println(modem.passerelle(cmd));
-    } else Serial.println(F("[Console] Commande inconnue. Tape : etat, lire, envoi ou une commande AT."));
+    } else Serial.println(F("[Console] Commande inconnue. Tape : etat, lire, envoi, demande ou une commande AT."));
   }
 }
 
@@ -219,6 +310,7 @@ void setup() {
   Serial.println(F("============================================================"));
   Serial.printf("Broodautomate — boîtier 4G LILYGO v%s\n", FW_VERSION);
   Serial.printf("Mode %d : %s\n", MODE, MODE == 0 ? "NORMAL (lecture de la machine + envoi)" : MODE == 1 ? "ESSAI 4G sans machine" : "ESSAI de la liaison RS232 (sans 4G)");
+  if (MODE == 0) Serial.printf("Lecture chaque %d min ; envois de la machine acceptés à tout moment ; « Lire maintenant » vérifié toutes les %d s\n", READ_EVERY_MIN, DEMANDE_EVERY_SEC);
   Serial.println(F("============================================================"));
   MachineSerial.setRxBufferSize(4096);
   MachineSerial.begin(MACHINE_BAUD, SERIAL_8N1, MACHINE_RX_PIN, MACHINE_TX_PIN);
@@ -250,33 +342,71 @@ void loop() {
   // Heure : au démarrage puis toutes les 6 heures
   if (modem.reseau && (!horlogeOk || now - derniereSynchro > 6UL * 3600000UL) && now - dernierEssaiHeure > 120000UL) synchroHeure();
 
-  // Lecture de contrôle de la machine (liste 2)
+  // La machine a envoyé d'elle-même : lecture de contrôle 5 s après (au plus une par minute)
+  if (MODE == 0 && lireApres && (int32_t)(now - lireApres) >= 0 && !moteur.occupe()) {
+    if (derniereLecture && now - derniereLecture < 60000UL) lireApres = derniereLecture + 60000UL;
+    else { lireApres = 0; lectureDemandee = true; Serial.println(F("[RS232] Envoi de la machine reçu : lecture de contrôle pour mettre les ventes à jour.")); }
+  }
+
+  // Lecture de contrôle de la machine (liste 2) : chaque heure, à la demande, ou après un envoi de la machine
   if (MODE == 0) {
     bool due = READ_EVERY_MIN > 0 && now - derniereLecture >= (uint32_t)READ_EVERY_MIN * 60000UL;
     if ((lectureDemandee || due) && horlogeOk && !moteur.occupe() && !moteur.lectureEnAttente()) {
       lectureDemandee = false; derniereLecture = now; nbLectures++;
-      Serial.println(F("[RS232] Lecture de contrôle (liste 2)…"));
+      lectureDem = demandeId; demandeId = 0;
+      if (lectureDem) Serial.printf("[RS232] Lecture demandée par Broodautomate (n°%u, liste 2)…\n", (unsigned)lectureDem);
+      else Serial.println(F("[RS232] Lecture de contrôle (liste 2)…"));
       moteur.lire(2);
     }
   } else if (statut == "démarrage") statut = "essai sans machine";
 
   // Envois : relevés en attente, puis signal de vie (au moins toutes les HEARTBEAT_MIN, ou si l'état change)
+  bool reseauUtilise = false;
   if (now >= prochainEssaiEnvoi || (int32_t)(prochainEssaiEnvoi - now) > 900000) {
     bool aEnvoyer = !file.empty();
     uint32_t hb = (MODE == 1 ? 2UL : (uint32_t)HEARTBEAT_MIN) * 60000UL;
     bool ping = premierEnvoi || dernierEnvoiOk == 0 || now - dernierEnvoiOk >= hb || (statut != dernierStatutEnvoye && now - dernierPing > 120000UL);
     if ((aEnvoyer || ping) && !moteur.occupe()) {
+      reseauUtilise = true;
       if (!modem.reseau || !modem.encoreConnecte()) {
         prochainEssaiEnvoi = now + 30000;
       } else {
         bool ok;
-        if (aEnvoyer) { ok = envoyer(&file.front()); if (ok) { octetsEnFile -= file.front().texte.size(); file.pop_front(); } }
+        if (aEnvoyer) {
+          // pendant l'envoi (quelques secondes), la machine reste servie : la file peut changer,
+          // on retire donc le relevé envoyé par son numéro
+          uint32_t no = file.front().no;
+          ok = envoyer(&file.front());
+          if (ok) {
+            for (auto it = file.begin(); it != file.end(); ++it) {
+              if (it->no != no) continue;
+              uint32_t dem = it->dem;
+              octetsEnFile -= it->texte.size();
+              file.erase(it);
+              if (dem && !demandeEnFile(dem)) demandeTerminee(dem, true, "");
+              break;
+            }
+          }
+        }
         else { dernierPing = now; ok = envoyer(nullptr); }
         uint32_t attente = ok ? 1000 : (echecsSuite < 3 ? 60000UL : echecsSuite < 6 ? 180000UL : 600000UL);
         prochainEssaiEnvoi = millis() + attente;
         if (echecsSuite == 3 || echecsSuite == 6) { Serial.println(F("[4G] Plusieurs échecs : reconnexion au réseau.")); modem.reseau = false; dernierEssaiReseau = 0; }
         if (echecsSuite == 9) { Serial.println(F("[4G] Toujours en échec : redémarrage du modem.")); modem.pret = false; modem.reseau = false; dernierEssaiReseau = 0; }
       }
+    }
+  }
+
+  // Bouton « Lire maintenant » : regarder s'il y a une demande (toutes les DEMANDE_EVERY_SEC),
+  // ou annoncer tout de suite le résultat d'une demande terminée
+  if (!reseauUtilise && DEMANDE_EVERY_SEC > 0 && !strstr(DEVICE_KEY, "COLLE_ICI") && modem.reseau && !moteur.occupe() && (int32_t)(millis() - prochaineDemande) >= 0) {
+    if (!modem.encoreConnecte()) prochaineDemande = millis() + 30000UL;
+    else {
+      bool ok = demander();
+      uint32_t base = (uint32_t)DEMANDE_EVERY_SEC * 1000UL;
+      uint32_t attente = ok ? (demandeFaite ? 1000UL : base)
+                            : (demandesRatees < 3 ? base : demandesRatees < 6 ? (base > 600000UL ? base : 600000UL) : (base > 1800000UL ? base : 1800000UL));
+      prochaineDemande = millis() + attente;
     }
   }
   // Sécurité : rien n'est passé depuis 12 heures → redémarrage complet du boîtier

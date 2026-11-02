@@ -236,7 +236,14 @@ int main(int argc, char** argv) {
     VERIF(envoi::empreinte(a) != envoi::empreinte(c), "empreinte : une vente change l'empreinte");
     VERIF(envoi::releveComplet(rel) && !envoi::releveComplet("ST*001") && !envoi::releveComplet(rel.substr(0, 300)), "relevé complet = DXS … DXE");
     uint32_t t = 0;
-    VERIF(envoi::lireNombre("{\"ok\":true,\"t\":1793330340}", "t", t) && t == 1793330340u && envoi::reponseOk("{\"ok\":true,\"t\":1}"), "lecture de l'heure du serveur dans la réponse"); }
+    VERIF(envoi::lireNombre("{\"ok\":true,\"t\":1793330340}", "t", t) && t == 1793330340u && envoi::reponseOk("{\"ok\":true,\"t\":1}"), "lecture de l'heure du serveur dans la réponse");
+    // réponse de la base de données (json_build_object : espaces autour des deux-points)
+    const string db = "{\"ok\" : true, \"t\" : 1793330340, \"dem\" : 12, \"fait\" : 0}";
+    uint32_t d = 0, f = 9;
+    VERIF(envoi::reponseOk(db) && envoi::lireNombre(db, "t", t) && t == 1793330340u && envoi::lireNombre(db, "dem", d) && d == 12 && envoi::lireNombre(db, "fait", f) && f == 0,
+          "réponse de la base : ok, heure, n° de la demande (espaces acceptés)");
+    VERIF(!envoi::reponseOk("{\"ok\" : false, \"t\" : 1}") && !envoi::reponseOk("{\"message\":\"No API key found\"}") && !envoi::reponseOk(""), "réponse sans ok:true = refus");
+    VERIF(!envoi::lireNombre("{\"st\":\"x\",\"dem\" : null}", "dem", d) && !envoi::lireNombre("{\"st\":\"x\"}", "t", d), "clé absente ou valeur non numérique : rien lu"); }
 
   printf(echecs ? "\n%d ÉCHEC(S) sur %d vérifications\n" : "\nTOUT EST BON (%d vérifications)\n", echecs ? echecs : verifs, verifs);
   return echecs ? 1 : 0;
