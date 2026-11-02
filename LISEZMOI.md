@@ -5,7 +5,7 @@
 > - **Statistiques** : onglets *Rentabilité* (nouveaux graphiques : courbe, barres, cumul), *Zéro retour* (objectif réglable, 5 % par défaut, ventes perdues, conseil par machine) et *Fiabilité de la prévision* ; bouton **Résumé de la semaine** (Excel, 3 feuilles).
 > - **💾 Sauvegardes et retour en arrière** (en bas de l'onglet Prévision) : besoins par machine, historique des ventes, réglages et calendrier ; jamais le stock, les lots ni les missions. Les sauvegardes « dans le logiciel » restent dans le navigateur de CE PC (fichier .json pour les garder ailleurs).
 > - **⇄ Déplacer du pain** entre deux sélections du même produit (Détails machine) : l'admin le fait ou le demande à l'opérateur (Missions → Fait). Noté dans l'Historique.
-> - Retour à la v5.5 : étiquette git `v5.5.0-avant-fusion-489`.
+> - Retour à la v5.5 si besoin : version `c949574` sur GitHub (dernière v5.5, mode clair compris).
 
 > **Mode clair** : bouton ☀️/🌙 dans l'en-tête (fichier `js/theme.js`). Choix gardé sur l'appareil.
 
