@@ -1,5 +1,5 @@
 // ============================================================
-// BROODAUTOMATE v5.2 — Boîtiers 4G (LILYGO T-A7670E) : BA.Boitiers
+// BROODAUTOMATE v5.3 — Boîtiers 4G (LILYGO T-A7670E) : BA.Boitiers
 //
 // Le boîtier, branché sur la prise RS232 de la machine, la lit tout seul
 // (liste 2, comme le câble : chaque heure, et juste après chaque envoi de la
@@ -7,6 +7,8 @@
 // (fonction « ingest » → table device_reports).
 // v5.2 : bouton « 📡 Lire maintenant » (table ba_demandes ; le boîtier v1.1
 // regarde toutes les 2 min s'il y a une demande, par la fonction ba_boitier).
+// v5.3 : bouton « 📡 Lire toutes les machines » (Commander, Dashboard,
+// Boîtiers 4G) : une demande par boîtier d'un coup, avant une commande.
 // Ici :
 // - les relevés reçus sont traités EXACTEMENT comme un relevé par câble
 //   (BA.Reel.applyAudit : ventes retirées des lots les plus anciens,
@@ -289,10 +291,20 @@ window.BA = window.BA || {};
   function merge(rows, tout) {
     let fini = false;
     const m = tout ? new Map() : new Map(demandes);
+    const enCours = x => !!x && (x.statut === "attente" || x.statut === "prise");
+    const finie = x => x.statut === "faite" || x.statut === "echec";
     (rows || []).forEach(d0 => {
       const d = fixDem(d0), cur = m.get(d.device_id), old = demandes.get(d.device_id);
+      // demande de « Lire toutes les machines » : suivie par son numéro, même si une autre demande du même
+      // boîtier est plus récente (ex. une ancienne demande restée en attente, donnée au boîtier après)
+      if (inLot(d)) {
+        const avant = lot.rows.get(d.device_id);
+        if (enCours(avant) && finie(d)) fini = true;
+        lot.rows.set(d.device_id, d);
+      }
       if (cur && cur.id > d.id && (tout || cur.id !== d.id)) return;      // une demande plus récente existe
-      if (old && old.id === d.id && (old.statut === "attente" || old.statut === "prise") && (d.statut === "faite" || d.statut === "echec")) { fini = true; announce(d); }
+      // (demandes de « Lire toutes les machines » : un seul message à la fin, pas un par boîtier)
+      if (old && old.id === d.id && enCours(old) && finie(d)) { fini = true; if (!inLot(d)) announce(d); }
       m.set(d.device_id, d);
     });
     // une demande créée ici à l'instant, pas encore relue : gardée
@@ -308,15 +320,24 @@ window.BA = window.BA || {};
       throw new Error(res.error.message);
     }
     demInstalled = true;
-    return merge(res.data, true);
+    const fini = merge(res.data, true);
+    if (!lot) guessLot(res.data);
+    return fini;
+  }
+  // Demandes en cours (dernière de chaque boîtier + celles de « Lire toutes les machines »)
+  function enAttente() {
+    const out = new Map();
+    demandes.forEach(d => { if (pending(d)) out.set(d.id, d); });
+    if (lot) lot.rows.forEach(d => { if (pending(d)) out.set(d.id, d); });
+    return [...out.values()];
   }
   // Pendant qu'une demande est en cours : où en est-elle ? (toutes les 10 s)
   function watch() {
     clearTimeout(watchT); watchT = null;
-    if (!CLOUD() || ![...demandes.values()].some(pending)) return;
+    if (!CLOUD() || !enAttente().length) return;
     watchT = setTimeout(async () => {
       watchT = null;
-      const open = [...demandes.values()].filter(pending);
+      const open = enAttente();
       if (!open.length) { showDem(); return; }
       let fini = false;
       try {
@@ -368,13 +389,20 @@ window.BA = window.BA || {};
     if (!isAlive(d)) return { disabled: true, label: "📡 " + t("bx_read_btn"), title: t("bx_read_offline") };
     return { disabled: false, label: "📡 " + t("bx_read_btn"), title: t("bx_read_title") };
   }
-  // Met à jour les boutons et les états affichés (onglet Connexion RS232, page Détails) sans tout redessiner
+  // Met à jour les boutons et les états affichés (onglet Connexion RS232, page Détails, cartes « Lire toutes
+  // les machines ») sans tout redessiner
   function showDem() {
     document.querySelectorAll("[data-bxdem]").forEach(el => { const d = devices.find(x => x.id === el.dataset.bxdem); if (d) el.textContent = demText(d); });
     document.querySelectorAll("button[data-bxread]").forEach(b => {
       const d = devices.find(x => x.id === b.dataset.bxread); if (!d) return;
       const st = btnState(d); b.disabled = st.disabled; b.title = st.title; b.textContent = st.label;
     });
+    checkLot();
+    const slots = document.querySelectorAll("[data-bxall]");
+    if (!slots.length) return;
+    // pas pendant un clic (le bouton serait remplacé sous la souris) : un peu plus tard
+    if (BA.Shell && BA.Shell.clicking && BA.Shell.clicking()) { clearTimeout(slotT); slotT = setTimeout(showDem, 600); return; }
+    slots.forEach(el => { el.innerHTML = slotHtml(Number(el.dataset.bxall) || 0); });
   }
   // Page Détails (admin) : boîtier de la machine + bouton
   function detail(m) {
@@ -384,6 +412,157 @@ window.BA = window.BA || {};
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
     return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(isAlive(d) ? t("bx_tag_ok", { h: U().F.time(seenMs(d)) }) : t("bx_tag_silent"))}</span>
       ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>`;
+  }
+
+  // ---------------- Bouton « 📡 Lire toutes les machines » (v5.3) ----------------
+  // Avant une commande : une demande par boîtier, toutes d'un coup (une seule écriture dans ba_demandes).
+  // Chaque boîtier lit SA machine dans les 2 à 3 min. La carte (Commander, Dashboard, Boîtiers 4G) montre
+  // l'avancement, puis le résultat : machines lues, et celles qui ne l'ont pas été (pas de boîtier, boîtier hors
+  // ligne, ancien programme, lecture impossible), avec l'heure de leur dernière lecture (= date de leur stock).
+  // Une machine compte comme « lue » quand son relevé est traité ici (stock à jour), pas seulement envoyé.
+  // lot = { at, dem: Map(n° du boîtier → n° de sa demande), rows: Map(n° du boîtier → ligne de cette demande),
+  //         fini, finiAt, guess }
+  let lot = null;
+  let listOpen = false;          // détail par machine ouvert (gardé quand la carte est redessinée)
+  let slotT = null;
+  const boxOf = m => {
+    const l = m && m.id ? devices.filter(d => d.machine_id === m.id) : [];
+    return l.length ? l.slice().sort((a, b) => seenMs(b) - seenMs(a))[0] : null;
+  };
+  const inLot = d => !!lot && !!d && lot.dem.get(d.device_id) === d.id;
+  const finAt = x => Date.parse(x && (x.fini_at || x.prise_at || x.cree_at) || "") || 0;
+  // relevé d'une demande « faite » déjà traité ici ? (sinon : on attend le tour suivant, 1 min au plus)
+  const traite = (m, x) => !!m && ((m.lastSeen || 0) >= (Date.parse(x.prise_at || x.cree_at || "") || 0) - 2000 || Date.now() - finAt(x) > 90000);
+
+  // État de chaque machine pour la carte
+  function allRows() {
+    const now = Date.now();
+    return machines().map(m => {
+      const d = boxOf(m);
+      const mine = !!lot && !!d && lot.rows.has(d.id);
+      const x = mine ? lot.rows.get(d.id) : d ? demandes.get(d.id) : null;
+      let st;
+      if (mine && pending(x)) st = x.statut === "prise" ? "taken" : "wait";
+      else if (mine && x.statut === "faite") st = traite(m, x) ? "ok" : "taken";
+      else if (mine && x.statut === "echec") st = "ko";
+      else if (mine) st = "timeout";
+      else if (!d) st = "nobox";
+      else if (!fwOk(d)) st = "fw";
+      else if (!isAlive(d, now)) st = "off";
+      else if (pending(x)) st = x.statut === "prise" ? "taken" : "wait";
+      else st = "idle";
+      return { m, d, x, st, mine };
+    });
+  }
+  const lotDone = () => !!lot && allRows().filter(r => r.mine).every(r => r.st !== "wait" && r.st !== "taken");
+  // Fin de la lecture : un seul message (après le traitement des relevés : le stock est à jour)
+  function checkLot() {
+    if (!lot || lot.fini || !lotDone()) return;
+    lot.fini = true; lot.finiAt = Date.now();
+    if (lot.guess) return;
+    const rows = allRows(), ok = rows.filter(r => r.mine && r.st === "ok").length;
+    U().toast((ok === rows.length ? "✅ " : "⚠️ ") + t("bx_all_done", { k: ok, n: rows.length, h: U().F.time(lot.finiAt) }), 9000);
+  }
+  // Page rechargée (ou autre appareil) pendant / juste après une lecture de toutes les machines :
+  // les demandes écrites ensemble (même heure) sont reprises comme un seul lot
+  function guessLot(rows) {
+    const list = (rows || []).map(fixDem);
+    if (list.length < 2) return;
+    const last = Math.max(...list.map(demAt));
+    if (Date.now() - last > 15 * MIN) return;
+    // la plus récente de chaque boîtier, parmi les demandes écrites ensemble
+    const par = new Map();
+    list.filter(d => Math.abs(demAt(d) - last) < 5000).forEach(d => { const c = par.get(d.device_id); if (!c || c.id < d.id) par.set(d.device_id, d); });
+    const same = [...par.values()];
+    if (same.length < 2) return;
+    lot = { at: last, dem: new Map(same.map(d => [d.device_id, d.id])), rows: new Map(same.map(d => [d.device_id, d])), fini: false, finiAt: 0, guess: false };
+    if (lotDone()) { lot.fini = true; lot.guess = true; lot.finiAt = Math.max(...same.map(finAt)); }
+  }
+
+  async function readAll() {
+    if (!CLOUD() || demInstalled !== true) return;
+    if (lot && !lot.fini) { U().toast("⏳ " + t("bx_all_running")); return; }
+    const now = Date.now(), dem = new Map(), rws = new Map(), todo = [];
+    machines().forEach(m => {
+      const d = boxOf(m);
+      if (!d || !fwOk(d) || !isAlive(d, now)) return;
+      const x = demandes.get(d.id);
+      if (pending(x)) { dem.set(d.id, x.id); rws.set(d.id, x); }   // demande déjà en cours pour ce boîtier : on l'attend
+      else todo.push(d);
+    });
+    if (!todo.length && !dem.size) { U().toast("⚠️ " + t("bx_all_none"), 7000); return; }
+    if (todo.length) {
+      const res = await sb().from("ba_demandes").insert(todo.map(d => ({ device_id: d.id, machine_id: d.machine_id }))).select(DEM_COLS);
+      if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return; }
+      const rows = res.data || [];
+      todo.forEach(d => {
+        const row = rows.find(r => r.device_id === d.id) || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
+        demandes.set(d.id, row); dem.set(d.id, row.id); rws.set(d.id, row);
+      });
+    }
+    lot = { at: now, dem, rows: rws, fini: false, finiAt: 0, guess: false };
+    U().toast("📡 " + t("bx_all_sent", { n: dem.size }), 7000);
+    showDem();
+    watch();
+  }
+
+  // Heure d'une lecture : « 14:05 » aujourd'hui, sinon « 01/11 19:40 »
+  function quand(ms) {
+    if (!ms) return t("bx_all_never");
+    const F = U().F;
+    return M.dayKey(ms) === M.dayKey(Date.now()) ? F.time(ms) : F.dt(ms);
+  }
+  function rowText(r) {
+    const F = U().F, x = r.x, last = quand(r.m.lastSeen);
+    switch (r.st) {
+      case "ok": return "✅ " + t("bx_read_ok", { h: F.time(finAt(x)) });
+      case "wait": return "⏳ " + t("bx_all_st_wait");
+      case "taken": return "📥 " + t("bx_all_st_taken");
+      case "ko": return "⚠️ " + t("bx_all_st_ko", { e: x.message || "—", h: last });
+      case "timeout": return "⌛ " + t("bx_all_st_timeout", { h: last });
+      case "nobox": return t("bx_all_st_nobox", { h: last });
+      case "fw": return "⬆️ " + t("bx_all_st_fw", { h: last });
+      case "off": return t("bx_all_st_off", { s: quand(seenMs(r.d)), h: last });
+      default: return t("bx_all_st_idle", { h: last });
+    }
+  }
+  const pourquoi = r => t("bx_all_w_" + r.st) + " · " + t("bx_all_stock_at", { h: quand(r.m.lastSeen) });
+
+  function allInner(planAt) {
+    if (demInstalled !== true) return demInstalled === false ? `<p class="petit">📡 ${E(t("bx_all_install"))}</p>` : `<p class="petit">⏳ ${E(t("loading"))}</p>`;
+    const rows = allRows(), n = rows.length;
+    const ready = rows.filter(r => r.d && fwOk(r.d) && isAlive(r.d)).length;
+    const running = !!lot && !lot.fini;
+    let head, extra = "";
+    if (running) {
+      const mine = rows.filter(r => r.mine), got = mine.filter(r => r.st !== "wait" && r.st !== "taken").length;
+      head = `<b>⏳ ${E(t("bx_all_progress", { k: got, n: mine.length }))}</b>
+        <progress max="${mine.length}" value="${got}"></progress> <span class="petit">${E(t("bx_all_wait"))}</span>`;
+    } else if (lot) {
+      const ok = rows.filter(r => r.mine && r.st === "ok").length;
+      head = `<b>${ok === n ? "✅" : "⚠️"} ${E(t("bx_all_done", { k: ok, n, h: quand(lot.finiAt) }))}</b>`;
+      const miss = rows.filter(r => !(r.mine && r.st === "ok"));
+      if (miss.length) extra += `<div class="bx-all-miss petit">${E(t("bx_all_missing"))}<ul>${miss.map(r => `<li><b>#${E(r.m.num)}</b> ${E(r.m.street || "")} — ${E(pourquoi(r))}</li>`).join("")}</ul></div>`;
+      if (planAt && planAt < lot.finiAt && ok) extra += `<div class="alert warn">🔄 ${E(t("bx_all_plan_old", { b: t("btn_calc") }))}</div>`;
+    } else {
+      const fresh = rows.filter(r => r.m.lastSeen && Date.now() - r.m.lastSeen < 15 * MIN).length;
+      head = `${E(t("bx_all_hint"))} <span class="petit">${E(t("bx_all_idle", { a: fresh, n }))}</span>`;
+    }
+    const titre = running ? t("bx_all_running") : ready ? t("bx_all_title") : t("bx_all_none");
+    const btn = `<button class="btn" data-bxreadall ${running || !ready ? "disabled" : ""} title="${E(titre)}">${running ? "⏳ " + E(t("bx_all_running_btn")) : "📡 " + E(t(lot ? "bx_all_again" : "bx_all_btn"))}</button>`;
+    const list = `<details class="bx-all-list" ${listOpen ? "open" : ""}><summary>${E(t("bx_all_detail"))}</summary>
+      <ul>${rows.map(r => `<li><b>#${E(r.m.num)}</b> ${E(r.m.street || "")} — ${E(rowText(r))}</li>`).join("")}</ul></details>`;
+    return `<div class="bx-all-head">${btn}<div class="bx-all-txt">${head}</div></div>${extra}${list}`;
+  }
+  // Carte à mettre dans une page (planAt : heure du calcul de la commande affichée, pour dire de la recalculer).
+  // L'emplacement est toujours là : la carte y apparaît dès que les boîtiers sont chargés (showDem).
+  function slotHtml(planAt) {
+    if (!CLOUD() || installed !== true || !devices.length) return "";
+    return `<div class="bx-all">${allInner(planAt)}</div>`;
+  }
+  function allCard(opts) {
+    const planAt = Number(opts && opts.planAt) || 0;
+    return `<div class="bx-all-slot" data-bxall="${planAt}">${slotHtml(planAt)}</div>`;
   }
 
   // ---------------- Tour complet (toutes les 60 s, et à la demande) ----------------
@@ -435,7 +614,12 @@ window.BA = window.BA || {};
     document.addEventListener("click", e => {
       const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
       if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
+      // « Lire toutes les machines » : Commander, Dashboard, onglet Boîtiers 4G
+      const a = e.target && e.target.closest && e.target.closest("button[data-bxreadall]");
+      if (a && !a.disabled) { a.disabled = true; readAll().catch(err => U().toast("⚠️ " + t("bx_error", { e: err.message }))).finally(() => showDem()); }
     });
+    // détail par machine ouvert ou fermé : gardé quand la carte est redessinée
+    document.addEventListener("toggle", e => { if (e.target && e.target.matches && e.target.matches("details.bx-all-list")) listOpen = e.target.open; }, true);
   }
 
   // ---------------- Affichage ----------------
@@ -504,6 +688,7 @@ window.BA = window.BA || {};
     else if (installed === false) body = `<div class="alert warn">${E(t("bx_not_installed"))}</div>
       <div class="carte-actions wrap-actions"><button class="btn" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button><button class="btn secondary" data-bx="check">🔄 ${E(t("bx_check"))}</button></div>`;
     else body = `${demInstalled === false ? `<div class="alert info">📡 ${E(t("bx_read_install"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></div>` : ""}
+      ${demInstalled === true ? allCard() : ""}
       ${htmlList()}<h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
     return `<p class="note">${E(t("bx_intro"))}</p>
       ${htmlSteps()}
@@ -644,13 +829,16 @@ window.BA = window.BA || {};
   }
 
   BA.Boitiers = {
-    SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, readNow,
+    SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, readNow, readAll, allCard,
     demandes: () => new Map(demandes), demInstalled: () => demInstalled,
+    lot: () => lot && { at: lot.at, n: lot.dem.size, fini: lot.fini, finiAt: lot.finiAt },
     alive(id, now) { return !!id && devices.some(d => d.machine_id === id && isAlive(d, now)); },
     has(id) { return !!id && devices.some(d => d.machine_id === id); },
     devices: () => devices.slice(),
     installed: () => installed,
     // pour les essais
-    _sha256: sha256, _lastKey: () => lastKey, _process: processReports
+    _sha256: sha256, _lastKey: () => lastKey, _process: processReports,
+    _rows: () => allRows().map(r => ({ num: r.m.num, st: r.st, mine: r.mine, x: r.x && { id: r.x.id, statut: r.x.statut, prise: r.x.prise_at, fini: r.x.fini_at }, d: r.d && r.d.id, seen: r.m.lastSeen })),
+    _lotDem: () => lot ? [...lot.dem] : null
   };
 })();

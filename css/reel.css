@@ -46,6 +46,18 @@ pre.bx-key { white-space: pre-wrap; word-break: break-all; background: #0b1220; 
 .bx-read .btn.petit, .bx-detail .btn.petit { margin-left: 0; }
 .bx-detail { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 10px 0; padding: 8px 12px; border: 1px solid #334155; border-radius: 8px; background: #111c30; font-size: .9rem; }
 ol.sql-steps .bx-new { display: block; margin: 10px 0 4px; color: #fde68a; }
+/* « Lire toutes les machines » (v5.3) : Commander, Dashboard, Boîtiers 4G */
+.bx-all { margin: 12px 0; padding: 10px 14px; border: 1px solid #334155; border-left: 4px solid #38bdf8; border-radius: 8px; background: #111c30; font-size: .9rem; }
+.bx-all-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; }
+.bx-all-head .btn { margin: 0; }
+.bx-all-txt { flex: 1 1 260px; min-width: 0; line-height: 1.45; }
+.bx-all-txt progress { width: 140px; height: 10px; vertical-align: middle; margin: 0 6px; accent-color: #38bdf8; }
+.bx-all .alert { margin: 8px 0 0; }
+.bx-all-miss { margin-top: 8px; color: #fbbf24; }
+.bx-all-miss ul, .bx-all-list ul { margin: 4px 0 0; padding-left: 20px; }
+.bx-all-miss li, .bx-all-list li { margin: 2px 0; }
+.bx-all-list { margin-top: 8px; color: #cbd5e1; }
+.bx-all-list summary { cursor: pointer; color: #93c5fd; font-size: .85rem; }
 .dlg-body textarea.zone-texte { width: 100%; font-family: monospace; font-size: .75rem; }
 
 @media (max-width: 600px) {

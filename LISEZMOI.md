@@ -1,4 +1,4 @@
-# Broodautomate v5.2
+# Broodautomate v5.3
 
 Logiciel de suivi des distributeurs de pain FAS Power Lift.
 
@@ -35,11 +35,12 @@ Tes machines, produits et ventes de la v3 sont alors repris automatiquement. Les
   - au premier relevé d'une machine, son journal d'erreurs est repris comme historique dans les alertes « Résolues ».
 - Une machine est « En ligne » si elle a envoyé des données il y a moins de 45 minutes.
 
-## Boîtiers 4G (v5.1, bouton « Lire maintenant » en v5.2)
+## Boîtiers 4G (v5.1, « Lire maintenant » en v5.2, « Lire toutes les machines » en v5.3)
 
 Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la machine, la lit tout seul (liste 2, comme le câble) et envoie les relevés par la 4G. Ils sont traités exactement comme un relevé par câble (ventes, stock, alertes), sur le PC comme sur le téléphone, sans jamais compter une vente deux fois.
 
 - Programme du boîtier v1.1 : lecture **chaque heure** ; ce que la machine envoie d'elle-même (télémétrie = 1 : vente, porte…) part **tout de suite**, puis le boîtier relit la machine pour mettre les ventes à jour ; bouton **« 📡 Lire maintenant »** (onglet « Connexion RS232 » → « Boîtiers 4G », et page « Détails » de la machine) : le boîtier voit la demande en 2 minutes au plus.
+- Bouton **« 📡 Lire toutes les machines »** (v5.3) : en haut de « Commander / Extraction », sur le Dashboard et dans « Boîtiers 4G ». Un clic → chaque boîtier lit sa machine (2 à 3 minutes) → le stock de toute la flotte est à jour avant de préparer la commande. La carte montre l'avancement, puis les machines lues et celles qui ne l'ont pas été (pas de boîtier, boîtier hors ligne, ancien programme, pas de réponse), avec l'heure de leur dernière lecture. Si une commande a été calculée avant la lecture, la carte demande de cliquer de nouveau sur « Calculer la commande ». Aucune nouvelle commande SQL : il suffit des commandes 10 à 17.
 - Mise en place : onglet « Connexion RS232 » → « 📡 Boîtiers 4G » (commandes SQL une par une — 1 à 9 pour les boîtiers, 10 à 17 pour « Lire maintenant » —, fonction « ingest », ajout d'un boîtier et de sa clé secrète).
 - Programme du boîtier et mode d'emploi pas à pas : dossier `lilygo/` (`lilygo/LISEZMOI.md`, `lilygo/broodautomate_lilygo.zip`).
 - « En ligne » : le boîtier passe chez Supabase toutes les 2 minutes (demandes de lecture) et envoie son état toutes les 30 minutes. Alertes : « Boîtier 4G muet », « Boîtier 4G : lecture de la machine impossible ».

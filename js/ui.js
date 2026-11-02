@@ -174,6 +174,7 @@ window.BA = window.BA || {};
       el.innerHTML = `
         <h2>🌍 ${t("nav_dashboard")}</h2>
         <div id="dash-sum"></div>
+        <div id="dash-bx"></div>
         <div class="toolbar">
           <input id="dash-search" class="search" type="search" data-live="1" autocomplete="off" placeholder="${E(t("search_ph"))}">
           <div class="legend">${["door", "empty", "error", "remove", "low", "ok"].map(pill).join("")}</div>
@@ -184,6 +185,8 @@ window.BA = window.BA || {};
     const q = (el.querySelector("#dash-search").value || "").trim().toLowerCase();
     const all = s.machines.map(m => ({ m, x: M.stats(s, m) }));
     el.querySelector("#dash-sum").innerHTML = summaryCards(s, all, ctx.admin);
+    // v5.3 : « Lire toutes les machines » (admin, boîtiers 4G)
+    el.querySelector("#dash-bx").innerHTML = ctx.admin && BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard() : "";
     const shown = all
       .filter(({ m }) => !q || String(m.num).includes(q) || m.street.toLowerCase().includes(q) || m.city.toLowerCase().includes(q))
       .sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct || a.m.num - b.m.num);

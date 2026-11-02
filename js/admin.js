@@ -150,6 +150,7 @@
         <button data-tab="order" class="${o.tab === "order" ? "active" : ""}">🛒 ${t("tab_order")}</button>
         <button data-tab="stock" class="${o.tab === "stock" ? "active" : ""}">📋 ${t("tab_stock")}</button>
       </div>
+      ${BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard({ planAt: o.tab === "order" && o.plan ? o.planAt : 0 }) : ""}
       ${body}
       ${lastOrders(s)}`;
 
