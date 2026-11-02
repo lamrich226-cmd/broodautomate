@@ -696,6 +696,7 @@ window.BA = window.BA || {};
           <span id="sync-status" class="badge"></span>
           ${c.role === "admin" ? `<span id="serial-status" class="badge off">RS232 : ${t("rs_disconnected")}</span>` : ""}
           <span id="online-status" class="badge on"></span>
+          <button type="button" id="theme-toggle" class="badge link" aria-label="${E(BA.Theme.label())}" title="${E(BA.Theme.label())}"></button>
           <select id="lang-select" class="auto-w" aria-label="Langue / Taal / Language">
             ${["fr", "nl", "en"].map(l => `<option value="${l}" ${BA.I18n.lang === l ? "selected" : ""}>${l.toUpperCase()}</option>`).join("")}
           </select>
@@ -717,6 +718,7 @@ window.BA = window.BA || {};
       $("#app-main").innerHTML = c.views.map(v => `<section id="view-${v.id}" class="view ${v.id === this.state.view ? "active" : ""}"></section>`).join("");
       $("#app-footer").innerHTML = c.footer();
       if (c.bindFooter) c.bindFooter();
+      BA.Theme.bind($("#theme-toggle"));
       $("#lang-select").onchange = e => { BA.I18n.set(e.target.value, c.role); this.build(); };
       if (c.role === "admin" && BA.Rs232 && BA.Rs232.badge) BA.Rs232.badge();
       const lo = $("#btn-logout"); if (lo) lo.onclick = async () => { try { await BA.DB.signOut(); } catch (e) { /* on recharge quand même */ } location.reload(); };

@@ -1,3 +1,5 @@
+> **Mode clair** : bouton ☀️/🌙 dans l'en-tête (fichier `js/theme.js`). Choix gardé sur l'appareil.
+
 > **v5.5 — nouveau design** : menu latéral à icônes fines et pastille bleue, cartes douces, pastilles d'état, écran de chargement en « squelette ». Fichier ajouté : `css/design.css` (retirer sa ligne dans index.html pour revenir à l'ancien look).
 
 # Broodautomate v5.4

@@ -92,3 +92,11 @@ body.rail-pinned nav.rail .rail-toggle { color: #93c5fd; }
 /* Pied de page assorti */
 footer { background: var(--bg); border-top: 1px solid var(--line-soft); }
 footer button { border-radius: var(--r-sm); }
+
+/* ============================================================
+   Mode clair : on inverse la lumière de toute la page (couleurs d'accent conservées par la rotation de teinte),
+   puis on remet à l'endroit les images et les vidéos. Choix gardé sur l'appareil (BA.Theme).
+   ============================================================ */
+#theme-toggle { cursor: pointer; font-size: .95rem; padding: 3px 9px; line-height: 1.4; }
+html[data-theme="light"] { filter: invert(.92) hue-rotate(180deg); background: #0b1220; }
+html[data-theme="light"] img, html[data-theme="light"] video, html[data-theme="light"] picture { filter: invert(1) hue-rotate(180deg); }
