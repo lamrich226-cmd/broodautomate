@@ -15,7 +15,7 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate", version: "5.6.0" },
+  app: { name: "Broodautomate", version: "5.7.0" },
   currency: "EUR",
 
   supabase: {

@@ -100,3 +100,43 @@ footer button { border-radius: var(--r-sm); }
 #theme-toggle { cursor: pointer; font-size: .95rem; padding: 3px 9px; line-height: 1.4; }
 html[data-theme="light"] { filter: invert(.92) hue-rotate(180deg); background: #0b1220; }
 html[data-theme="light"] img, html[data-theme="light"] video, html[data-theme="light"] picture { filter: invert(1) hue-rotate(180deg); }
+
+/* ============================================================
+   v5.7 — Design OPÉRATEUR : menu en pastilles (ordinateur) et barre d'onglets en bas (téléphone),
+   grandes zones à toucher, icônes en traits fins comme l'admin.
+   ============================================================ */
+nav.tabbar { background: transparent; padding: 10px 20px 4px; gap: 6px; }
+nav.tabbar button { display: inline-flex; align-items: center; gap: 8px; background: var(--surface); color: var(--ink-dim); border: 1px solid var(--line); border-radius: 999px; padding: 9px 16px; font-weight: 550; transition: background .14s var(--ease), color .14s var(--ease), border-color .14s var(--ease); }
+nav.tabbar button:hover { color: var(--ink); border-color: var(--blue); }
+nav.tabbar button.active { background: var(--blue-2); color: #fff; border-color: transparent; box-shadow: 0 4px 14px rgba(37,99,235,.4); }
+nav.tabbar .ni { display: grid; place-items: center; }
+nav.tabbar .ico { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+body.operateur main { max-width: 1100px; margin: 0 auto; }
+body.operateur .mission-card { border-radius: 18px; border-width: 1px; padding: 16px; gap: 10px; }
+body.operateur .btn.big { min-height: 52px; border-radius: 14px; font-size: 1.05rem; }
+body.operateur .modal { background: var(--surface); border-color: var(--line); border-radius: 20px; }
+body.operateur .step { background: var(--surface-2); border-color: var(--line); border-radius: 12px; }
+body.operateur .step.on { border-color: var(--blue-2); }
+body.operateur .step.done span { background: var(--ok); }
+body.operateur .selno-big { font-weight: 700; }
+
+@media (max-width: 700px) {
+  body.operateur { padding-bottom: calc(76px + env(safe-area-inset-bottom)); }
+  body.operateur header { position: sticky; top: 0; z-index: 20; }
+  nav.tabbar { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; flex-wrap: nowrap; gap: 0; padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); background: rgba(16, 26, 46, .94); backdrop-filter: blur(10px); border-top: 1px solid var(--line); }
+  nav.tabbar button { flex: 1 1 0; min-width: 0; flex-direction: column; gap: 3px; padding: 7px 2px; border: 0; border-radius: 12px; background: transparent; font-size: .62rem; box-shadow: none; min-height: 52px; justify-content: center; }
+  nav.tabbar button.active { background: rgba(37,99,235,.22); color: #93c5fd; box-shadow: none; }
+  nav.tabbar .ico { width: 22px; height: 22px; }
+  nav.tabbar .nl { display: none; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  nav.tabbar button.active { flex: 2.2 1 0; }
+  nav.tabbar button.active .nl { display: block; }
+  body.operateur footer { padding-bottom: 12px; }
+  body.operateur .btn.big { width: 100%; }
+}
+/* v5.7 : un tableau trop large ne doit jamais élargir la page du téléphone (sinon la barre du bas sort de l'écran) */
+@media (max-width: 700px) {
+  html:has(body.operateur), body.operateur { overflow-x: hidden; }
+  body.operateur #app-main { min-width: 0; max-width: 100vw; }
+  body.operateur .cards { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); }
+  body.operateur .table-scroll { max-width: 100%; overflow-x: auto; }
+}

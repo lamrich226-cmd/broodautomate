@@ -897,12 +897,12 @@ window.BA = window.BA || {};
       const rail = c.role === "admin";
       document.body.classList.toggle("has-rail", rail);
       const nav = $("#app-nav");
-      nav.className = rail ? "rail" : "";
+      nav.className = rail ? "rail" : "tabbar";
       nav.setAttribute("aria-label", t("nav_menu"));
       nav.innerHTML = rail
         ? `<button type="button" class="rail-toggle" aria-pressed="false"><span class="ni" aria-hidden="true">${this.icon("menu", "☰")}</span><span class="nl"></span></button>`
           + c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`).join("")
-        : c.views.map(v => `<button data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}">${v.icon} ${t(v.label)}</button>`).join("");
+        : c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`).join("");
       nav.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => { this.go(b.dataset.view); if (rail) this.railClose(); });
       if (rail) this.railInit();
       $("#app-main").innerHTML = c.views.map(v => `<section id="view-${v.id}" class="view ${v.id === this.state.view ? "active" : ""}"></section>`).join("");
@@ -918,6 +918,7 @@ window.BA = window.BA || {};
 
     // v5.5 : icônes fines (traits) pour la barre latérale ; repli sur l'emoji de la vue si l'id est inconnu
     ICONS: {
+      missions: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/>',
       dashboard: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
       details: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
       products: '<path d="M4 15c0-4 3-7 8-7s8 3 8 7v2H4z"/><path d="M9 12l1 2M13 11l1 2M16 13l1 1"/>',

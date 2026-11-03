@@ -88,3 +88,9 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.7 — design opérateur
+- Téléphone : menu en bas de l'écran (icônes, nom de la page active), grands boutons, assistant « Remplir » au nouveau style.
+- Ordinateur : menu en pastilles. Bouton jour / nuit déjà présent dans l'en-tête.
+- Un tableau trop large ne peut plus faire sortir le menu du bas de l'écran.
+- Point de retour : v5.6.0 = commit ee27dc4.
