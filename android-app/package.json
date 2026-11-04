@@ -1,0 +1,11 @@
+{
+  "name": "broodautomate-operateur-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Appli Android « Broodautomate Opérateur » (ouvre seulement la partie opérateur du site)",
+  "dependencies": {
+    "@capacitor/android": "6.2.1",
+    "@capacitor/cli": "6.2.1",
+    "@capacitor/core": "6.2.1"
+  }
+}

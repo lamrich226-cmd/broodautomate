@@ -1,0 +1,48 @@
+# Fabrique l'appli Android « Broodautomate Opérateur » (fichier APK) et la met dans « Releases ».
+# Se lance toute seule quand le dossier android-app change, ou à la main (Actions → Appli Android operateur → Run workflow).
+name: Appli Android operateur
+on:
+  push:
+    paths:
+      - "android-app/**"
+      - ".github/workflows/apk-operateur.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Projet Android (Capacitor)
+        working-directory: android-app
+        run: |
+          npm install --no-audit --no-fund
+          npx cap add android
+          # icône et couleur de fond
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do cp icons/mipmap-$d/*.png android/app/src/main/res/mipmap-$d/; done
+          sed -i 's/#FFFFFF/#0B1220/' android/app/src/main/res/values/ic_launcher_background.xml
+          # pas de copie de sauvegarde Android des données de l'appli
+          sed -i 's/android:allowBackup="true"/android:allowBackup="false"/' android/app/src/main/AndroidManifest.xml
+      - name: Fabriquer l'APK
+        working-directory: android-app/android
+        run: ./gradlew assembleDebug --no-daemon
+      - name: Renommer
+        run: cp android-app/android/app/build/outputs/apk/debug/app-debug.apk BroodautomateOperateur.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BroodautomateOperateur
+          path: BroodautomateOperateur.apk
+      - name: Mettre l'APK dans Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete appli-operateur --yes --cleanup-tag || true
+          gh release create appli-operateur BroodautomateOperateur.apk --title "Appli Android Opérateur" --notes "Appli opérateur seulement (pas d'accès au logiciel admin). Installer : télécharger le fichier BroodautomateOperateur.apk sur le téléphone, l'ouvrir, autoriser « sources inconnues » si Android le demande."

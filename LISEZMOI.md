@@ -94,3 +94,8 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Ordinateur : menu en pastilles. Bouton jour / nuit déjà présent dans l'en-tête.
 - Un tableau trop large ne peut plus faire sortir le menu du bas de l'écran.
 - Point de retour : v5.6.0 = commit ee27dc4.
+
+## v5.8 — appli Android opérateur + compte opérateur séparé
+- **Compte opérateur** : un compte Supabase avec le rôle « operator » (voir `supabase/operateur-compte.sql`, une commande à la fois). Le logiciel admin le refuse ; côté Supabase il n'a plus accès aux tables des boîtiers 4G (devices, device_reports, ba_demandes) et ne peut rien effacer dans ba_state. Ton compte admin ne change pas.
+- **Limite connue** : le stock, les missions ET les chiffres de vente sont dans les mêmes données partagées (ba_state). Un opérateur très technique pourrait donc encore lire les chiffres d'affaires avec l'API Supabase. Pour le bloquer vraiment : séparer les ventes dans une table réservée à l'admin (chantier à part).
+- **Appli Android** (`android-app/`, fabriquée par GitHub : onglet Actions « Appli Android operateur » → fichier dans Releases « Appli Android Opérateur »). Elle n'ouvre que la page opérateur, sans lien vers l'admin ; `index.html` y renvoie vers l'opérateur. Mise à jour du site = mise à jour de l'appli, sans réinstaller.

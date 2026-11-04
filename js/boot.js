@@ -55,9 +55,16 @@ window.BA = window.BA || {};
     if (s) s.onchange = () => { BA.I18n.set(s.value, ctx.role); document.documentElement.lang = BA.I18n.lang; again(); };
   }
 
+  // v5.8 : un compte « opérateur » (rôle posé dans Supabase, jamais modifiable par l'opérateur) n'entre pas dans le logiciel admin
+  const isOperatorAccount = session => !!(session && session.user && session.user.app_metadata && session.user.app_metadata.role === "operator");
+  // Appli Android opérateur : elle ne doit jamais montrer ni ouvrir le logiciel admin
+  BA.IN_APP = /BroodautomateOperateurApp/.test(navigator.userAgent || "");
+
   const Boot = {
+    isOperatorAccount,
     SQL, SQL_STEPS, sqlList, bindSqlList, copyText,
     async start(ctx) {
+      if (BA.IN_APP && ctx.role === "admin") { location.replace("operateur.html"); return; }   // appli opérateur : jamais l'admin
       BA.I18n.load(ctx.role);
       document.documentElement.lang = BA.I18n.lang;
       if (BA.DB && BA.DB.isReady()) {
@@ -65,6 +72,7 @@ window.BA = window.BA || {};
         try { session = await BA.DB.getSession(); }
         catch (e) { this.login(ctx, t("login_err_other", { e: e.message })); return; }
         if (!session) { this.login(ctx); return; }
+        if (ctx.role === "admin" && isOperatorAccount(session)) { try { await BA.DB.signOut(); } catch (e) { /* rien */ } this.login(ctx, t("login_err_op_only")); return; }
         BA.DB.onSignedOut(() => location.reload());
       }
       await this.load(ctx);
@@ -103,6 +111,10 @@ window.BA = window.BA || {};
         if (!em || !pw) { this.login(ctx, t("login_err_empty"), em); return; }
         try { await BA.DB.signIn(em, pw); }
         catch (e) { this.login(ctx, /invalid login/i.test(e.message) ? t("login_err_bad") : t("login_err_other", { e: e.message }), em); return; }
+        if (ctx.role === "admin") {
+          let ses = null; try { ses = await BA.DB.getSession(); } catch (e) { /* rien */ }
+          if (isOperatorAccount(ses)) { try { await BA.DB.signOut(); } catch (e) { /* rien */ } this.login(ctx, t("login_err_op_only"), em); return; }
+        }
         BA.DB.onSignedOut(() => location.reload());
         await this.load(ctx);
       };

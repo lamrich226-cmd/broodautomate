@@ -890,7 +890,7 @@ window.BA = window.BA || {};
           <select id="lang-select" class="auto-w" aria-label="Langue / Taal / Language">
             ${["fr", "nl", "en"].map(l => `<option value="${l}" ${BA.I18n.lang === l ? "selected" : ""}>${l.toUpperCase()}</option>`).join("")}
           </select>
-          <a class="badge link" href="${c.role === "admin" ? "operateur.html" : "index.html"}">${c.role === "admin" ? "📱 " + t("open_operator") : "🖥 " + t("open_admin")}</a>
+          ${c.role !== "admin" && BA.IN_APP ? "" : `<a class="badge link" href="${c.role === "admin" ? "operateur.html" : "index.html"}">${c.role === "admin" ? "📱 " + t("open_operator") : "🖥 " + t("open_admin")}</a>`}
           ${BA.DB && BA.DB.isReady() ? `<button id="btn-logout" class="badge link" title="${E(BA.DB.email || "")}">🚪 ${t("logout")}</button>` : ""}
         </div>`;
       // v5.4 : admin = barre latérale flottante (icônes, s'ouvre au survol) ; opérateur = menu du haut comme avant

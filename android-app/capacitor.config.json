@@ -1,0 +1,14 @@
+{
+  "appId": "be.broodautomate.operateur",
+  "appName": "Broodautomate Opérateur",
+  "webDir": "www",
+  "server": {
+    "url": "https://lamrich226-cmd.github.io/broodautomate/operateur.html",
+    "cleartext": false,
+    "allowNavigation": ["lamrich226-cmd.github.io", "*.supabase.co", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"]
+  },
+  "android": {
+    "appendUserAgent": "BroodautomateOperateurApp",
+    "allowMixedContent": false
+  }
+}
