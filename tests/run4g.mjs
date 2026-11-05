@@ -111,8 +111,14 @@ async function device(name, opts = {}) {
 }
 async function open(d, file) { const p = await d.ctx.newPage(); await p.goto(URL0 + file); return p; }
 async function login(p) { await p.waitForSelector("#login-email", { timeout: 20000 }); await p.fill("#login-email", "amor@test.be"); await p.fill("#login-pass", "Secret-123"); await p.click("#login-go"); }
-const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000 });
-const view = async (p, v) => { if (await p.$(`nav button[data-view='${v}']`)) await p.click(`nav button[data-view='${v}']`); else await p.evaluate(x => BA.Shell.go(x), v); await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450); };   // v5.4 : la souris quitte le menu flottant
+const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000, state: "attached" });
+// v5.11 : barre latérale (PC) ou onglets du bas (téléphone) ; la page RS232 s'ouvre sur l'onglet « Boîtiers 4G »
+const view = async (p, v) => {
+  if (v === "rs232") await p.evaluate(() => BA.Rs232 && BA.Rs232.tab && BA.Rs232.tab("boxes"));
+  const b = [`#app-nav button[data-view='${v}']`, `#app-tabbar button[data-view='${v}']`];
+  if (await p.isVisible(b[0])) await p.click(b[0]); else if (await p.isVisible(b[1])) await p.click(b[1]); else await p.evaluate(x => BA.Shell.go(x), v);
+  await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450);
+};   // v5.4 : la souris quitte le menu flottant
 const synced = (p, ms) => p.waitForFunction(() => BA.Store.status().pending === 0 && BA.Store.status().sync === "ok", null, { timeout: ms || 20000 });
 const ev = (p, f) => p.evaluate(f);
 const qty = (p, num, sel) => p.evaluate(([n, s]) => { const m = BA.Store.get().machines.find(x => x.num === n); const x = m && BA.Model.sel(m, s); return x ? BA.Model.qty(x) : null; }, [num, sel]);
@@ -140,7 +146,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.10.0", (await a.innerText("#app-footer")).includes("5.10.0"));
+  ok("pied de page : version 5.11.0", (await a.innerText("#app-footer")).includes("5.11.0"));
   await view(a, "rs232");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));
@@ -277,7 +283,7 @@ try {
   await boitier(key, { st: "La machine ne répond pas (10 START sans réponse).", stok: false, lu: 9, ko: 1 });
   await a.evaluate(() => BA.Boitiers.refresh(true)); await synced(a);
   st1 = await ev(a, () => { const s = BA.Store.get(); const m = s.machines.find(x => x.num === 1); return { online: m.online, ev: s.events.filter(e => e.num === 1 && !e.resolved).map(e => e.code) }; });
-  ok("signal de vie : « muet » réglé, machine en ligne (boîtier vivant)", st1.online === true && !st1.ev.includes("BOX_SILENT"), st1);
+  ok("signal de vie : « muet » réglé ; le boîtier répond mais ne lit pas la machine → machine hors ligne (v5.11)", st1.online === false && !st1.ev.includes("BOX_SILENT"), st1);
   ok("le boîtier dit que la machine ne répond pas : alerte « lecture impossible »", st1.ev.includes("BOX_FAIL"), st1);
   await view(a, "alerts");
   const txt = await a.innerText("#view-alerts");
@@ -288,6 +294,8 @@ try {
   await a.evaluate(() => BA.Boitiers.refresh(true)); await synced(a);
   st1 = await ev(a, () => BA.Store.get().events.filter(e => e.num === 1 && !e.resolved).map(e => e.code));
   ok("lecture de nouveau bonne : alerte réglée", !st1.includes("BOX_FAIL"), st1);
+  await a.waitForFunction(() => BA.Store.get().machines.find(x => x.num === 1).online === true, null, { timeout: 5000 }).catch(() => {});
+  ok("lecture de nouveau bonne : machine en ligne (le boîtier la lit)", await a.evaluate(() => BA.Store.get().machines.find(x => x.num === 1).online === true));
 
   console.log("\n== 7. Affichage (Dashboard, onglet RS232, téléphone, langues)");
   await view(a, "dashboard");
@@ -571,48 +579,50 @@ try {
   fake.t.devices = fake.t.devices.filter(x => x.id !== devB.id);
   await a.evaluate(() => BA.Boitiers.refresh(true)); await sleep(300);
 
-  console.log("\n== 7e. Barre latérale flottante (admin) et « Copier pour l'IA »");
+  console.log("\n== 7e. Barre latérale (design de la version test 4.8.6) et « Copier pour l'IA »");
   await view(a, "dashboard"); await a.mouse.move(700, 450); await sleep(500);
-  const R = () => a.evaluate(() => { const n = document.querySelector("nav#app-nav"), m = document.querySelector("#app-main"), l = n.querySelector("button[data-view=alerts] .nl"); const r = n.getBoundingClientRect(); return { cls: n.className, w: Math.round(r.width), left: Math.round(r.left), mainLeft: Math.round(m.getBoundingClientRect().left), lab: +getComputedStyle(l).opacity, items: n.querySelectorAll("button[data-view]").length, pinned: document.body.classList.contains("rail-pinned") }; });
+  const R = () => a.evaluate(() => { const n = document.getElementById("app-side"), m = document.querySelector("#app-main"), l = n.querySelector("button[data-view=alerts] span"); const r = n.getBoundingClientRect(); return { w: Math.round(r.width), left: Math.round(r.left), mainLeft: Math.round(m.getBoundingClientRect().left), lab: +getComputedStyle(l).opacity, items: n.querySelectorAll("#app-nav button[data-view]").length, pinned: document.documentElement.classList.contains("side-pinned") }; });
   let rr = await R();
-  ok("barre latérale : repliée sur les icônes (≈ 56 px), flottante à gauche, 9 menus (v5.6 : Prévisions dans Commander)", /rail/.test(rr.cls) && rr.w >= 50 && rr.w <= 62 && rr.left >= 8 && rr.items === 9 && rr.lab === 0, rr);
+  ok("barre latérale : repliée sur les icônes (76 px), à gauche, 9 menus", rr.w === 76 && rr.left === 0 && rr.items === 9 && rr.lab === 0 && rr.mainLeft >= 76, rr);
   await shot(a, "4g-09-menu-replie");
-  await a.mouse.move(40, 450); await sleep(700);
+  await a.mouse.move(40, 450); await sleep(800);
   const rr2 = await R();
-  ok("souris dessus : le menu s'ouvre (≈ 244 px, noms visibles) par-dessus la page, le contenu ne bouge pas", rr2.w >= 235 && rr2.lab === 1 && rr2.mainLeft === rr.mainLeft, [rr, rr2]);
+  ok("souris dessus : le menu s'ouvre (280 px, noms visibles) par-dessus la page, le contenu ne bouge pas", rr2.w === 280 && rr2.lab === 1 && rr2.mainLeft === rr.mainLeft, [rr, rr2]);
   await shot(a, "4g-10-menu-ouvert");
-  await (await a.$("nav#app-nav")).screenshot({ path: path.join(OUT, "z-menu-ouvert.png") });
-  await a.mouse.move(900, 450); await sleep(700);
+  await (await a.$("#app-side")).screenshot({ path: path.join(OUT, "z-menu-ouvert.png") });
+  await a.mouse.move(900, 450); await sleep(800);
   rr = await R();
-  ok("souris partie : le menu se replie", rr.w <= 62 && rr.lab === 0, rr);
-  await a.click("nav#app-nav button[data-view=alerts]"); await sleep(300);
-  ok("clic sur une icône : la page Alertes s'affiche, le bouton est « page courante »", (await a.getAttribute("nav#app-nav button[data-view=alerts]", "aria-current")) === "page" && !!(await a.$("#view-alerts.active")));
+  ok("souris partie : le menu se replie", rr.w === 76 && rr.lab === 0, rr);
+  await a.click("#app-nav button[data-view=alerts]"); await sleep(300);
+  ok("clic sur une icône : la page Alertes s'affiche, le bouton est « page courante »", (await a.getAttribute("#app-nav button[data-view=alerts]", "aria-current")) === "page" && !!(await a.$("#view-alerts.active")));
   await a.mouse.move(900, 450); await sleep(600);
-  await a.click("nav#app-nav .rail-toggle"); await sleep(500);
+  await a.click("#side-pin"); await a.mouse.move(900, 450); await sleep(700);
   rr = await R();
-  ok("bouton ☰ : menu gardé ouvert, le contenu est poussé (pas caché)", rr.pinned && rr.w >= 235 && rr.mainLeft >= 255, rr);
+  ok("clic sur le logo : menu gardé ouvert, le contenu est poussé (pas caché)", rr.pinned && rr.w === 280 && rr.mainLeft >= 280, rr);
   await shot(a, "4g-11-menu-epingle");
   ok("choix mémorisé sur l'appareil", (await a.evaluate(() => localStorage.getItem("ba_rail_pinned"))) === "1");
-  await a.click("nav#app-nav .rail-toggle"); await a.mouse.move(900, 450); await sleep(600);
+  await a.click("#side-pin"); await a.mouse.move(900, 450); await sleep(700);
   rr = await R();
-  ok("re-clic ☰ : menu replié à nouveau", !rr.pinned && rr.w <= 62, rr);
-  await a.focus("nav#app-nav button[data-view=stats]"); await a.keyboard.press("Shift+Tab"); await a.keyboard.press("Tab"); await sleep(500);
+  ok("re-clic sur le logo : menu replié à nouveau", !rr.pinned && rr.w === 76, rr);
+  await a.focus("#app-nav button[data-view=stats]"); await a.keyboard.press("Shift+Tab"); await a.keyboard.press("Tab"); await sleep(600);
   rr = await R();
-  ok("clavier (Tab) : le menu s'ouvre aussi", rr.w >= 235 && rr.lab === 1, rr);
+  ok("clavier (Tab) : le menu s'ouvre aussi", rr.w === 280 && rr.lab === 1, rr);
   await a.keyboard.press("Escape"); await a.evaluate(() => document.activeElement && document.activeElement.blur()); await a.mouse.move(900, 450); await sleep(500);
-  ok("téléphone de l'opérateur : menu du haut comme avant (pas de barre latérale)", !(await o.$("nav.rail")) && !!(await o.$("#app-nav button[data-view]")));
-  // téléphone (390 px) : bouton rond ☰, panneau
+  ok("téléphone de l'opérateur : pas de barre latérale visible, ses 4 onglets en bas", !(await o.isVisible("#app-side")) && (await o.$$eval("#app-tabbar button[data-view]", b => b.length)) === 4 && (await o.isVisible("#app-tabbar")));
+  // téléphone (390 px) : bouton ☰ (tiroir), onglets en bas
   await a.setViewportSize({ width: 390, height: 844 }); await sleep(500);
-  const P = () => a.evaluate(() => { const n = document.querySelector("nav#app-nav"), f = document.getElementById("rail-fab"); const r = n.getBoundingClientRect(); return { op: +getComputedStyle(n).opacity, open: n.classList.contains("open"), fab: !!f && getComputedStyle(f).display !== "none", left: Math.round(r.left), right: Math.round(r.right), mainLeft: Math.round(document.querySelector("#app-main").getBoundingClientRect().left), over: document.scrollingElement.scrollWidth > window.innerWidth + 1 }; });
+  const P = () => a.evaluate(() => { const n = document.getElementById("app-side"), tb = document.getElementById("app-tabbar"), mb = document.getElementById("menu-btn"); const r = n.getBoundingClientRect(); return { open: document.body.classList.contains("side-open"), vis: getComputedStyle(n).visibility, btn: !!mb && getComputedStyle(mb).display !== "none", tabs: getComputedStyle(tb).display !== "none", left: Math.round(r.left), right: Math.round(r.right), mainLeft: Math.round(document.querySelector("#app-main").getBoundingClientRect().left), over: document.scrollingElement.scrollWidth > window.innerWidth + 1 }; });
   let pp = await P();
-  ok("téléphone : menu caché, bouton rond ☰ visible, contenu pleine largeur, pas de défilement de côté", pp.op === 0 && pp.fab && pp.mainLeft <= 14 && !pp.over, pp);
-  await a.click("#rail-fab"); await sleep(500);
+  ok("téléphone : menu caché, bouton ☰ et onglets du bas visibles, contenu pleine largeur, pas de défilement de côté", !pp.open && pp.vis === "hidden" && pp.btn && pp.tabs && pp.mainLeft <= 16 && !pp.over, pp);
+  await a.click("#menu-btn"); await sleep(500);
   pp = await P();
-  ok("téléphone : le bouton ouvre le panneau avec les noms, dans l'écran", pp.open && pp.op === 1 && pp.left >= 0 && pp.right <= 390, pp);
+  ok("téléphone : ☰ ouvre le tiroir avec les noms, dans l'écran", pp.open && pp.vis === "visible" && pp.left >= 0 && pp.right <= 390, pp);
   await shot(a, "4g-12-menu-telephone");
-  await a.click("nav#app-nav button[data-view=products]"); await sleep(500);
+  await a.click("#app-nav button[data-view=products]"); await sleep(500);
   pp = await P();
-  ok("téléphone : un menu choisi → la page change et le panneau se ferme", !pp.open && !!(await a.$("#view-products.active")), pp);
+  ok("téléphone : un menu choisi → la page change et le tiroir se ferme", !pp.open && !!(await a.$("#view-products.active")), pp);
+  await a.click("#app-tabbar button[data-view=alerts]"); await sleep(400);
+  ok("téléphone : onglet du bas « Alertes »", !!(await a.$("#view-alerts.active")) && (await a.getAttribute("#app-tabbar button[data-view=alerts]", "aria-current")) === "page");
   await a.setViewportSize({ width: 1280, height: 900 }); await sleep(400);
   // « Copier pour l'IA »
   await view(a, "order");
@@ -632,7 +642,7 @@ try {
     await a.evaluate(l => { BA.I18n.set(l, "admin"); BA.Shell.build ? BA.Shell.build() : null; }, lang);
     await view(a, "order"); await sleep(300);
     const raw = await a.evaluate(() => { const k = new Set(Object.keys(BA.I18n.dicts.fr)); return (document.body.innerText.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi) || []).filter(w => k.has(w) || /^(nav|ia)_/.test(w)); });
-    const lab = await a.evaluate(() => document.querySelector("nav#app-nav .rail-toggle .nl").textContent);
+    const lab = await a.evaluate(() => document.getElementById("side-pin").getAttribute("aria-label") || "");
     ok("langue " + lang + " : menu et carte IA sans texte manquant", raw.length === 0 && lab.length > 3, [raw, lab]);
   }
   await a.evaluate(() => { BA.I18n.set("fr", "admin"); if (BA.Shell.build) BA.Shell.build(); });

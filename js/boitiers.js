@@ -99,6 +99,25 @@ window.BA = window.BA || {};
   // Boîtier « vivant » : vu depuis moins de 2 signaux de vie (+ 5 min), et au moins 45 min
   const limitMs = d => Math.max(Number(C.onlineMinutes) || 45, (Number(d && d.info && d.info.hb) || 30) * 2 + 5) * MIN;
   const isAlive = (d, now) => !!seenMs(d) && (now || Date.now()) - seenMs(d) < limitMs(d);
+  // v5.11 : le boîtier a-t-il vraiment LU la machine il y a peu ? (mode normal, dernière lecture réussie récente).
+  // Un boîtier qui répond mais n'est pas branché sur la machine (mode essai, câble absent) ne la met pas « en ligne ».
+  const lectureRecente = (d, now) => {
+    const i = (d && d.info) || {};
+    if (Number(i.mode || 0) !== 0 || i.stok !== true) return false;
+    const lok = Number(i.lok) || 0;                        // heure UTC (secondes) de la dernière lecture réussie
+    if (!(lok > 0)) return true;                           // programme qui ne la donne pas : on se fie à « lecture réussie »
+    const rd = Number(i.rd) || 60;                         // le boîtier relit la machine toutes les rd minutes
+    return (now || Date.now()) - lok * 1000 < Math.max(2 * rd + 15, Number(C.onlineMinutes) || 45) * MIN;
+  };
+  const dernier = id => { const l = devices.filter(d => d.machine_id === id); return l.length ? l.slice().sort((a, b) => seenMs(b) - seenMs(a))[0] : null; };
+  // Texte court : 4G 10:47 / 4G muet / boîtier en mode essai / machine pas lue
+  function etatTxt(d, now) {
+    if (!isAlive(d, now)) return t("bx_tag_silent");
+    const i = d.info || {};
+    if (Number(i.mode || 0) !== 0) return t("bx_tag_test");
+    if (!lectureRecente(d, now)) return t("bx_tag_notread", { h: U().F.time(seenMs(d)) });
+    return t("bx_tag_ok", { h: U().F.time(seenMs(d)) });
+  }
 
   // ---------------- Lecture de Supabase ----------------
   async function loadDevices() {
@@ -415,7 +434,7 @@ window.BA = window.BA || {};
     const list = devices.filter(d => d.machine_id === m.id);
     if (!list.length) return "";
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
-    return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(isAlive(d) ? t("bx_tag_ok", { h: U().F.time(seenMs(d)) }) : t("bx_tag_silent"))}</span>
+    return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(etatTxt(d))}</span>
       ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>`;
   }
 
@@ -645,7 +664,7 @@ window.BA = window.BA || {};
     const list = devices.filter(d => d.machine_id === m.id);
     if (!list.length) return "";
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
-    return " · 📡 " + (isAlive(d) ? t("bx_tag_ok", { h: U().F.time(seenMs(d)) }) : t("bx_tag_silent"));
+    return " · 📡 " + etatTxt(d);
   }
 
   function htmlSteps() {
@@ -853,6 +872,9 @@ window.BA = window.BA || {};
     demandes: () => new Map(demandes), demInstalled: () => demInstalled,
     lot: () => lot && { at: lot.at, n: lot.dem.size, fini: lot.fini, finiAt: lot.finiAt },
     alive(id, now) { return !!id && devices.some(d => d.machine_id === id && isAlive(d, now)); },
+    // v5.11 : la machine est-elle vraiment lue par son boîtier ? (pas seulement le boîtier qui répond)
+    machineLue(id, now) { return !!id && devices.some(d => d.machine_id === id && isAlive(d, now) && lectureRecente(d, now)); },
+    etat(id, now) { const d = dernier(id); if (!d) return null; const i = d.info || {}; return { alive: isAlive(d, now), essai: Number(i.mode || 0) !== 0, lue: isAlive(d, now) && lectureRecente(d, now), st: i.st || "" }; },
     has(id) { return !!id && devices.some(d => d.machine_id === id); },
     devices: () => devices.slice(),
     installed: () => installed,

@@ -75,8 +75,9 @@ window.BA = window.BA || {};
     if (!slot) return;
     if (!st.actif) { slot.innerHTML = ""; return; }
     const n = nonLues();
-    slot.innerHTML = `<button type="button" id="notif-btn" class="badge link" aria-haspopup="dialog" aria-expanded="${st.ouvert}"
-      aria-label="${E(t("notif_title") + (n ? " — " + t("notif_unread", { n }) : ""))}" title="${E(t("notif_title"))}">🔔${n ? `<span class="notif-n">${n > 9 ? "9+" : n}</span>` : ""}</button>`;
+    const cloche = (BA.UI && BA.UI.NAV_ICONS && BA.UI.NAV_ICONS.bell) || "🔔";    // v5.11 : icône au même trait que le menu
+    slot.innerHTML = `<button type="button" id="notif-btn" class="icon-btn" aria-haspopup="dialog" aria-expanded="${st.ouvert}"
+      aria-label="${E(t("notif_title") + (n ? " — " + t("notif_unread", { n }) : ""))}" title="${E(t("notif_title"))}">${cloche}${n ? `<span class="notif-n">${n > 9 ? "9+" : n}</span>` : ""}</button>`;
     slot.querySelector("#notif-btn").onclick = e => { e.stopPropagation(); st.ouvert ? fermer() : ouvrir(); };
     if (st.ouvert) panneau();
   }

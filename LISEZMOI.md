@@ -7,9 +7,7 @@
 > - **⇄ Déplacer du pain** entre deux sélections du même produit (Détails machine) : l'admin le fait ou le demande à l'opérateur (Missions → Fait). Noté dans l'Historique.
 > - Retour à la v5.5 si besoin : version `c949574` sur GitHub (dernière v5.5, mode clair compris).
 
-> **Mode clair** : bouton ☀️/🌙 dans l'en-tête (fichier `js/theme.js`). Choix gardé sur l'appareil.
-
-> **v5.5 — nouveau design** : menu latéral à icônes fines et pastille bleue, cartes douces, pastilles d'état, écran de chargement en « squelette ». Fichier ajouté : `css/design.css` (retirer sa ligne dans index.html pour revenir à l'ancien look).
+> **v5.11 — design de la version test 4.8.6** : thème nuit / clair (bouton soleil / lune en bas de la barre latérale, fichier `js/theme.js`), barre latérale à icônes, onglets en bas sur téléphone. Tout le style est dans `css/app.css`. Voir la section v5.11 plus bas et `DESIGN.md`.
 
 # Broodautomate v5.6
 
@@ -78,6 +76,7 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 | `js/rs232.js` | onglet Connexion RS232 |
 | `js/boot.js` | connexion au compte, chargement, écran d'installation |
 | `js/ui.js`, `js/admin.js`, `js/admin-forecast.js`, `js/operateur.js`, `js/history.js`, `js/excel.js` | écrans |
+| `css/app.css`, `js/theme.js`, `DESIGN.md` | design (thèmes nuit / clair, barre latérale, icônes) |
 | `js/i18n.js`, `js/i18n-forecast.js`, `js/i18n-reel.js` | textes en français, néerlandais et anglais |
 | `js/boitiers.js`, `js/i18n-4g.js` | boîtiers 4G : relevés reçus par la 4G, état des boîtiers, ajout d'un boîtier |
 | `supabase/ba_state.sql` | commandes à passer une fois dans Supabase (données partagées) |
@@ -115,3 +114,11 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - **« Lire maintenant » réglable à distance** : admin → Connexion RS232 → Boîtiers 4G → 15 min, 30 min ou 1 h. Le réglage part par Internet (fonction `ba_boitier`, commande SQL n° 23 de `supabase/notifications-sauvegarde.sql`) ; il faut le programme du boîtier **v1.2** (voir `lilygo/LISEZMOI.md`). La liste des boîtiers montre le délai que chaque boîtier a vraiment reçu.
 - Tests : `tests/sql/supabase.test.mjs` essaie les commandes SQL dans une vraie base PostgreSQL en mémoire (PGlite).
 - Point de retour : v5.9.0 = commit cb44fae.
+
+## v5.11 — design de la version test 4.8.6, machine « en ligne » seulement si elle est lue, alertes rangées
+- **Nouveau design** (repris tel quel de la version test 4.8.6 « design v5 », choisi par Amor) : barre latérale réduite aux icônes qui s'ouvre au survol (cliquer sur le logo 🍞 la garde ouverte), en bas de la barre : appli opérateur, langue, bouton soleil / lune, déconnexion. Thème **nuit** (ardoise) et thème **clair** (crème, lisible au soleil) avec de vraies couleurs : l'ancien « mode clair » qui inversait l'écran est supprimé. Sans choix, le thème suit celui de l'ordinateur ou du téléphone. Sur téléphone : bouton ☰ (tiroir) et onglets en bas (admin : Dashboard, Détails, Produits, Alertes, Menu ; opérateur : ses 4 onglets). Icônes au même trait partout. Tout le style est dans `css/app.css` (variables en haut) ; `css/design.css` et `css/reel.css` n'existent plus. Règles du design : `DESIGN.md`.
+- **« En ligne » = la machine est vraiment lue** : un boîtier 4G qui répond mais n'est pas branché sur la machine (mode essai, câble absent, machine qui ne répond pas) ne la met plus « en ligne ». La carte dit « boîtier en mode essai (pas branché sur la machine) » ou « boîtier en ligne, machine pas lue ». Le badge « Synchronisé » s'appelle maintenant « Sauvegardé » : il parle des données dans Supabase, pas des machines.
+- **Détails machine → alertes** : les alertes en cours une par une ; les alertes résolues identiques regroupées (« Porte ouverte ×7, la dernière le … », détail à déplier) ; boutons **📦 Archiver** (une alerte, un groupe, ou toutes les résolues d'un coup) et « Voir les archivées ». Les archivées restent dans Alertes → « Archivées ».
+- **Profils par jour → clic sur un chiffre** : la fenêtre « #1 … — lundi » par type de pain marche aussi pour une machine **sans historique de ventes** : on écrit directement le nombre de pains de chaque sorte ; la « journée normale » devient la moyenne des jours réglés à la main, jusqu'à ce que l'historique prenne le relais.
+- **Connexion RS232** : la page est rangée en 4 onglets — **Câble** (choisir la machine, Connecter, Lire maintenant ; réglages et journal repliés), **Boîtiers 4G**, **Mes machines**, **Outils** (clé USB, test EVA-DTS).
+- Point de retour : v5.10.0 = commit 7cffeec.

@@ -344,7 +344,7 @@ window.BA = window.BA || {};
     const S = sh();
     if (id === "must" || id === "remove" || id === "empty") { S.orderTab = "stock"; BA.Shell.go("order"); }
     else if (id === "door") { if (num) S.machine = Number(num); BA.Shell.go("details"); }
-    else if (id === "offline") BA.Shell.go("rs232");
+    else if (id === "offline") { if (BA.Rs232 && BA.Rs232.tab) BA.Rs232.tab(BA.Boitiers && BA.Boitiers.devices && BA.Boitiers.devices().length ? "boxes" : "cable"); BA.Shell.go("rs232"); }
     else if (id === "alerts") { S.alertFilter = "active"; BA.Shell.go("alerts"); }
     else if (id === "returns") { statsState().tab = "returns"; BA.Shell.go("stats"); }
     else if (id === "weekly") {

@@ -52,6 +52,38 @@ window.BA = window.BA || {};
     return M.customName(BA.Store.get(), type) || String(type);
   };
   const prod = type => F.esc(prodText(type));
+  // ---------- v5.11 : icônes du menu, des onglets et des titres (SVG, même trait partout — design de la version test 4.8.6) ----------
+  const SVG = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${d}</svg>`;
+  const NAV_ICONS = {
+    dashboard: SVG('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>'),
+    details: SVG('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h4"/>'),
+    products: SVG('<path d="M21 8l-9-5-9 5v8l9 5 9-5V8z"/><path d="M3 8l9 5 9-5M12 13v8"/>'),
+    order: SVG('<circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l2.4 11h11l2-8H6.5"/>'),
+    stats: SVG('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
+    history: SVG('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
+    alerts: SVG('<path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5M12 18h.01"/>'),
+    rs232: SVG('<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0V8zM12 18v4"/>'),
+    settings: SVG('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
+    missions: SVG('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 14l2 2 4-4"/>'),
+    todo: SVG('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 14l2 2 4-4"/>'),
+    fill: SVG('<path d="M3 10h18l-2 10H5L3 10z"/><path d="M8 10l4-6 4 6M9.5 14v3M14.5 14v3"/>'),
+    more: SVG('<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>'),
+    menu: SVG('<path d="M4 6h16M4 12h16M4 18h16"/>'),
+    logout: SVG('<path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l5-5-5-5M15 12H4"/>'),
+    bell: SVG('<path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16z"/><path d="M10 21a2 2 0 0 0 4 0"/>')
+  };
+  const BRAND = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 15c0-4.2 3.2-7.5 8-7.5s8 3.3 8 7.5v2.5H4V15z"/><path d="M9 12.2l.9 2M12.8 11.5l.9 2M16 13l.7 1.4"/></svg>';
+  // Titre de la page : l'émoji du début est remplacé par l'icône du menu (même trait partout)
+  const EMOJI_START = /^[\p{Extended_Pictographic}️‍\s]+/u;
+  function decorateTitle(el, viewId) {
+    const h = el && el.querySelector("h2");
+    if (!h || h.querySelector(".h-ic") || !NAV_ICONS[viewId]) return;
+    const first = h.firstChild;
+    if (first && first.nodeType === 3) first.nodeValue = first.nodeValue.replace(EMOJI_START, "");
+    const ic = document.createElement("span"); ic.className = "h-ic"; ic.innerHTML = NAV_ICONS[viewId];
+    h.insertBefore(ic, h.firstChild);
+  }
+
   const ICON = { door: "🚪", power: "⚡", empty: "🔴", error: "⛔", remove: "🟠", low: "🟡", ok: "🟢", offline: "⚪" };
   const pill = st => `<span class="pill st-${st}">${t("st_" + st)}</span>`;
   // v5 : température lue sur la machine (inconnue tant qu'aucun relevé n'est arrivé)
@@ -123,7 +155,8 @@ window.BA = window.BA || {};
   // ---------- Dashboard ----------
   function summaryCards(s, list, admin) {
     const doors = list.filter(o => o.m.door).length;
-    const empties = list.filter(o => o.x.st === "empty").length;
+    // v5.11 : une machine hors ligne dont le stock est à 0 compte aussi comme vide (comme dans « À faire aujourd'hui »)
+    const empties = list.filter(o => o.x.st === "empty" || (o.x.st === "offline" && o.x.cap > 0 && o.x.pct <= s.settings.emptyPct)).length;
     const remove = list.reduce((a, o) => a + o.x.toRemove, 0);
     const stock = list.reduce((a, o) => a + o.x.total, 0);
     const online = list.filter(o => o.m.online).length;
@@ -131,7 +164,7 @@ window.BA = window.BA || {};
     const sold = Object.values(today).reduce((a, r) => a + r.s, 0);
     const rev = Object.values(today).reduce((a, r) => a + r.r, 0);
     const cards = [
-      ["ok", t("sum_online"), online + "/" + list.length],
+      [!list.length ? "" : online === list.length ? "ok" : online ? "remove" : "empty", t("sum_online"), online + "/" + list.length],   // v5.11 : couleur selon le nombre en ligne
       ["door", t("sum_door"), doors],
       ["empty", t("sum_empty"), empties],
       ["remove", t("sum_remove"), remove],
@@ -151,7 +184,8 @@ window.BA = window.BA || {};
     if (x.oldest !== null) chips.push(`<span class="chip">${t("chip_oldest")} ${F.age(s.now - x.oldest)}</span>`);
     chips.push(`<span class="chip ${tempBadOf(s, m) ? "c-error" : ""}">🌡 ${tempTxt(m)}</span>`);
     let left;
-    if (m.door) left = t("foot_door") + boxTag(m);
+    if (!m.online) left = seenTxt(s, m);                     // v5.11 : hors ligne → dernières données + état du boîtier (mode essai, machine pas lue…)
+    else if (m.door) left = t("foot_door") + boxTag(m);
     else if (m.power) left = t("foot_power") + boxTag(m);
     else if (x.total === 0) left = t("foot_empty") + boxTag(m);
     else left = seenTxt(s, m);
@@ -473,6 +507,53 @@ window.BA = window.BA || {};
       }).join("")}</tbody></table></div>`;
   }
 
+  // ---------- Détails machine : alertes (v5.11) ----------
+  // Actives : une par une. Résolues : une ligne par alerte identique (« Porte ouverte ×7, la dernière le … »),
+  // à déplier. L'admin peut archiver (une, un groupe, ou toutes les résolues d'un coup) : elles restent dans
+  // Alertes → « Archivées ».
+  const groupKey = e => e.code + "|" + (e.key || "");
+  function detailAlerts(s, m, evs, ctx) {
+    if (!evs.length) {
+      const arch = s.events.filter(e => e.num === m.num && e.archived).length;
+      return `<p class="note">${t("no_alerts")}${ctx.admin && arch ? ` <button class="link-btn" data-det-archived="1">${t("det_al_see_archived", { n: arch })}</button>` : ""}</p>`;
+    }
+    const act = evs.filter(e => !e.resolved), done = evs.filter(e => e.resolved);
+    const groups = [];
+    done.forEach(e => { const k = groupKey(e); let g = groups.find(x => x.k === k); if (!g) groups.push(g = { k, list: [] }); g.list.push(e); });
+    groups.forEach(g => g.list.sort((a, b) => b.t - a.t));
+    groups.sort((a, b) => b.list[0].t - a.list[0].t);
+    const arch = s.events.filter(e => e.num === m.num && e.archived).length;
+    const tools = ctx.admin && (done.length || arch) ? `<div class="al-tools">
+        ${done.length ? `<button class="btn secondary petit" id="det-arch-done">📦 ${t("det_al_arch_done", { n: done.length })}</button>` : ""}
+        ${arch ? `<button class="link-btn" data-det-archived="1">${t("det_al_see_archived", { n: arch })}</button>` : ""}</div>` : "";
+    const actHtml = act.length ? act.map(e => eventHtml(s, e, ctx.admin)).join("") : `<p class="note">✅ ${t("det_al_none_active")}</p>`;
+    const grpHtml = groups.map(g => {
+      const e = g.list[0], n = g.list.length;
+      return `<div class="al-group"><span class="al-count" title="${E(t("det_al_times", { n }))}">×${n}</span>
+        <span class="al-t"><b>${evTitle(s, e)}</b> <span class="petit">— ${t(n > 1 ? "det_al_resolved_n" : "det_al_resolved_1", { d: F.dt(e.resolvedAt || e.t) })}</span></span>
+        ${ctx.admin ? `<button class="btn secondary petit" data-arch-group="${E(g.k)}">📦 ${t("btn_archive")}</button>` : ""}
+        <details class="al-more"><summary>${t("det_al_show", { n })}</summary>${g.list.map(x => eventHtml(s, x, ctx.admin)).join("")}</details></div>`;
+    }).join("");
+    return `${tools}${actHtml}${groups.length ? `<h4>${t("det_al_resolved_title", { n: done.length })}</h4>${grpHtml}` : ""}`;
+  }
+  function bindDetailAlerts(el, ctx, evs, redraw) {
+    el.querySelectorAll("[data-det-archived]").forEach(b => b.onclick = () => { BA.Shell.state.alertFilter = "archived"; BA.Shell.state.alertCat = "all"; BA.Shell.go("alerts"); });
+    if (!ctx.admin) return;
+    const done = msg => { redraw(); toast(msg); };
+    const all = el.querySelector("#det-arch-done");
+    if (all) all.onclick = () => { const n = BA.Actions.archiveEvents(evs.filter(e => e.resolved).map(e => e.id)); done(t("archive_done_n", { n })); };
+    el.querySelectorAll("[data-arch-group]").forEach(b => b.onclick = () => {
+      const n = BA.Actions.archiveEvents(evs.filter(e => e.resolved && groupKey(e) === b.dataset.archGroup).map(e => e.id));
+      done(t("archive_done_n", { n }));
+    });
+    el.querySelectorAll("[data-archive]").forEach(b => b.onclick = () => {
+      const e = evs.find(x => x.id === Number(b.dataset.archive));
+      const go = () => { BA.Actions.archiveEvent(b.dataset.archive, true); done(t("archive_done")); };
+      if (e && !e.resolved) confirmDialog({ title: t("archive_confirm_t", { n: 1 }), html: `<p>${t("archive_confirm_all", { n: 1 })}</p>`, ok: "📦 " + t("btn_archive"), onOk: go });
+      else go();
+    });
+  }
+
   // ---------- Détails machine ----------
   function renderDetails(el, ctx) {
     const s = BA.Store.get();
@@ -483,7 +564,7 @@ window.BA = window.BA || {};
     const x = M.stats(s, m);
     const today = (s.daily[M.dayKey(s.now)] || {})[m.num] || { s: 0, r: 0, l: 0, x: 0 };
     const lastIt = s.interventions.find(i => i.num === m.num && i.status === "done");
-    const evs = s.events.filter(e => e.num === m.num && !e.archived && (ctx.admin || M.OPERATOR_CATS.includes(e.cat))).slice(0, 6);
+    const evs = s.events.filter(e => e.num === m.num && !e.archived && (ctx.admin || M.OPERATOR_CATS.includes(e.cat)));
     const mission = M.openMission(s, m.num);
     const tempBad = tempBadOf(s, m);
 
@@ -507,11 +588,12 @@ window.BA = window.BA || {};
       <h3>🧾 ${t("det_last_moves")}</h3>
       ${BA.History.recent(s, m.num, ctx.admin, 8)}
       <h3>⚠️ ${t("machine_alerts")}</h3>
-      ${evs.length ? evs.map(e => eventHtml(s, e, false)).join("") : `<p class="note">${t("no_alerts")}</p>`}
+      ${detailAlerts(s, m, evs, ctx)}
       <h3>🧺 ${t("interventions_title")}</h3>
       ${interventionsTable(s, m.num)}`;
 
     el.querySelector("#det-machine").onchange = e => { BA.Shell.state.machine = Number(e.target.value); renderDetails(el, ctx); };
+    bindDetailAlerts(el, ctx, evs, () => renderDetails(el, ctx));
     bindLotActions(el, m.num);
     BA.History.bindRecent(el, m.num);
   }
@@ -648,8 +730,7 @@ window.BA = window.BA || {};
   }
 
   // ---------- Alertes ----------
-  function eventHtml(s, e, withActions) {
-    const cls = e.resolved ? "info fini" : e.level === "err" ? "err" : e.level === "warn" ? "warn" : "info";
+  function evVars(s, e) {
     const d = Object.assign({ sel: "", type: "" }, e.data);
     // v5 : champs des alertes des vraies machines (texte venant de la machine : protégé)
     const raw = {};
@@ -667,6 +748,12 @@ window.BA = window.BA || {};
       lot: d.lotDate ? F.dt(d.lotDate) : "", qty: d.qty || "", lost: d.lost || 0, gained: d.gained || 0, h: s.settings.thrHours,
       kept: d.keptAt ? F.dt(d.keptAt) : ""
     };
+    return vars;
+  }
+  const evTitle = (s, e) => t("ev_" + e.code, evVars(s, e));
+  function eventHtml(s, e, withActions) {
+    const cls = e.resolved ? "info fini" : e.level === "err" ? "err" : e.level === "warn" ? "warn" : "info";
+    const vars = evVars(s, e);
     const state = e.resolved ? `<span class="tag c-ok">${t("ev_resolved")} ${e.resolvedAt ? F.dt(e.resolvedAt) : ""}</span>` : `<span class="tag c-active">${t("ev_active")}</span>`;
     const actions = withActions
       ? (e.archived ? `<button class="btn petit secondary" data-unarchive="${e.id}">${t("btn_unarchive")}</button>` : `<button class="btn petit secondary" data-archive="${e.id}">📦 ${t("btn_archive")}</button>`)
@@ -817,7 +904,7 @@ window.BA = window.BA || {};
   }
 
   BA.UI = {
-    F, E, t, prod, pill, ICON,
+    F, E, t, prod, pill, ICON, NAV_ICONS,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
     machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, interventionsTable, prodText,
     confirmDialog, dateInput, afterClick, removeDialog, toast, openWindow,
@@ -877,115 +964,92 @@ window.BA = window.BA || {};
     },
 
     build() {
-      const c = this.ctx;
+      const c = this.ctx, admin = c.role === "admin";
       document.documentElement.lang = BA.I18n.lang;
-      document.title = "Broodautomate — " + t(c.role === "admin" ? "role_admin" : "role_op");
+      document.title = "Broodautomate — " + t(admin ? "role_admin" : "role_op");
+      // v5.11 : design de la version test 4.8.6 — barre latérale (logo, menu, bas : appli, langue, thème, déconnexion),
+      // bandeau du haut (titre de la page sur téléphone, état), onglets en bas sur téléphone
+      const navViews = admin ? c.views : c.views.filter(v => !v.hidden);
+      const cur = this.navId(this.state.view);
+      const btn = (v, on) => `<button type="button" data-view="${v.id}" class="${on ? "active" : ""}" ${on ? 'aria-current="page"' : ""}>${this.icon(v.id, v.icon)}<span>${t(v.label)}</span></button>`;
+      $("#app-brand").innerHTML = `<button class="brand-mark" id="side-pin" type="button" title="${E(t("nav_pin_tip"))}" aria-label="${E(t("nav_pin_tip"))}">${BRAND}</button>
+        <span class="brand-text"><span class="brand-name">Brood<b>automate</b></span><span class="brand-tags"><span class="role-tag">${t(admin ? "role_admin" : "role_op")}</span></span></span>`;
       $("#app-header").innerHTML = `
-        <h1>🥖 Broodautomate <span class="role-tag">${t(c.role === "admin" ? "role_admin" : "role_op")}</span></h1>
+        <button id="menu-btn" class="icon-btn" type="button" aria-label="${E(t("nav_open"))}" aria-controls="app-side" aria-expanded="false">${this.icon("menu")}</button>
+        <h1 id="page-title"></h1>
         <div id="status-bar">
           <span id="sync-status" class="badge"></span>
-          ${c.role === "admin" ? `<span id="serial-status" class="badge off">RS232 : ${t("rs_disconnected")}</span>` : ""}
+          ${admin ? `<span id="serial-status" class="badge off">RS232 : ${t("rs_disconnected")}</span>` : ""}
           <span id="online-status" class="badge on"></span>
           <span id="notif-slot"></span>
-          <button type="button" id="theme-toggle" class="badge link" aria-label="${E(BA.Theme.label())}" title="${E(BA.Theme.label())}"></button>
-          <select id="lang-select" class="auto-w" aria-label="Langue / Taal / Language">
+        </div>`;
+      const nav = $("#app-nav");
+      nav.className = "";
+      nav.setAttribute("aria-label", t("nav_menu"));
+      nav.innerHTML = navViews.map(v => btn(v, v.id === cur)).join("");
+      const link = !admin && BA.IN_APP ? "" : `<a class="side-link" href="${admin ? "operateur.html" : "index.html"}">${this.icon(admin ? "missions" : "dashboard")}<span>${t(admin ? "open_operator" : "open_admin")}</span></a>`;
+      const out = BA.DB && BA.DB.isReady() ? `<button type="button" id="btn-logout" class="side-link side-out" title="${E(BA.DB.email || "")}">${this.icon("logout")}<span>${t("logout")}</span></button>` : "";
+      $("#app-side-foot").innerHTML = `${link}
+        <div class="side-row">
+          <select id="lang-select" aria-label="Langue / Taal / Language">
             ${["fr", "nl", "en"].map(l => `<option value="${l}" ${BA.I18n.lang === l ? "selected" : ""}>${l.toUpperCase()}</option>`).join("")}
           </select>
-          ${c.role !== "admin" && BA.IN_APP ? "" : `<a class="badge link" href="${c.role === "admin" ? "operateur.html" : "index.html"}">${c.role === "admin" ? "📱 " + t("open_operator") : "🖥 " + t("open_admin")}</a>`}
-          ${BA.DB && BA.DB.isReady() ? `<button id="btn-logout" class="badge link" title="${E(BA.DB.email || "")}">🚪 ${t("logout")}</button>` : ""}
-        </div>`;
-      // v5.4 : admin = barre latérale flottante (icônes, s'ouvre au survol) ; opérateur = menu du haut comme avant
-      const rail = c.role === "admin";
-      document.body.classList.toggle("has-rail", rail);
-      const nav = $("#app-nav");
-      nav.className = rail ? "rail" : "tabbar";
-      nav.setAttribute("aria-label", t("nav_menu"));
-      nav.innerHTML = rail
-        ? `<button type="button" class="rail-toggle" aria-pressed="false"><span class="ni" aria-hidden="true">${this.icon("menu", "☰")}</span><span class="nl"></span></button>`
-          + c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`).join("")
-        : c.views.filter(v => !v.hidden).map(v => { const on = v.id === this.navId(this.state.view); return `<button type="button" data-view="${v.id}" class="${on ? "active" : ""}" ${on ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`; }).join("");
-      nav.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => { this.go(b.dataset.view); if (rail) this.railClose(); });
-      if (rail) this.railInit();
+          <button id="theme-toggle" class="icon-btn" type="button"></button>
+        </div>${out}`;
+      // téléphone : onglets du bas (admin : 4 pages + « Menu » ; opérateur : ses 4 onglets, « Plus » compris)
+      const tabs = admin ? ["dashboard", "details", "products", "alerts"].map(id => c.views.find(v => v.id === id)).filter(Boolean) : navViews;
+      const tb = $("#app-tabbar");
+      tb.classList.toggle("tab4", !admin);
+      tb.innerHTML = tabs.map(v => btn(v, v.id === cur)).join("")
+        + (admin ? `<button id="tab-more" type="button" aria-controls="app-side">${this.icon("menu")}<span>${t("nav_menu")}</span></button>` : "");
+      [nav, tb].forEach(n => n.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => this.go(b.dataset.view)));
+      this.sideInit();
       $("#app-main").innerHTML = c.views.map(v => `<section id="view-${v.id}" class="view ${v.id === this.state.view ? "active" : ""}"></section>`).join("");
+      // les pages qui se redessinent elles-mêmes (onglets de Commander, choix de la machine…) gardent l'icône du titre
+      if (!this._titleObs && window.MutationObserver) {
+        let raf = 0;
+        this._titleObs = new MutationObserver(() => { if (raf) return; raf = requestAnimationFrame(() => { raf = 0; const v = this.state.view; decorateTitle(document.getElementById("view-" + v), v); }); });
+        this._titleObs.observe($("#app-main"), { childList: true, subtree: true });
+      }
       $("#app-footer").innerHTML = c.footer();
       if (c.bindFooter) c.bindFooter();
       BA.Theme.bind($("#theme-toggle"));
       $("#lang-select").onchange = e => { BA.I18n.set(e.target.value, c.role); this.build(); };
-      if (c.role === "admin" && BA.Rs232 && BA.Rs232.badge) BA.Rs232.badge();
+      if (admin && BA.Rs232 && BA.Rs232.badge) BA.Rs232.badge();
       const lo = $("#btn-logout"); if (lo) lo.onclick = async () => { try { if (BA.Notifs) await BA.Notifs.retirer(); await BA.DB.signOut(); } catch (e) { /* on recharge quand même */ } location.reload(); };
       if (BA.Notifs) BA.Notifs.mount();
+      this.title();
       this.renderView();
       this.refreshChrome();
     },
 
-    // v5.5 : icônes fines (traits) pour la barre latérale ; repli sur l'emoji de la vue si l'id est inconnu
-    ICONS: {
-      missions: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4h6v3H9z"/><path d="M9 12h6M9 16h4"/>',
-      dashboard: '<path d="M3 11l9-8 9 8"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
-      details: '<path d="M4 20V10"/><path d="M10 20V4"/><path d="M16 20v-7"/><path d="M22 20H2"/>',
-      products: '<path d="M4 15c0-4 3-7 8-7s8 3 8 7v2H4z"/><path d="M9 12l1 2M13 11l1 2M16 13l1 1"/>',
-      order: '<path d="M21 8l-9-5-9 5 9 5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
-      forecast: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
-      stats: '<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
-      history: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l3 2"/>',
-      alerts: '<path d="M18 16v-5a6 6 0 0 0-12 0v5l-2 2h16z"/><path d="M10 21a2 2 0 0 0 4 0"/>',
-      rs232: '<path d="M9 2v6M15 2v6"/><path d="M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>',
-      settings: '<circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 0 0-2-1.2L14.2 3h-4l-.4 2.6a7 7 0 0 0-2 1.2l-2.3-.9-2 3.4 2 1.5a7 7 0 0 0 0 2.4l-2 1.5 2 3.4 2.3-.9a7 7 0 0 0 2 1.2l.4 2.6h4l.4-2.6a7 7 0 0 0 2-1.2l2.3.9 2-3.4-2-1.5c.1-.4.1-.8.1-1.2z"/>',
-      menu: '<path d="M4 6h16M4 12h16M4 18h16"/>'
-    },
-    icon(id, fallback) {
-      const d = this.ICONS[id];
-      return d ? `<svg class="ico" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${d}</svg>` : (fallback || "");
-    },
+    // Icônes au même trait partout (menu, onglets, titres des pages) ; repli sur l'emoji si l'id est inconnu
+    icon(id, fallback) { return NAV_ICONS[id] || fallback || ""; },
 
-    // ---------- Barre latérale flottante (admin, v5.4) ----------
-    // Repliée : seulement les icônes. La souris dessus (ou le clavier) l'ouvre par-dessus la page. Le bouton ☰ la garde
-    // ouverte (« épinglée », mémorisé sur cet appareil). Téléphone : un bouton rond ☰ ouvre le menu en panneau.
-    railLabels() {
-      const nav = $("#app-nav"), pinned = document.body.classList.contains("rail-pinned");
-      const tg = nav.querySelector(".rail-toggle");
-      if (tg) {
-        const txt = t(pinned ? "nav_unpin" : "nav_pin");
-        tg.setAttribute("aria-pressed", pinned ? "true" : "false");
-        tg.querySelector(".nl").textContent = txt;
-      }
-      const fab = document.getElementById("rail-fab");
-      if (fab) { const open = nav.classList.contains("open"); fab.setAttribute("aria-label", t(open ? "nav_close" : "nav_open")); fab.setAttribute("aria-expanded", open ? "true" : "false"); }
-    },
-    railClose() {
-      const nav = $("#app-nav"); if (!nav) return;
-      nav.classList.remove("open", "hot");
-      const bk = document.getElementById("rail-back"); if (bk) bk.classList.remove("on");
-      this.railLabels();
-    },
-    railInit() {
-      const nav = $("#app-nav");
-      try { document.body.classList.toggle("rail-pinned", localStorage.getItem("ba_rail_pinned") === "1"); } catch (e) { /* mémoire du navigateur bloquée : tant pis */ }
-      // bouton rond (téléphone) et fond
-      if (!document.getElementById("rail-fab")) {
-        const fab = document.createElement("button"); fab.id = "rail-fab"; fab.type = "button"; fab.className = "rail-fab"; fab.innerHTML = this.icon("menu", "☰");
-        const bk = document.createElement("div"); bk.id = "rail-back"; bk.className = "rail-back";
-        document.body.appendChild(bk); document.body.appendChild(fab);
-        fab.addEventListener("click", () => {
-          const on = !nav.classList.contains("open");
-          nav.classList.toggle("open", on); bk.classList.toggle("on", on); this.railLabels();
-        });
-        bk.addEventListener("click", () => this.railClose());
-      }
-      nav.querySelector(".rail-toggle").onclick = () => {
-        const on = !document.body.classList.contains("rail-pinned");
-        document.body.classList.toggle("rail-pinned", on);
-        try { localStorage.setItem("ba_rail_pinned", on ? "1" : "0"); } catch (e) { /* tant pis */ }
-        this.railLabels();
+    // ---------- Barre latérale (v5.11, comme la version test 4.8.6) ----------
+    // PC : réduite aux icônes, elle s'ouvre quand la souris passe dessus (ou au clavier) ; le logo l'épingle ouverte.
+    // Téléphone : le bouton ☰ (ou l'onglet « Menu ») l'ouvre en tiroir ; un toucher à côté ou Échap la ferme.
+    sideInit() {
+      const side = open => {
+        document.body.classList.toggle("side-open", open);
+        const mb = $("#menu-btn");
+        if (mb) { mb.setAttribute("aria-expanded", open ? "true" : "false"); mb.setAttribute("aria-label", t(open ? "nav_close" : "nav_open")); }
       };
-      if (!nav.dataset.railBound) {          // une seule fois : le menu est redessiné au changement de langue
-        nav.dataset.railBound = "1";
-        let tIn = null, tOut = null;
-        nav.addEventListener("pointerenter", e => { if (e.pointerType !== "mouse") return; clearTimeout(tOut); tIn = setTimeout(() => nav.classList.add("hot"), 110); });
-        nav.addEventListener("pointerleave", e => { if (e.pointerType !== "mouse") return; clearTimeout(tIn); tOut = setTimeout(() => nav.classList.remove("hot"), 220); });
-        document.addEventListener("keydown", e => { if (e.key === "Escape") this.railClose(); });
-      }
-      this.railLabels();
+      this.closeSide = () => side(false);
+      const phone = () => !!(window.matchMedia && matchMedia("(max-width: 899px)").matches);
+      $("#side-pin").onclick = () => {
+        if (phone()) { side(false); return; }
+        const on = document.documentElement.classList.toggle("side-pinned");
+        try { localStorage.setItem("ba_rail_pinned", on ? "1" : "0"); } catch (e) { /* mémoire du navigateur bloquée : tant pis */ }
+      };
+      $("#menu-btn").onclick = () => side(!document.body.classList.contains("side-open"));
+      const more = $("#tab-more"); if (more) more.onclick = () => side(true);
+      $("#side-scrim").onclick = () => side(false);
+      if (!this._escBound) { this._escBound = true; document.addEventListener("keydown", e => { if (e.key === "Escape" && document.body.classList.contains("side-open")) this.closeSide(); }); }
+    },
+    title() {
+      const v = this.ctx.views.find(x => x.id === this.state.view), h = $("#page-title");
+      if (v && h) h.textContent = t(v.label);
     },
 
     // v5.10 : onglet du menu à allumer (une page cachée allume son onglet « parent »)
@@ -997,11 +1061,13 @@ window.BA = window.BA || {};
       this.state.view = view;
       try { history.replaceState(null, "", "#" + view); } catch (e) { /* rien */ }
       const navOn = this.navId(view);
-      $("#app-nav").querySelectorAll("button[data-view]").forEach(b => {
+      ["#app-nav", "#app-tabbar"].forEach(sel => { const n = $(sel); if (n) n.querySelectorAll("button[data-view]").forEach(b => {
         const on = b.dataset.view === navOn;
         b.classList.toggle("active", on);
         if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
-      });
+      }); });
+      this.title();
+      if (this.closeSide) this.closeSide();
       $("#app-main").querySelectorAll(".view").forEach(sec => sec.classList.toggle("active", sec.id === "view-" + view));
       this.renderView(true);
       window.scrollTo(0, 0);
@@ -1010,11 +1076,12 @@ window.BA = window.BA || {};
     renderView(fresh) {
       const v = this.ctx.views.find(x => x.id === this.state.view);
       const el = document.getElementById("view-" + v.id);
-      if (fresh) { el.innerHTML = ""; v.render(el, this.ctx); return; }
+      if (fresh) { el.innerHTML = ""; v.render(el, this.ctx); decorateTitle(el, v.id); return; }
       // garder la case active (curseur) et le défilement horizontal des tableaux
       const ae = document.activeElement, keep = { scroll: Array.from(el.querySelectorAll(".table-scroll")).map(x => x.scrollLeft) };
       if (ae && ae.id && el.contains(ae)) { keep.id = ae.id; try { keep.a = ae.selectionStart; keep.b = ae.selectionEnd; } catch (e) { /* pas de curseur */ } }
       v.render(el, this.ctx);
+      decorateTitle(el, v.id);
       el.querySelectorAll(".table-scroll").forEach((x, i) => { if (keep.scroll[i]) x.scrollLeft = keep.scroll[i]; });
       if (keep.id) {
         const n = document.getElementById(keep.id);
@@ -1057,9 +1124,14 @@ window.BA = window.BA || {};
         const k = q.mode === "local" ? "sync_local" : q.sync === "ok" ? "sync_ok" : q.sync === "sending" ? "sync_sending" : "sync_offline";
         sy.className = "badge " + (k === "sync_ok" || k === "sync_local" ? "on" : k === "sync_sending" ? "warn" : "err");
         sy.textContent = t(k);
-        sy.title = (q.error || "") + (q.lost ? " " + t("sync_lost") : "");
+        sy.title = (q.error || t("sync_tip")) + (q.lost ? " " + t("sync_lost") : "");
       }
-      $("#online-status").textContent = t("online") + " : " + s.machines.filter(m => m.online).length + "/" + s.machines.length;
+      const os = $("#online-status");
+      if (os) {
+        const n = s.machines.filter(m => m.online).length, tot = s.machines.length;
+        os.textContent = t("online") + " : " + n + "/" + tot; os.title = t("online_tip");
+        os.className = "badge " + (!tot ? "off" : n === tot ? "on" : n ? "warn" : "err");     // v5.11 : vert seulement si toutes sont lues
+      }
       if (this.ctx.refreshFooter) this.ctx.refreshFooter(s);
     },
 

@@ -798,6 +798,7 @@ window.BA = window.BA || {};
         <option value="ly" ${year === "ly" ? "selected" : ""}>${t("prof_year_ly")}</option>
         <option value="both" ${year === "both" ? "selected" : ""}>${t("prof_year_both")}</option></select></label></div>
       ${yearNote}
+      ${editable ? `<p class="note">👆 ${t("prof_click_hint")}</p>` : ""}
       <div class="table-scroll"><table class="compact prof-table">
         <thead><tr><th>${t("machine")}</th>${head}<th>${t("prof_base")}</th><th>${t("prof_src")}</th><th>${t("fc_col_rel")}</th><th>${t("prof_trend")}</th><th>${t("prof_excluded")}</th><th></th></tr></thead>
         <tbody>
@@ -810,7 +811,8 @@ window.BA = window.BA || {};
   }
   // ---- Petite fenêtre : ventes par type de pain pour un jour de semaine (pains ou % selon « Afficher ») ----
   function profileModal(o, who, wd, rerender) {
-    const s = BA.Store.get(), ctx = FC.context(s), unit = o.unit === "n" ? "n" : "pct";
+    const s = BA.Store.get(), ctx = FC.context(s);
+    let unit = o.unit === "n" ? "n" : "pct";
     const fleet = who === "fleet", m = fleet ? null : M.machine(s, Number(who));
     let types = [], hist = {}, normal = {}, used = {}, title, isMan = false, ms = null;
     if (fleet) {
@@ -829,6 +831,9 @@ window.BA = window.BA || {};
       ms = FC.manualState(ctx, m.num, wd); isMan = ms.set;
       title = "#" + m.num + " " + m.city + " — " + F.wdLong(wd);
     }
+    // v5.11 : machine sans historique de ventes (toute nouvelle) : on écrit directement le nombre de pains de chaque sorte
+    const noHist = !fleet && !types.some(ty => (normal[ty] || 0) > 0);
+    if (noHist) unit = "n";
     const sum = o2 => types.reduce((a, ty) => a + (o2[ty] || 0), 0);
     const val = (n, ty) => unit === "n" ? Math.round(n * 10) / 10 : (normal[ty] > 0 ? Math.round(n / normal[ty] * 100) : 0);
     const fmt = v => unit === "n" ? F.num(v, 1) : v + " %";
@@ -840,6 +845,7 @@ window.BA = window.BA || {};
     root.innerHTML = `<div class="modal-back"><div class="modal pc-modal" role="dialog" aria-modal="true">
       <div class="modal-head"><div><h2>${E(title)}</h2></div></div>
       <p class="note">${t(unit === "n" ? "pc_help_n" : "pc_help_pct", { d: F.wdLong(wd), w: ctx.F.weeks })}${fleet ? " " + t("pc_fleet_note") : ""}</p>
+      ${noHist ? `<div class="alert info">🆕 ${t("pc_nohist", { d: F.wdLong(wd) })}</div>` : ""}
       <div class="table-scroll"><table class="compact"><thead><tr><th>${t("pc_col_type")}</th>
         <th>${t("pc_col_hist")}<div class="petit">${t(unit === "n" ? "pc_hist_n" : "pc_hist_pct", { d: F.wdName(wd), w: ctx.F.weeks })}</div></th><th>${t("pc_col_use")}</th></tr></thead>
         <tbody>${rowsHtml}
@@ -857,7 +863,7 @@ window.BA = window.BA || {};
     const total = () => {
       const n = inputs().reduce((a, i) => a + toN(i), 0);
       document.getElementById("pc-total").innerHTML = unit === "n"
-        ? `<b>${F.num(n, 1)}</b> <span class="petit">${t("pc_total_note", { p: nTot > 0 ? Math.round(n / nTot * 100) : 0, b: F.num(nTot, 1) })}</span>`
+        ? `<b>${F.num(n, 1)}</b>${nTot > 0 ? ` <span class="petit">${t("pc_total_note", { p: Math.round(n / nTot * 100), b: F.num(nTot, 1) })}</span>` : ""}`
         : `<b>${nTot > 0 ? Math.round(n / nTot * 100) : 0} %</b>`;
     };
     inputs().forEach(i => i.oninput = total); total();

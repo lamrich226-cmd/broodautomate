@@ -105,16 +105,26 @@ async function login(p, email, pass) {
   await p.fill("#login-pass", pass || "Secret-123");
   await p.click("#login-go");
 }
-const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000 });
-const view = async (p, v) => { if (await p.$(`nav button[data-view='${v}']`)) await p.click(`nav button[data-view='${v}']`); else await p.evaluate(x => BA.Shell.go(x), v); await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450); };   // v5.4 : la souris quitte le menu flottant (il se replie)
+const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000, state: "attached" });
+// v5.11 : barre latérale (PC) ou onglets du bas (téléphone) ; sinon (page cachée) directement
+const view = async (p, v) => {
+  const b = [`#app-nav button[data-view='${v}']`, `#app-tabbar button[data-view='${v}']`];
+  if (await p.isVisible(b[0])) await p.click(b[0]); else if (await p.isVisible(b[1])) await p.click(b[1]); else await p.evaluate(x => BA.Shell.go(x), v);
+  await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450);
+};
 // v5.10 : sur le téléphone opérateur, la langue est dans l'onglet « Plus »
 async function setLang(p, lang) {
   if (await p.isVisible("#lang-select")) { await p.selectOption("#lang-select", lang); return; }
-  await view(p, "more"); await p.selectOption("#more-lang", lang); await sleep(200);
+  if (await p.$("#app-tabbar [data-view=more]")) { await view(p, "more"); await p.selectOption("#more-lang", lang); await sleep(200); return; }
+  // v5.11 : PC, barre latérale repliée (la liste des langues n'apparaît qu'au survol)
+  await p.mouse.move(30, 820); await sleep(500);
+  if (await p.isVisible("#lang-select")) await p.selectOption("#lang-select", lang);
+  else await p.evaluate(l => { const x = document.getElementById("lang-select"); x.value = l; x.dispatchEvent(new Event("change", { bubbles: true })); }, lang);
+  await p.mouse.move(900, 300); await sleep(300);
 }
 const synced = (p, ms) => p.waitForFunction(() => BA.Store.status().pending === 0 && BA.Store.status().sync === "ok", null, { timeout: ms || 20000 });
 const st = (p, fn, arg) => p.evaluate(fn, arg);
-const journal = (p, txt, ms) => p.waitForFunction(t => { const j = document.querySelector("#rs-journal"); return j && j.innerText.includes(t); }, txt, { timeout: ms || 30000 });
+const journal = (p, txt, ms) => p.waitForFunction(t => { const j = document.querySelector("#rs-journal"); return j && j.textContent.includes(t); }, txt, { timeout: ms || 30000 });   // v5.11 : journal replié (textContent)
 const qtyOf = (p, num, sel) => p.evaluate(([n, s]) => { const m = BA.Store.get().machines.find(x => x.num === n); const x = m && BA.Model.sel(m, s); return x ? BA.Model.qty(x) : null; }, [num, sel]);
 async function shot(p, name, full) { await p.screenshot({ path: path.join(OUT, name + ".png"), fullPage: full !== false }); }
 // textes qui ressemblent à une clé de traduction (texte manquant)
@@ -212,19 +222,21 @@ async function scenarioPrincipal() {
   await a.waitForSelector("#view-dashboard .carte-machine, #view-dashboard [data-machine]");
   const dash = await a.innerText("#view-dashboard");
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
-  ok("en-tête : badge « Synchronisé »", (await a.innerText("#sync-status")).includes("Synchronisé"));
+  ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.10.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.10.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.11.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.11.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
-  // v5.5 : mode clair / sombre
-  ok("mode sombre par défaut", (await a.getAttribute("html", "data-theme")) === "dark");
+  // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
+  const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
+  ok("sans choix : le thème suit l'ordinateur (" + sys + ")", (await a.getAttribute("html", "data-theme")) === null && (await a.evaluate(() => BA.Theme.get())) === sys);
+  ok("thème clair : vraies couleurs (fond crème), plus d'inversion de l'écran", await a.evaluate(() => { document.documentElement.dataset.theme = "light"; const bg = getComputedStyle(document.body).backgroundColor, f = getComputedStyle(document.documentElement).filter; delete document.documentElement.dataset.theme; return bg === "rgb(244, 240, 233)" && (f === "none" || !f); }));
   await a.click("#theme-toggle"); await a.mouse.move(900, 300); await a.waitForTimeout(300);
-  ok("bouton ☀️/🌙 : mode clair appliqué et gardé", (await a.getAttribute("html", "data-theme")) === "light" && (await a.evaluate(() => localStorage.getItem("ba_theme"))) === "light");
-  await shot(a, "02b-admin-clair");
-  await a.reload(); await a.waitForSelector("#theme-toggle"); 
-  ok("mode clair gardé après rechargement", (await a.getAttribute("html", "data-theme")) === "light");
+  ok("bouton soleil / lune : l'autre thème appliqué et gardé", (await a.getAttribute("html", "data-theme")) === autre && (await a.evaluate(() => localStorage.getItem("ba_theme"))) === autre);
+  await shot(a, "02b-admin-" + autre);
+  await a.reload(); await a.waitForSelector("#theme-toggle", { state: "attached" });
+  ok("thème gardé après rechargement", (await a.getAttribute("html", "data-theme")) === autre);
   await a.click("#theme-toggle"); await a.mouse.move(900, 300);
-  ok("retour au mode sombre", (await a.getAttribute("html", "data-theme")) === "dark");
+  ok("re-clic : retour au premier thème", (await a.getAttribute("html", "data-theme")) === sys);
 
   // ---------------- 2. Téléphone de l'opérateur ----------------
   console.log("\n== 2. Appli opérateur sur le téléphone, « Remplir », synchronisation");
@@ -348,7 +360,7 @@ async function scenarioPrincipal() {
 
   // ---------------- import par clé USB (machine #2) ----------------
   console.log("\n== 3b. Import d'un relevé par clé USB");
-  await view(a, "rs232");
+  await view(a, "rs232"); await a.click("[data-rs-tab=tools]");
   await a.selectOption("#usb-machine", "FAS-202166085");
   await a.setInputFiles("#usb-file", DAT);
   await a.waitForSelector("#dlg-ok", { timeout: 10000 });
@@ -364,7 +376,9 @@ async function scenarioPrincipal() {
   await sleep(800);
   ok("USB : même fichier une 2e fois → « identique », rien d'importé", !(await a.$("#dlg-ok")) && fake.t.audits.filter(x => x.machine_id === "FAS-202166085").length === 1);
 
-  // liste 1 : avertissement
+  // liste 1 : avertissement (v5.11 : onglet Câble, réglage replié sous « Quelle liste lire »)
+  await a.click("[data-rs-tab=cable]");
+  await a.click("details.rs-more:has(input[name=rs-liste]) > summary");
   await a.click("input[name=rs-liste][value='1']");
   await a.waitForSelector("#dlg-ok");
   ok("liste 1 : avertissement avant de changer", /Erase interim data|interim/i.test(await a.innerText(".dlg-modal")));
@@ -469,7 +483,7 @@ async function scenarioEcrans(ctx) {
   const adminViews = ["dashboard", "details", "products", "order", "stats", "history", "alerts", "rs232", "settings"];
   const opViews = ["todo", "fill", "alerts", "more", "details", "products", "history", "rs232", "dashboard", "missions"];
   for (const lang of ["fr", "nl", "en"]) {
-    await a.selectOption("#lang-select", lang); await sleep(300);
+    await setLang(a, lang); await sleep(300);
     await setLang(o, lang); await sleep(300);
     for (const v of adminViews) {
       await view(a, v);
@@ -486,7 +500,7 @@ async function scenarioEcrans(ctx) {
       ok(`téléphone ${lang} « ${v} » : pas de défilement horizontal de la page`, wide <= 1, wide);
     }
   }
-  await a.selectOption("#lang-select", "fr"); await setLang(o, "fr");
+  await setLang(a, "fr"); await setLang(o, "fr");
   // badge RS232 gardé après le changement de langue
   ok("badge RS232 toujours « connecté » après changement de langue", /connecté/i.test(await a.innerText("#serial-status")) && !/déconnecté/i.test(await a.innerText("#serial-status")), await a.innerText("#serial-status"));
   // Commander : prévision confirmée, plan, missions envoyées au téléphone
@@ -773,7 +787,7 @@ async function scenario489() {
 
   // --- 3 langues, téléphone : pas de texte manquant
   for (const lang of ["nl", "en", "fr"]) {
-    await a.selectOption("#lang-select", lang); await sleep(300);
+    await setLang(a, lang); await sleep(300);
     const miss = [];
     await view(a, "dashboard"); miss.push(...await rawKeys(a));
     await view(a, "stats");
@@ -879,9 +893,9 @@ async function scenarioNotifs() {
   await a.click("#notif-panel .np-al");
   await a.waitForSelector("#view-alerts.active", { timeout: 10000 });
   ok("« Voir les alertes » ouvre la page Alertes et ferme le panneau", !(await a.$("#notif-panel")));
-  await a.selectOption("#lang-select", "nl");
+  await setLang(a, "nl");
   ok("changement de langue : la cloche reste", !!(await a.$("#notif-btn")) && /Meldingen/.test(await a.getAttribute("#notif-btn", "title")));
-  await a.selectOption("#lang-select", "fr");
+  await setLang(a, "fr");
   // opérateur : pas de cloche ; admin sur la page opérateur (téléphone) : cloche
   const d2 = await device(fake, "notif-op", { ctx: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } });
   const o = await open(d2, "operateur.html");
@@ -922,7 +936,8 @@ async function scenarioOpSimple(ctx) {
   console.log("\n== 9. Appli opérateur simplifiée (téléphone)");
   const { o } = ctx;
   await view(o, "todo");
-  const tabs = await o.$$eval("nav#app-nav button[data-view]", l => l.map(b => ({ v: b.dataset.view, t: b.innerText.trim(), w: b.querySelector(".nl") ? getComputedStyle(b.querySelector(".nl")).display : "" })));
+  // v5.11 : sur téléphone, les onglets sont en bas (#app-tabbar), avec leur nom
+  const tabs = await o.$$eval("#app-tabbar button[data-view]", l => l.map(b => ({ v: b.dataset.view, t: b.innerText.trim(), w: b.querySelector("span") ? getComputedStyle(b.querySelector("span")).display : "" })));
   ok("4 onglets : À faire, Remplir, Alertes, Plus — tous avec leur nom", tabs.map(x => x.v).join(",") === "todo,fill,alerts,more" && tabs.every(x => x.t && x.w !== "none"), tabs);
   const h = await o.evaluate(() => Math.round(document.getElementById("app-header").getBoundingClientRect().height));
   ok("en-tête sur une seule ligne (langue, thème, déconnexion dans « Plus »)", h <= 64 && !(await o.isVisible("#lang-select")), h);

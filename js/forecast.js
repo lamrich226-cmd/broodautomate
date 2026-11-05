@@ -188,6 +188,9 @@ window.BA = window.BA || {};
       let a = 0, n = 0;
       p.samples.forEach((arr, wd) => arr.forEach(x => { if (idx[wd] > 0) { a += x.v / idx[wd]; n++; } }));
       p.base = n ? a / n : (fl.n ? fl.base / fl.n : 0);
+      // v5.11 : pas encore de ventes : la « journée normale » vient des jours réglés à la main (en pains)
+      const mb = (ctx.s.profileBase || {})[m.num];
+      if (src === "manual" && !n && mb > 0) p.base = mb;
     }
     p.src = src; p.idx = idx; p.short = !own && src !== "manual";
     p.relWd = p.samples.map(relLevel);

@@ -341,44 +341,60 @@ window.BA = window.BA || {};
     if (BA.Boitiers) BA.Boitiers.redraw();
   }
 
+  // v5.11 : la page est rangée en 4 onglets (Câble, Boîtiers 4G, Mes machines, Outils) ; tout reste dans la page
+  // (les onglets cachés ne sont pas effacés : la lecture du câble et le journal continuent derrière)
+  let _tab = "cable", _tabChoisi = false;
+  const TABS = [["cable", "🔌", "rs_tab_cable"], ["boxes", "📡", "rs_tab_boxes"], ["machines", "🏭", "rs_tab_machines"], ["tools", "🧰", "rs_tab_tools"]];
+  function montrer(tab, auto) {
+    _tab = TABS.some(x => x[0] === tab) ? tab : "cable";
+    if (!auto) _tabChoisi = true;
+    if (!_el) return;
+    _el.querySelectorAll("[data-rs-tab]").forEach(b => { const on = b.dataset.rsTab === _tab; b.classList.toggle("active", on); b.setAttribute("aria-selected", on ? "true" : "false"); });
+    _el.querySelectorAll(".rs-pane").forEach(p => { p.hidden = p.dataset.pane !== _tab; });
+  }
   function render(el) {
     _el = el;
+    if (!_tabChoisi && !machines().length) _tab = "machines";      // parc vide : on commence par ajouter une machine
     const vitesses = [2400, 4800, 9600, 19200, 38400, 57600, 115200];
     const ok = BA.Serial.supported();
     el.innerHTML = `
-      <h2>🔌 ${E(t("nav_rs232"))} — ${E(t("rs_subtitle"))}</h2>
-      <div class="alert ${ok ? "info" : "err"}">${ok ? "✅ " + E(t("rs_ws_ok")) : "❌ " + E(t("rs_ws_no"))}</div>
+      <h2>🔌 ${E(t("nav_rs232"))}</h2>
+      <div class="seg tabs rs-tabs" role="tablist">${TABS.map(([id, ic, k]) => `<button type="button" role="tab" data-rs-tab="${id}" class="${id === _tab ? "active" : ""}" aria-selected="${id === _tab}">${ic} ${E(t(k))}</button>`).join("")}</div>
 
-      <div class="card rs-card">
-        <h3>1. ${E(t("rs_step1"))}</h3>
-        <div id="rs-choix-machine">${htmlChoix()}</div>
-        <p class="note">${E(t("rs_step1_note"))}</p>
-      </div>
-
-      <div class="card rs-card">
-        <h3>2. ${E(t("rs_step2"))}</h3>
-        <div class="add-sel-row">
-          <label>${E(t("rs_speed"))} <select id="rs-vitesse" class="auto-w">${vitesses.map(v => `<option value="${v}" ${Number(_rs.vitesse) === v ? "selected" : ""}>${v} ${E(t("rs_bauds"))}</option>`).join("")}</select></label>
-          <span class="petit">${E(t("rs_format"))}</span>
+      <section class="rs-pane" data-pane="cable">
+      <p class="note">${E(t("rs_tab_cable_note"))}</p>
+      ${ok ? "" : `<div class="alert err">❌ ${E(t("rs_ws_no"))}</div>`}
+      <div class="rs-main">
+        <div class="card rs-card">
+          <h3>1. ${E(t("rs_step1"))}</h3>
+          <div id="rs-choix-machine">${htmlChoix()}</div>
+          <div class="carte-actions wrap-actions">
+            <button class="btn" id="btn-rs-connecter" ${BA.Serial.connected ? "disabled" : ""}>🔌 ${E(t("rs_connect"))}</button>
+            <button class="btn secondary" id="btn-rs-deconnecter">${E(t("rs_disconnect"))}</button>
+          </div>
+          <p class="rs-state">${E(t("rs_state"))} : <b id="rs-etat">${(BA.Serial.connected ? "🟢 " : "⚪ ") + E(_etat || t("rs_state_off"))}</b></p>
+          <details class="rs-more"><summary>⚙️ ${E(t("rs_step2"))}</summary>
+            <div class="add-sel-row">
+              <label>${E(t("rs_speed"))} <select id="rs-vitesse" class="auto-w">${vitesses.map(v => `<option value="${v}" ${Number(_rs.vitesse) === v ? "selected" : ""}>${v} ${E(t("rs_bauds"))}</option>`).join("")}</select></label>
+              <span class="petit">${E(t("rs_format"))}</span>
+            </div>
+            <label class="case"><input type="checkbox" id="rs-reco" ${_rs.reconnexionAuto ? "checked" : ""}> ${E(t("rs_reconnect"))}</label>
+            <p class="note">${E(t("rs_step1_note"))}</p>
+            <p class="note">${E(t("rs_cable_note1"))}<br>${E(t("rs_cable_note2"))}</p>
+          </details>
         </div>
-        <label class="case"><input type="checkbox" id="rs-reco" ${_rs.reconnexionAuto ? "checked" : ""}> ${E(t("rs_reconnect"))}</label>
-        <p class="note">${E(t("rs_cable_note1"))}<br>${E(t("rs_cable_note2"))}</p>
-        <div class="carte-actions wrap-actions">
-          <button class="btn" id="btn-rs-connecter" ${BA.Serial.connected ? "disabled" : ""}>🔌 ${E(t("rs_connect"))}</button>
-          <button class="btn secondary" id="btn-rs-deconnecter">${E(t("rs_disconnect"))}</button>
+        <div class="card rs-card">
+          <h3>2. ${E(t("rs_step3"))}</h3>
+          <div class="carte-actions"><button class="btn big" id="btn-rs-lire">📥 ${E(t("rs_read_now"))}</button></div>
+          <label class="case"><input type="checkbox" id="rs-auto" ${_rs.lectureAuto ? "checked" : ""}> ${E(t("rs_auto_every"))}
+            <input type="number" id="rs-intervalle" class="num-in" min="2" max="1440" value="${Number(_rs.intervalleMin)}"> ${E(t("rs_minutes"))}</label>
+          <p class="note" id="rs-prochaine"></p>
+          <details class="rs-more"><summary>⚙️ ${E(t("rs_read_more"))}</summary>
+            <label class="case"><input type="radio" name="rs-liste" value="2" ${_rs.liste === 2 ? "checked" : ""}> ${E(t("rs_list2"))}</label>
+            <label class="case"><input type="radio" name="rs-liste" value="1" ${_rs.liste === 1 ? "checked" : ""}> ${E(t("rs_list1"))}</label>
+            <p class="note">${E(t("rs_auto_note"))}</p>
+          </details>
         </div>
-        <p>${E(t("rs_state"))} : <b id="rs-etat">${(BA.Serial.connected ? "🟢 " : "⚪ ") + E(_etat || t("rs_state_off"))}</b></p>
-      </div>
-
-      <div class="card rs-card">
-        <h3>3. ${E(t("rs_step3"))}</h3>
-        <label class="case"><input type="radio" name="rs-liste" value="2" ${_rs.liste === 2 ? "checked" : ""}> ${E(t("rs_list2"))}</label>
-        <label class="case"><input type="radio" name="rs-liste" value="1" ${_rs.liste === 1 ? "checked" : ""}> ${E(t("rs_list1"))}</label>
-        <div class="carte-actions"><button class="btn" id="btn-rs-lire">📥 ${E(t("rs_read_now"))}</button></div>
-        <label class="case"><input type="checkbox" id="rs-auto" ${_rs.lectureAuto ? "checked" : ""}> ${E(t("rs_auto_every"))}
-          <input type="number" id="rs-intervalle" class="num-in" min="2" max="1440" value="${Number(_rs.intervalleMin)}"> ${E(t("rs_minutes"))}</label>
-        <p class="note" id="rs-prochaine"></p>
-        <p class="note">${E(t("rs_auto_note"))}</p>
       </div>
 
       <h3>${E(t("rs_last_reports"))}</h3>
@@ -387,23 +403,28 @@ window.BA = window.BA || {};
       <h3>${E(t("rs_last_data"))}</h3>
       <div id="serial-detect">${htmlDetecte()}</div>
 
-      <h3>${E(t("rs_journal"))}</h3>
-      <pre id="rs-journal" class="journal">${htmlJournal()}</pre>
-      <details><summary>${E(t("rs_raw"))} : <span id="serial-count">${_octets}</span></summary>
-        <pre id="serial-brut">${E(_brut.join("\n")) || "— " + E(t("rs_nothing")) + " —"}</pre></details>
+      <details class="rs-more"><summary>📜 ${E(t("rs_journal"))} — ${E(t("rs_journal_hint"))}</summary>
+        <pre id="rs-journal" class="journal">${htmlJournal()}</pre>
+        <details><summary>${E(t("rs_raw"))} : <span id="serial-count">${_octets}</span></summary>
+          <pre id="serial-brut">${E(_brut.join("\n")) || "— " + E(t("rs_nothing")) + " —"}</pre></details>
+      </details>
       <p class="note">🔒 ${E(t("rs_security"))}</p>
+      </section>
 
-      <h2 class="rs-h2">📡 ${E(t("rs_boxes"))}</h2>
+      <section class="rs-pane" data-pane="boxes">
       <div id="rs-boitiers"></div>
+      </section>
 
-      <h2 class="rs-h2">🏭 ${E(t("rs_my_machines"))}</h2>
+      <section class="rs-pane" data-pane="machines">
       <p class="note">${E(t("rs_my_machines_note"))}</p>
       <div id="rs-machines">${htmlMachines()}</div>
       <div class="card add-sel"><h3>➕ ${E(t("rs_add_manual"))}</h3>
         <p class="note">${E(t("rs_add_manual_note"))}</p>
         ${formMachine("man", "")}</div>
+      </section>
 
-      <h2 class="rs-h2">📂 ${E(t("usb_import_title"))}</h2>
+      <section class="rs-pane" data-pane="tools">
+      <h3>📂 ${E(t("usb_import_title"))}</h3>
       <div class="card">
         <p class="note">${E(t("usb_import_note"))}</p>
         <div class="add-sel-row">
@@ -411,12 +432,14 @@ window.BA = window.BA || {};
           <label class="btn secondary file-btn">📂 ${E(t("usb_choose"))}<input type="file" id="usb-file" accept=".dat,.txt,*/*" hidden></label>
         </div>
       </div>
-
-      <h2 class="rs-h2">🧪 ${E(t("eva_test_title"))}</h2>
+      <h3>🧪 ${E(t("eva_test_title"))}</h3>
       <p class="note">${E(t("eva_test_note"))}</p>
       <textarea id="eva-raw" rows="8" class="zone-texte" placeholder="— ${E(t("eva_paste"))} —">${E(_texte || "")}</textarea>
       <div class="carte-actions"><button class="btn secondary" id="btn-eva-parse">🔍 ${E(t("eva_parse"))}</button></div>
-      <pre id="eva-parsed">— ${E(t("eva_parse_hint"))} —</pre>`;
+      <pre id="eva-parsed">— ${E(t("eva_parse_hint"))} —</pre>
+      </section>`;
+    el.querySelectorAll("[data-rs-tab]").forEach(b => b.onclick = () => montrer(b.dataset.rsTab));
+    montrer(_tab, true);
     bind();
     majProchaine();
     if (BA.Boitiers) BA.Boitiers.mount(el.querySelector("#rs-boitiers"));
@@ -615,6 +638,8 @@ window.BA = window.BA || {};
 
   BA.Rs232 = {
     render, renderOp, init, badge,
+    // v5.11 : ouvrir un onglet de la page (« cable », « boxes », « machines », « tools »)
+    tab(name) { montrer(name); },
     tick: () => majDyn(),
     // relevé gardé dans la table « audits » (point de départ du relevé suivant) : utilisé aussi par les boîtiers 4G
     saveAudit: sauverAudit,

@@ -289,9 +289,10 @@ window.BA = window.BA || {};
   };
 
   // ---------------- BA.Live : heure réelle et entretien ----------------
-  // En ligne : données reçues il y a moins de 45 min (câble ou 4G), ou boîtier 4G qui donne signe de vie
+  // En ligne : données de la machine reçues il y a moins de 45 min (câble ou 4G), ou boîtier 4G qui a LU la machine
+  // il y a peu (v5.11 : un boîtier qui répond sans être branché sur la machine ne compte plus — mode essai, câble absent)
   const onlineNow = (s, m) => !!(m.link && m.lastSeen && s.now - m.lastSeen < (Number(C.onlineMinutes) || 45) * MIN)
-    || !!(BA.Boitiers && BA.Boitiers.alive(m.id, s.now));
+    || !!(BA.Boitiers && (BA.Boitiers.machineLue ? BA.Boitiers.machineLue(m.id, s.now) : BA.Boitiers.alive(m.id, s.now)));
   function housekeeping(s, m) {
     const st = s.settings;
     // La porte n'est connue que par les relevés : sans données récentes (câble débranché, machine hors ligne),

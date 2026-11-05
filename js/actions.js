@@ -446,11 +446,24 @@ window.BA = window.BA || {};
         s.profileManual = s.profileManual || {};
         let man = s.profileManual[num];
         if (!man || man.length !== 7) man = s.profileManual[num] = [null, null, null, null, null, null, null];
-        man[wd] = p.base > 0 ? Math.max(0, Math.min(400, Math.round(total / p.base * 100))) : 0;
         s.profileTypes = s.profileTypes || {};
         (s.profileTypes[num] = s.profileTypes[num] || {})[wd] = clean;
         s.profileManualAt = s.profileManualAt || {};
         (s.profileManualAt[num] = s.profileManualAt[num] || {})[wd] = s.now;
+        const hist = p.samples && p.samples.some(a => a && a.length);
+        if (p.base > 0 && (hist || !(s.profileBase || {})[num])) {
+          man[wd] = Math.max(0, Math.min(400, Math.round(total / p.base * 100)));
+        } else {
+          // v5.11 : machine sans historique de ventes : la « journée normale » est la moyenne des jours réglés à la main
+          // (en pains), et chaque jour réglé est recalculé par rapport à elle
+          const tots = {};
+          Object.keys(s.profileTypes[num]).forEach(d => { if (man[d] != null || Number(d) === wd) tots[d] = Object.values(s.profileTypes[num][d]).reduce((a, v) => a + (Number(v) || 0), 0); });
+          const list = Object.values(tots).filter(v => v > 0);
+          const base = list.length ? list.reduce((a, v) => a + v, 0) / list.length : 0;
+          s.profileBase = s.profileBase || {};
+          if (base > 0) s.profileBase[num] = Math.round(base * 10) / 10; else delete s.profileBase[num];
+          Object.keys(tots).forEach(d => { man[d] = base > 0 ? Math.max(0, Math.min(400, Math.round(tots[d] / base * 100))) : 0; });
+        }
       });
     },
     // Remet un jour de semaine d'une machine en automatique
@@ -462,6 +475,7 @@ window.BA = window.BA || {};
         if ((s.profileManualAt || {})[num]) delete s.profileManualAt[num][wd];
         const pt = (s.profileTypes || {})[num];
         if (pt) { delete pt[wd]; if (!Object.keys(pt).length) delete s.profileTypes[num]; }
+        if (s.profileBase && !((s.profileManual || {})[num])) delete s.profileBase[num];
       });
     },
     saveForecastSettings(values) {
