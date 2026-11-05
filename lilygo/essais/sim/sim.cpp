@@ -22,6 +22,7 @@ struct FauxModem : Port {
   std::string reponse, url, entete;
   // fonction ba_boitier (bouton « Lire maintenant ») : demandes en attente, appels reçus
   std::deque<uint32_t> demandes; std::vector<std::string> appelsRpc; bool rpcAbsente = false; int rpcSansCle = 0;
+  uint32_t ecoute = 0;   // réglage « Lire maintenant » envoyé par ba_boitier (« ec », secondes ; 0 = pas réglé)
   void rep(const std::string& t, uint32_t apres = 2) { envoyer(t, apres); }
   static std::string deux(int v) { char b[4]; snprintf(b, sizeof b, "%02d", v); return b; }
   std::string cclk(bool utc) {
@@ -70,7 +71,7 @@ struct FauxModem : Port {
         else {
           uint32_t d = 0; if (!demandes.empty() && demandes.front() <= g_millis / 60000) { demandes.pop_front(); d = demandeSuivante++; }
           // comme json_build_object : des espaces autour des deux-points
-          reponse = "{\"ok\" : " + std::string(code == 200 ? "true" : "false") + ", \"t\" : " + std::to_string(EPOCH0 + g_millis / 1000) + ", \"dem\" : " + std::to_string(d) + ", \"fait\" : 0}";
+          reponse = "{\"ok\" : " + std::string(code == 200 ? "true" : "false") + ", \"t\" : " + std::to_string(EPOCH0 + g_millis / 1000) + ", \"dem\" : " + std::to_string(d) + ", \"fait\" : 0" + (ecoute ? ", \"ec\" : " + std::to_string(ecoute) : std::string("")) + "}";
         }
         rep("\r\n+HTTPACTION: 1," + std::to_string(cr) + "," + std::to_string(reponse.size()) + "\r\n", 1500);
         return;
@@ -150,6 +151,8 @@ int main(int argc, char** argv) {
   if (scen == "demande") { modemSim.demandes = {10, 30}; evenements[45UL * 60000UL] = 7; }
   if (scen == "demande_essai") { modemSim.demandes = {4}; duree = 15UL * 60000UL; }
   if (scen == "sql_absente") { modemSim.rpcAbsente = true; duree = 40UL * 60000UL; }
+  // v1.2 : l'admin règle « Lire maintenant » sur 15 min ; une demande à 50 min est prise au passage suivant
+  if (scen == "reglage") { modemSim.ecoute = 900; modemSim.demandes = {50}; duree = 95UL * 60000UL; }
   // la machine envoie elle-même un événement (vente) : envoi + lecture de contrôle juste après
   const char* EV = "DXS*FAS000000001*VA*V1/6*1\r\nST*001*0001\r\nEA1*EGS*261030*1442***+1\r\nEA2*EGS****1\r\nG85*1234\r\nSE*5*001*0001\r\nDXE*1*1\r\n";
   if (scen == "evenement") { machineSim.evenement = EV; evenements[20UL * 60000UL] = 2; evenements[20UL * 60000UL + 10] = 1; duree = 30UL * 60000UL; }

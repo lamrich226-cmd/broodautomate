@@ -18,7 +18,7 @@
 #include "envoi.h"
 #include "modem.h"
 
-#define FW_VERSION "1.1"
+#define FW_VERSION "1.2"
 
 using namespace ba;
 
@@ -61,6 +61,9 @@ static uint32_t utcDerniereLectureOk = 0;
 static uint32_t demandeId = 0;            // demande reçue, lecture pas encore lancée ou en cours
 static uint32_t lectureDem = 0;           // demande à laquelle répond la lecture en cours
 static uint32_t demandeFaite = 0;         // demande terminée, résultat pas encore annoncé à Supabase
+// v1.2 : délai réglé à distance dans Broodautomate (admin → Boîtiers 4G : 15 min, 30 min ou 1 h),
+// reçu à chaque passage chez ba_boitier (« ec » en secondes). Tant que rien n'est réglé : DEMANDE_EVERY_SEC.
+static uint32_t ecouteSec = DEMANDE_EVERY_SEC;
 static bool demandeOk = true;
 static String demandeMsg = "";
 static uint32_t prochaineDemande = 0, demandesRatees = 0;
@@ -190,6 +193,11 @@ static bool demander() {
       Serial.printf("[Demande] Résultat de la demande n°%u annoncé à Broodautomate.\n", (unsigned)demandeFaite);
       demandeFaite = 0; demandeOk = true; demandeMsg = "";
     }
+    uint32_t ec = 0;
+    if (envoi::lireNombre(rep, "ec", ec) && ec >= 60 && ec <= 7200 && ec != ecouteSec) {
+      ecouteSec = ec;
+      Serial.printf("[Demande] Réglage reçu de Broodautomate : « Lire maintenant » vérifié toutes les %u min.\n", (unsigned)(ec / 60));
+    }
     uint32_t d = 0;
     if (envoi::lireNombre(rep, "dem", d) && d) nouvelleDemande(d);
     return true;
@@ -211,6 +219,7 @@ static bool envoyer(const Releve* r) {
   b += "{\"k\":"; envoi::json(b, DEVICE_KEY);
   b += ",\"fw\":\"" FW_VERSION "\",\"mode\":" + std::to_string(MODE);
   b += ",\"seq\":" + std::to_string(++seq);
+  b += ",\"ec\":" + std::to_string(ecouteSec);
   b += ",\"up\":" + std::to_string(millis() / 1000);
   b += ",\"rssi\":" + std::to_string(modem.csq);
   b += ",\"op\":"; envoi::json(b, modem.operateur.c_str());
@@ -275,7 +284,7 @@ static void afficherEtat() {
   else Serial.println(F("Heure : pas encore connue"));
   Serial.printf("Machine : %s ; lectures %u, échecs %u ; relevés en attente : %u\n", statut.c_str(), (unsigned)nbLectures, (unsigned)nbEchecs, (unsigned)file.size());
   Serial.printf("Envois réussis %u, ratés %u ; dernier envoi réussi il y a %lu s\n", (unsigned)nbEnvois, (unsigned)nbEnvoisRates, dernierEnvoiOk ? (unsigned long)((millis() - dernierEnvoiOk) / 1000) : 0UL);
-  Serial.printf("Lecture chaque %d min ; bouton « Lire maintenant » vérifié toutes les %d s", READ_EVERY_MIN, DEMANDE_EVERY_SEC);
+  Serial.printf("Lecture chaque %d min ; bouton « Lire maintenant » vérifié toutes les %u s", READ_EVERY_MIN, (unsigned)ecouteSec);
   if (demandeId || lectureDem) Serial.printf(" ; demande en cours n°%u", (unsigned)(lectureDem ? lectureDem : demandeId));
   if (demandesRatees) Serial.printf(" ; %u vérifications ratées", (unsigned)demandesRatees);
   Serial.println();
@@ -403,7 +412,7 @@ void loop() {
     if (!modem.encoreConnecte()) prochaineDemande = millis() + 30000UL;
     else {
       bool ok = demander();
-      uint32_t base = (uint32_t)DEMANDE_EVERY_SEC * 1000UL;
+      uint32_t base = ecouteSec * 1000UL;
       uint32_t attente = ok ? (demandeFaite ? 1000UL : base)
                             : (demandesRatees < 3 ? base : demandesRatees < 6 ? (base > 600000UL ? base : 600000UL) : (base > 1800000UL ? base : 1800000UL));
       prochaineDemande = millis() + attente;

@@ -106,7 +106,12 @@ async function login(p, email, pass) {
   await p.click("#login-go");
 }
 const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000 });
-const view = async (p, v) => { await p.click(`nav button[data-view='${v}']`); await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450); };   // v5.4 : la souris quitte le menu flottant (il se replie)
+const view = async (p, v) => { if (await p.$(`nav button[data-view='${v}']`)) await p.click(`nav button[data-view='${v}']`); else await p.evaluate(x => BA.Shell.go(x), v); await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450); };   // v5.4 : la souris quitte le menu flottant (il se replie)
+// v5.10 : sur le téléphone opérateur, la langue est dans l'onglet « Plus »
+async function setLang(p, lang) {
+  if (await p.isVisible("#lang-select")) { await p.selectOption("#lang-select", lang); return; }
+  await view(p, "more"); await p.selectOption("#more-lang", lang); await sleep(200);
+}
 const synced = (p, ms) => p.waitForFunction(() => BA.Store.status().pending === 0 && BA.Store.status().sync === "ok", null, { timeout: ms || 20000 });
 const st = (p, fn, arg) => p.evaluate(fn, arg);
 const journal = (p, txt, ms) => p.waitForFunction(t => { const j = document.querySelector("#rs-journal"); return j && j.innerText.includes(t); }, txt, { timeout: ms || 30000 });
@@ -209,7 +214,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Synchronisé »", (await a.innerText("#sync-status")).includes("Synchronisé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.9.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.9.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.10.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.10.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.5 : mode clair / sombre
   ok("mode sombre par défaut", (await a.getAttribute("html", "data-theme")) === "dark");
@@ -462,10 +467,10 @@ async function scenarioEcrans(ctx) {
   console.log("\n== 5. Tous les écrans (FR / NL / EN, PC et téléphone)");
   const { a, o, fake } = ctx;
   const adminViews = ["dashboard", "details", "products", "order", "stats", "history", "alerts", "rs232", "settings"];
-  const opViews = ["dashboard", "missions", "details", "products", "history", "alerts", "rs232"];
+  const opViews = ["todo", "fill", "alerts", "more", "details", "products", "history", "rs232", "dashboard", "missions"];
   for (const lang of ["fr", "nl", "en"]) {
     await a.selectOption("#lang-select", lang); await sleep(300);
-    await o.selectOption("#lang-select", lang); await sleep(300);
+    await setLang(o, lang); await sleep(300);
     for (const v of adminViews) {
       await view(a, v);
       const keys = await rawKeys(a);
@@ -476,12 +481,12 @@ async function scenarioEcrans(ctx) {
       await view(o, v);
       const keys = await rawKeys(o);
       ok(`téléphone ${lang} « ${v} » : pas de texte manquant`, keys.length === 0, keys);
-      if (lang === "fr" || ["dashboard", "missions", "alerts"].includes(v)) await shot(o, `30-op-${lang}-${v}`);
+      if (lang === "fr" || ["todo", "fill", "more"].includes(v)) await shot(o, `30-op-${lang}-${v}`);
       const wide = await o.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
       ok(`téléphone ${lang} « ${v} » : pas de défilement horizontal de la page`, wide <= 1, wide);
     }
   }
-  await a.selectOption("#lang-select", "fr"); await o.selectOption("#lang-select", "fr");
+  await a.selectOption("#lang-select", "fr"); await setLang(o, "fr");
   // badge RS232 gardé après le changement de langue
   ok("badge RS232 toujours « connecté » après changement de langue", /connecté/i.test(await a.innerText("#serial-status")) && !/déconnecté/i.test(await a.innerText("#serial-status")), await a.innerText("#serial-status"));
   // Commander : prévision confirmée, plan, missions envoyées au téléphone
@@ -559,7 +564,8 @@ async function scenarioVide() {
   const tel = await device(fake, "tel2", { ctx: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } });
   const o = await open(tel, "operateur.html");
   await login(o); await ready(o);
-  ok("opérateur : la nouvelle machine #7 est là", (await o.innerText("#view-dashboard")).includes("Rue Neuve 12"));
+  await view(o, "fill");
+  ok("opérateur : la nouvelle machine #7 est là (onglet Remplir)", (await o.innerText("#view-fill")).includes("Rue Neuve 12") && /#7/.test(await o.innerText("#view-fill")));
   // suppression
   await a.click("[data-mdel='7']");
   await a.waitForSelector("#dlg-ok");
@@ -761,7 +767,7 @@ async function scenario489() {
   await st(o, () => { BA.Shell.state.machine = 1; }); await view(o, "details");
   ok("téléphone, Détails de la machine #1 : la demande ⇄ est aussi affichée", !!(await o.$("#view-details [data-act=mv-done]")));
   await view(o, "missions");
-  await o.click("[data-act=mv-done]"); await sleep(300); await synced(o);
+  await o.click("#view-missions [data-act=mv-done]"); await sleep(300); await synced(o);
   ok("téléphone « Fait » : demande retirée, sélection 12 → 4 pains", (fake.ba("main").data.moves || []).length === 0 && (await qtyOf(o, 1, 12)) === 4);
   ok("téléphone : pas de bloc « À faire aujourd'hui » (admin seulement)", !(await o.$(".todo-card")));
 
@@ -823,7 +829,7 @@ async function scenarioOperateurCompte() {
   const o = await open(d2, "operateur.html");
   await login(o, "op@test.be", "Secret-456");
   await ready(o);
-  ok("compte opérateur sur l'appli opérateur : accepté", !!(await o.$("nav button[data-view=missions]")));
+  ok("compte opérateur sur l'appli opérateur : accepté (4 onglets)", !!(await o.$("nav button[data-view=todo]")) && (await o.$$("nav#app-nav button[data-view]")).length === 4);
   ok("navigateur normal : lien « Logiciel admin » présent", !!(await o.$("a[href='index.html']")));
   // appli Android (agent utilisateur de l'appli)
   const d3 = await device(fake, "op57c", { ctx: { userAgent: "Mozilla/5.0 (Linux; Android 14) BroodautomateOperateurApp" } });
@@ -911,6 +917,51 @@ async function scenarioNotifs() {
   await d.ctx.close(); await d2.ctx.close(); await d3.ctx.close();
 }
 
+// 9. Appli opérateur simplifiée (v5.10) : 4 onglets, en-tête d'une ligne, Plus, cartes, − / +
+async function scenarioOpSimple(ctx) {
+  console.log("\n== 9. Appli opérateur simplifiée (téléphone)");
+  const { o } = ctx;
+  await view(o, "todo");
+  const tabs = await o.$$eval("nav#app-nav button[data-view]", l => l.map(b => ({ v: b.dataset.view, t: b.innerText.trim(), w: b.querySelector(".nl") ? getComputedStyle(b.querySelector(".nl")).display : "" })));
+  ok("4 onglets : À faire, Remplir, Alertes, Plus — tous avec leur nom", tabs.map(x => x.v).join(",") === "todo,fill,alerts,more" && tabs.every(x => x.t && x.w !== "none"), tabs);
+  const h = await o.evaluate(() => Math.round(document.getElementById("app-header").getBoundingClientRect().height));
+  ok("en-tête sur une seule ligne (langue, thème, déconnexion dans « Plus »)", h <= 64 && !(await o.isVisible("#lang-select")), h);
+  await shot(o, "70-op-a-faire", false);
+  await view(o, "fill");
+  ok("Remplir : une carte par machine avec un gros bouton « Remplir »", (await o.$$("#view-fill .mission-card [data-fill]")).length >= 1);
+  await shot(o, "71-op-remplir", false);
+  await view(o, "more");
+  ok("Plus : Détails, Sélections et stock, Historique, Liaison + réglages", (await o.$$("#view-more .op-more-item")).length === 4 && !!(await o.$("#more-lang")) && !!(await o.$("#more-theme")));
+  await shot(o, "72-op-plus", false);
+  await o.click("#view-more [data-go=details]"); await o.waitForSelector("#view-details.active"); await sleep(400);
+  ok("Détails ouvert depuis Plus : l'onglet « Plus » reste allumé, bouton « Retour »", (await o.getAttribute("nav button[data-view=more]", "class")).includes("active") && !!(await o.$("#view-details .op-back")));
+  const cartes = await o.$$eval("#view-details table.tbl-cartes", l => l.length);
+  const wide = await o.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  ok("Détails : tableaux affichés en cartes, pas de défilement de côté", cartes >= 1 && wide <= 1, { cartes, wide });
+  await shot(o, "73-op-details", false);
+  await o.click("#view-details .op-back"); await o.waitForSelector("#view-more.active");
+  ok("« Retour » ramène à Plus", true);
+  await o.click("#view-more [data-go=products]"); await o.waitForSelector("#view-products.active"); await sleep(400);
+  ok("Sélections et stock : longues explications repliées derrière « ℹ️ Aide »", (await o.$$("#view-products details.op-aide")).length >= 1);
+  await view(o, "fill");
+  await o.click("#view-fill [data-fill]"); await o.waitForSelector(".modal");
+  await sleep(300);
+  ok("Assistant Remplir : boutons − / + autour des nombres", (await o.$$(".modal .pm .pm-b")).length >= 2);
+  if (await o.$("#inv-edit")) {
+    await o.click("#inv-edit"); await sleep(300);
+    const avant = await o.$eval(".modal input[type=number]:not([disabled])", i => Number(i.value));
+    await o.click(".modal .pm:has(input:not([disabled])) .pm-b:last-child"); await sleep(100);
+    const apres = await o.$eval(".modal input[type=number]:not([disabled])", i => Number(i.value));
+    const max = await o.$eval(".modal input[type=number]:not([disabled])", i => Number(i.max));
+    ok("« + » ajoute 1 (sans dépasser la capacité)", apres === Math.min(max, avant + 1), { avant, apres, max });
+    await o.click(".modal .pm:has(input:not([disabled])) .pm-b:first-child"); await sleep(100);
+    ok("« − » enlève 1", (await o.$eval(".modal input[type=number]:not([disabled])", i => Number(i.value))) === Math.max(0, Math.min(max, avant + 1) - 1));
+  }
+  await shot(o, "74-op-assistant", false);
+  await o.click("#wz-cancel"); await sleep(200); if (await o.$("#wz-cancel")) await o.click("#wz-cancel"); await sleep(300);
+  ok("assistant fermé sans rien changer", !(await o.$(".modal")));
+}
+
 async function scenarioLocal() {
   console.log("\n== 7. Mode local (sans Supabase)");
   const pc = await device(null, "local", { local: true });
@@ -952,6 +1003,7 @@ async function scenarioV3() {
       const ctx = await scenarioPrincipal();
       if (run("sync") || !ONLY.length) await scenarioSync(ctx);
       if (run("ecrans") || !ONLY.length) await scenarioEcrans(ctx);
+      if (run("opsimple") || !ONLY.length) await scenarioOpSimple(ctx);
       const http = (ctx.pc.http || []).concat(ctx.tel.http || []);
       ok("réponses d'erreur Supabase : seulement celles attendues (mot de passe, table absente)", http.filter(x => !/\/devices|\/ba_notifications/.test(x)).length <= 3 && http.every(x => /token\?grant_type=password|ba_state|\/devices|\/ba_notifications/.test(x)), http);
       ok("aucune erreur JavaScript (PC + téléphone)", ctx.pc.errors.length === 0 && ctx.tel.errors.length === 0, ctx.pc.errors.concat(ctx.tel.errors).slice(0, 8));

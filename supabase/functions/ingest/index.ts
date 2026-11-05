@@ -285,7 +285,7 @@ Deno.serve(async (req: Request) => {
   const info = {
     fw: texte(b.fw, 20), mode: nombre(b.mode), seq: nombre(b.seq), up: nombre(b.up), rssi: nombre(b.rssi),
     op: texte(b.op, 40), st: texte(b.st, 240), stok: b.stok === true, lok: nombre(b.lok),
-    hb: nombre(b.hb), rd: nombre(b.rd), lu: nombre(b.lu), ko: nombre(b.ko), premier: b.premier === true, porte,
+    hb: nombre(b.hb), rd: nombre(b.rd), lu: nombre(b.lu), ko: nombre(b.ko), premier: b.premier === true, ec: nombre(b.ec), porte,
   };
   const { error: e2 } = await admin.from("devices").update({ last_seen: new Date().toISOString(), info }).eq("id", boitier.id);
   if (e2) return reponse({ ok: false, error: "mise à jour : " + e2.message, t }, 500);

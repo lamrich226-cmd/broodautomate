@@ -109,3 +109,9 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Les codes à ne jamais notifier sont en haut de la fonction (`SANS_NOTIF`) : à compléter après l'essai si la machine envoie des événements inutiles.
 - **Tests** : maintenant dans `tests/` (voir `tests/README.md`). Le relevé d'une vraie machine n'est pas dans le dépôt.
 - Point de retour : v5.8.0 = commit 7acd1e2.
+
+## v5.10 — appli opérateur simplifiée et « Lire maintenant » réglable à distance
+- **Appli opérateur (téléphone et appli Android)** : 4 onglets seulement — **À faire** (missions de l'admin et machines urgentes), **Remplir** (une grande carte par machine, recherche), **Alertes**, **Plus** (Détails, Sélections et stock, Historique, Liaison, langue, jour / nuit, déconnexion). En-tête sur une seule ligne. Sur téléphone : tableaux affichés en cartes, boutons − / + dans l'assistant « Remplir », longues explications repliées derrière « ℹ️ Aide ». Les anciennes pages restent accessibles (liens, « Plus »).
+- **« Lire maintenant » réglable à distance** : admin → Connexion RS232 → Boîtiers 4G → 15 min, 30 min ou 1 h. Le réglage part par Internet (fonction `ba_boitier`, commande SQL n° 23 de `supabase/notifications-sauvegarde.sql`) ; il faut le programme du boîtier **v1.2** (voir `lilygo/LISEZMOI.md`). La liste des boîtiers montre le délai que chaque boîtier a vraiment reçu.
+- Tests : `tests/sql/supabase.test.mjs` essaie les commandes SQL dans une vraie base PostgreSQL en mémoire (PGlite).
+- Point de retour : v5.9.0 = commit cb44fae.

@@ -903,7 +903,7 @@ window.BA = window.BA || {};
       nav.innerHTML = rail
         ? `<button type="button" class="rail-toggle" aria-pressed="false"><span class="ni" aria-hidden="true">${this.icon("menu", "☰")}</span><span class="nl"></span></button>`
           + c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`).join("")
-        : c.views.map(v => `<button type="button" data-view="${v.id}" class="${v.id === this.state.view ? "active" : ""}" ${v.id === this.state.view ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`).join("");
+        : c.views.filter(v => !v.hidden).map(v => { const on = v.id === this.navId(this.state.view); return `<button type="button" data-view="${v.id}" class="${on ? "active" : ""}" ${on ? 'aria-current="page"' : ""}><span class="ni" aria-hidden="true">${this.icon(v.id, v.icon)}</span><span class="nl">${t(v.label)}</span></button>`; }).join("");
       nav.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => { this.go(b.dataset.view); if (rail) this.railClose(); });
       if (rail) this.railInit();
       $("#app-main").innerHTML = c.views.map(v => `<section id="view-${v.id}" class="view ${v.id === this.state.view ? "active" : ""}"></section>`).join("");
@@ -988,11 +988,17 @@ window.BA = window.BA || {};
       this.railLabels();
     },
 
+    // v5.10 : onglet du menu à allumer (une page cachée allume son onglet « parent »)
+    navId(view) {
+      const v = this.ctx.views.find(x => x.id === view);
+      return v && v.hidden && v.parent ? v.parent : view;
+    },
     go(view) {
       this.state.view = view;
       try { history.replaceState(null, "", "#" + view); } catch (e) { /* rien */ }
+      const navOn = this.navId(view);
       $("#app-nav").querySelectorAll("button[data-view]").forEach(b => {
-        const on = b.dataset.view === view;
+        const on = b.dataset.view === navOn;
         b.classList.toggle("active", on);
         if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
       });

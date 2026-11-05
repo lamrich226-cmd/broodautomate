@@ -12,22 +12,33 @@
   const t = (k, v) => BA.I18n.t(k, v);
   const st = () => BA.Shell.state;
 
+  // Carte d'une machine : un seul gros bouton « Remplir » (+ « Détails »)
+  function machineCard(s, m, extra, goLabel) {
+    const x = M.stats(s, m);
+    return `<div class="card mission-card st-${x.st}" data-q="${E((m.num + " " + m.street + " " + m.city).toLowerCase())}">
+      <div class="cm-top"><span class="cm-num">#${m.num}</span>${U.pill(x.st)}</div>
+      <div class="cm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></div>
+      <div class="gauge"><span style="width:${x.pct}%"></span></div>
+      <div class="cm-row"><span>${t("op_fill_pct", { q: x.total, c: x.cap })}</span><span>${x.pct} %</span></div>
+      ${extra}
+      <div class="cm-actions"><button class="btn big" data-fill="${m.num}">🧺 ${goLabel || t("btn_start_fill")}</button>
+        <button class="btn secondary" data-det="${m.num}">${t("op_fill_details")}</button></div>
+    </div>`;
+  }
+  function bindCards(el) {
+    el.querySelectorAll("[data-fill]").forEach(b => b.onclick = e => { e.stopPropagation(); Wizard.open(Number(b.dataset.fill)); });
+    el.querySelectorAll("[data-det]").forEach(b => b.onclick = e => { e.stopPropagation(); st().machine = Number(b.dataset.det); BA.Shell.go("details"); });
+  }
+
   // ================= Missions (ordres de l'admin) =================
-  function renderMissions(el) {
+  // o.todo = page « À faire » (v5.10) : titre, résumé en pastilles, machines urgentes, pas de message « aucune mission »
+  function renderMissions(el, o) {
+    o = o && o.todo ? o : {};
     const s = BA.Store.get();
+    if (o.todo && !s.machines.length) { el.innerHTML = `<h2>📋 ${t("op_todo_title")}</h2><div class="alert info">${t("no_machine_op")}</div>`; return; }
     const open = s.missions.filter(x => x.status === "open");
-    const card = (m, extra) => {
-      const x = M.stats(s, m);
-      return `<div class="card mission-card st-${x.st}">
-        <div class="cm-top"><span class="cm-num">#${m.num}</span>${U.pill(x.st)}</div>
-        <div class="cm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></div>
-        <div class="gauge"><span style="width:${x.pct}%"></span></div>
-        <div class="cm-row"><span>${x.total}/${x.cap} ${t("breads")}</span><span>${x.pct} %</span></div>
-        ${extra}
-        <button class="btn big" data-fill="${m.num}">🧺 ${t("btn_start_fill")}</button>
-      </div>`;
-    };
-    let html = `<h2>🧾 ${t("nav_missions")}</h2>`;
+    const card = (m, extra) => machineCard(s, m, extra);
+    let html = o.todo ? `<h2>📋 ${t("op_todo_title")}</h2>${resume(s)}` : `<h2>🧾 ${t("nav_missions")}</h2>`;
     // Déplacements de pain demandés par l'admin (d'une sélection à l'autre, même produit)
     const mvs = s.machines.filter(m => U.openMoves(s, m).length);
     if (mvs.length) html += `<h3>⇄ ${t("mv_todo_title")}</h3>` + mvs.map(m => `<div class="mv-machine"><b>#${m.num}</b> <span class="petit">${E(m.street)}</span>${U.moveRequests(s, m)}</div>`).join("");
@@ -47,17 +58,75 @@
             ${ms.removeBefore ? `<span class="chip">${t("mission_remove_before", { d: F.dt(ms.removeBefore) })}</span>` : ""}</div>`);
         }).join("")}</div>`;
     } else {
+      const urgent = o.todo ? ["door", "power", "empty", "error", "remove", "low"] : ["empty", "remove", "low"];
       const todo = s.machines.map(m => ({ m, x: M.stats(s, m) }))
-        .filter(o => ["empty", "remove", "low"].includes(o.x.st))
+        .filter(z => urgent.includes(z.x.st))
         .sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct);
-      html += `<div class="alert info">${t("no_missions")}</div>
+      html += o.todo
+        ? `<h3>${t("op_todo_need")}</h3>${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, "")).join("")}</div>` : `<div class="alert ok">✔ ${t("op_todo_ok")}</div>`}`
+        : `<div class="alert info">${t("no_missions")}</div>
         <h3>💡 ${t("suggested_title")}</h3>
-        ${todo.length ? `<div class="cards machines-grid">${todo.map(o => card(o.m, "")).join("")}</div>` : `<p class="note">${t("nothing_to_do")}</p>`}`;
+        ${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, "")).join("")}</div>` : `<p class="note">${t("nothing_to_do")}</p>`}`;
     }
     el.innerHTML = html;
-    el.querySelectorAll("[data-fill]").forEach(b => b.onclick = e => { e.stopPropagation(); Wizard.open(Number(b.dataset.fill)); });
+    bindCards(el);
     U.bindMoves(el);
   }
+
+  // Résumé en pastilles : seulement ce qui demande une action (rien si tout va bien)
+  function resume(s) {
+    const n = k => s.machines.filter(m => M.stats(s, m).st === k).length;
+    const parts = ["door", "power", "empty", "error", "remove", "offline"].map(k => [k, n(k)]).filter(z => z[1] > 0);
+    return parts.length ? `<div class="op-resume">${parts.map(([k, v]) => `<span class="op-res">${U.pill(k)}<b>${v}</b></span>`).join("")}</div>` : "";
+  }
+
+  // ================= v5.10 : Remplir (choisir la machine) =================
+  function renderFill(el) {
+    const s = BA.Store.get();
+    if (!s.machines.length) { el.innerHTML = `<h2>🧺 ${t("op_fill_title")}</h2><div class="alert info">${t("no_machine_op")}</div>`; return; }
+    const list = s.machines.map(m => ({ m, x: M.stats(s, m) })).sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct);
+    const q = st().fillQ || "";
+    el.innerHTML = `<h2>🧺 ${t("op_fill_title")}</h2>
+      ${list.length > 4 ? `<input type="search" id="fill-q" class="search" placeholder="${E(t("search_ph"))}" value="${E(q)}">` : ""}
+      <p class="note">${t("op_fill_pick")}</p>
+      <div class="cards machines-grid">${list.map(z => machineCard(s, z.m, "", t("op_fill_go"))).join("")}</div>`;
+    bindCards(el);
+    const f = el.querySelector("#fill-q");
+    const filtre = () => { const v = (f ? f.value : "").trim().toLowerCase(); st().fillQ = v; el.querySelectorAll(".mission-card").forEach(c => { c.style.display = !v || c.dataset.q.includes(v) ? "" : "none"; }); };
+    if (f) { f.oninput = filtre; filtre(); }
+  }
+
+  // ================= v5.10 : Plus (pages moins utilisées + réglages) =================
+  function renderMore(el) {
+    const item = (view, ico, title, sub) => `<button type="button" class="op-more-item" data-go="${view}"><span class="omi-i" aria-hidden="true">${ico}</span>
+      <span class="omi-t"><b>${E(title)}</b><small>${E(sub)}</small></span><span class="omi-c" aria-hidden="true">›</span></button>`;
+    const light = BA.Theme && BA.Theme.get() === "light";
+    el.innerHTML = `<h2>☰ ${t("op_more_title")}</h2>
+      <div class="op-more">
+        ${item("details", "📊", t("op_more_details"), t("op_more_details_t"))}
+        ${item("products", "🍞", t("op_more_stock"), t("op_more_stock_t"))}
+        ${item("history", "🧾", t("op_more_history"), t("op_more_history_t"))}
+        ${item("rs232", "🔌", t("op_more_link"), t("op_more_link_t"))}
+      </div>
+      <h3>⚙️ ${t("op_more_settings")}</h3>
+      <div class="op-more-set">
+        <label>🌐 <select id="more-lang" class="auto-w" aria-label="Langue / Taal / Language">${["fr", "nl", "en"].map(l => `<option value="${l}" ${BA.I18n.lang === l ? "selected" : ""}>${{ fr: "Français", nl: "Nederlands", en: "English" }[l]}</option>`).join("")}</select></label>
+        <button type="button" id="more-theme" class="btn secondary">${light ? "🌙" : "☀️"} ${E(BA.Theme ? BA.Theme.label() : "")}</button>
+        ${document.getElementById("btn-logout") ? `<button type="button" id="more-logout" class="btn secondary">🚪 ${t("logout")}</button>` : ""}
+        ${BA.IN_APP ? "" : `<a class="btn secondary" href="index.html">🖥 ${t("open_admin")}</a>`}
+      </div>`;
+    el.querySelectorAll("[data-go]").forEach(b => b.onclick = () => BA.Shell.go(b.dataset.go));
+    el.querySelector("#more-lang").onchange = e => { BA.I18n.set(e.target.value, "op"); BA.Shell.build(); };
+    el.querySelector("#more-theme").onclick = () => { const h = document.getElementById("theme-toggle"); if (h) h.click(); renderMore(el); };
+    const lo = el.querySelector("#more-logout"); if (lo) lo.onclick = () => { const h = document.getElementById("btn-logout"); if (h) h.click(); };
+  }
+
+  // Pages ouvertes depuis « Plus » : bouton « Retour » en haut
+  const sousPage = render => (el, ctx) => {
+    el.innerHTML = `<button type="button" class="btn secondary petit op-back">‹ ${t("op_back_more")}</button><div class="op-sub"></div>`;
+    el.querySelector(".op-back").onclick = () => BA.Shell.go("more");
+    render(el.querySelector(".op-sub"), ctx);
+  };
 
   // ================= Produits / Stock =================
   function renderProducts(el) {
@@ -375,18 +444,71 @@
   };
   BA.Wizard = Wizard;
 
+  // ================= v5.10 : confort sur téléphone =================
+  // • tableaux → cartes (une ligne = une carte, chaque valeur avec son titre) — CSS pour les écrans étroits ;
+  // • boutons − / + autour des nombres de l'assistant « Remplir » (plus besoin de taper au clavier) ;
+  // • longues explications repliées derrière « ℹ️ Aide » (téléphone).
+  // Rien ne change dans les données : seulement l'affichage.
+  const Confort = {
+    raf: 0,
+    init() {
+      const mo = new MutationObserver(() => { cancelAnimationFrame(this.raf); this.raf = requestAnimationFrame(() => this.apply()); });
+      ["app-main", "modal-root"].forEach(id => { const n = document.getElementById(id); if (n) mo.observe(n, { childList: true, subtree: true }); });
+    },
+    apply() {
+      document.querySelectorAll("#app-main table:not([data-cartes])").forEach(tb => {
+        tb.setAttribute("data-cartes", "1");
+        if (tb.querySelector("td[rowspan], th[colspan], td[colspan]")) return;          // tableau trop compliqué : on le garde
+        const ths = Array.from(tb.querySelectorAll("thead th")).map(th => th.textContent.trim());
+        if (!ths.length) return;
+        tb.classList.add("tbl-cartes");
+        tb.querySelectorAll("tbody tr").forEach(tr => Array.from(tr.children).forEach((td, i) => { if (!td.hasAttribute("data-label")) td.setAttribute("data-label", ths[i] || ""); }));
+      });
+      document.querySelectorAll("#modal-root .modal input[type=number]:not([data-pm])").forEach(inp => {
+        inp.setAttribute("data-pm", "1");
+        const box = document.createElement("span"); box.className = "pm";
+        inp.parentNode.insertBefore(box, inp);
+        const bouton = (txt, d) => {
+          const b = document.createElement("button"); b.type = "button"; b.className = "pm-b"; b.textContent = txt;
+          b.setAttribute("aria-label", d > 0 ? "+1" : "−1"); b.disabled = inp.disabled || inp.readOnly;
+          b.onclick = () => {
+            const min = inp.min === "" ? -Infinity : Number(inp.min), max = inp.max === "" ? Infinity : Number(inp.max);
+            inp.value = String(Math.min(max, Math.max(min, (Number(inp.value) || 0) + d)));
+            inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true }));
+          };
+          return b;
+        };
+        box.appendChild(bouton("−", -1)); box.appendChild(inp); box.appendChild(bouton("+", 1));
+      });
+      if (!window.matchMedia || !window.matchMedia("(max-width: 700px)").matches) return;
+      document.querySelectorAll("#app-main p.note:not([data-aide])").forEach(p => {
+        p.setAttribute("data-aide", "1");
+        if (p.textContent.trim().length < 160 || p.closest("details, .modal")) return;
+        const d = document.createElement("details"); d.className = "op-aide";
+        d.innerHTML = `<summary>ℹ️ ${E(t("op_help"))}</summary>`;
+        p.parentNode.insertBefore(d, p); d.appendChild(p);
+      });
+    }
+  };
+  Confort.init();
+  BA.Confort = Confort;
+
   // ================= Démarrage =================
   BA.Boot.start({
     role: "op",
     admin: false,
+    // v5.10 : 4 onglets seulement (À faire, Remplir, Alertes, Plus) ; les autres pages s'ouvrent depuis « Plus »
     views: [
-      { id: "dashboard", icon: "🌍", label: "nav_dashboard", render: U.renderDashboard, live: true },
-      { id: "missions",  icon: "🧾", label: "nav_missions",  render: renderMissions,    live: true },
-      { id: "details",   icon: "📊", label: "nav_details",   render: U.renderDetails,   live: true },
-      { id: "products",  icon: "🍞", label: "nav_products",  render: renderProducts,    live: true },
-      { id: "history",   icon: "🧾", label: "nav_history",   render: BA.History.render, live: false, tick: BA.History.tick },
-      { id: "alerts",    icon: "⚠️", label: "nav_alerts",    render: U.renderAlerts,    live: true },
-      { id: "rs232",     icon: "🔌", label: "nav_rs232",     render: el => BA.Rs232.renderOp(el), live: true }
+      { id: "todo",      icon: "📋", label: "op_nav_todo",   render: el => renderMissions(el, { todo: true }), live: true },
+      { id: "fill",      icon: "🧺", label: "op_nav_fill",   render: renderFill,        live: true },
+      { id: "alerts",    icon: "⚠️", label: "op_nav_alerts", render: U.renderAlerts,    live: true },
+      { id: "more",      icon: "☰",  label: "op_nav_more",   render: renderMore,        live: false },
+      { id: "details",   icon: "📊", label: "nav_details",   render: sousPage(U.renderDetails),   live: true, hidden: true, parent: "more" },
+      { id: "products",  icon: "🍞", label: "nav_products",  render: sousPage(renderProducts),    live: true, hidden: true, parent: "more" },
+      { id: "history",   icon: "🧾", label: "nav_history",   render: sousPage(BA.History.render), live: false, tick: BA.History.tick, hidden: true, parent: "more" },
+      { id: "rs232",     icon: "🔌", label: "nav_rs232",     render: sousPage(el => BA.Rs232.renderOp(el)), live: true, hidden: true, parent: "more" },
+      { id: "dashboard", icon: "🌍", label: "nav_dashboard", render: U.renderDashboard, live: true, hidden: true, parent: "todo" },
+      { id: "missions",  icon: "🧾", label: "nav_missions",  render: renderMissions,    live: true, hidden: true, parent: "todo" }
     ],
     footer() {
       return `<span id="sim-clock" class="sim-clock"></span><span id="version">${BA_CONFIG.app.name} v${BA_CONFIG.app.version} — ${t("role_op")}</span>`;

@@ -1,5 +1,6 @@
 -- ============================================================
--- Broodautomate v5.9 : NOTIFICATIONS (page admin + appli Android) et COPIE AUTOMATIQUE CHAQUE NUIT
+-- Broodautomate v5.9 / v5.10 : NOTIFICATIONS (page admin + appli Android), COPIE AUTOMATIQUE CHAQUE NUIT
+-- et RÉGLAGE À DISTANCE DE « LIRE MAINTENANT »
 -- L'éditeur SQL de Supabase : copie UNE commande (une ligne qui finit par « ; »), colle-la dans
 -- SQL Editor → Run → « Success », puis la suivante. Les lignes qui commencent par « -- » sont des explications.
 -- Rien ici n'efface ni ne change tes données : on AJOUTE des tables et des tâches automatiques.
@@ -73,6 +74,12 @@ create extension if not exists pg_net with schema extensions;
 
 -- 22. Toutes les 15 minutes : boîtier muet depuis 2 h, porte restée ouverte 15 min, notifications pas encore envoyées
 select cron.schedule('ba-veille', '*/15 * * * *', $$select net.http_post(url := 'https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest', body := '{"veille":1}'::jsonb)$$);
+
+
+-- D. RÉGLAGE « LIRE MAINTENANT » À DISTANCE (commande 23) — le délai choisi dans l'admin (Boîtiers 4G : 15 min, 30 min ou 1 h)
+-- part vers les boîtiers à leur prochain passage (programme du boîtier v1.2 ou plus récent). Remplace la fonction ba_boitier (même nom).
+-- 23.
+create or replace function public.ba_boitier(k text, fait bigint default 0, ok boolean default true, msg text default '') returns json language sql security definer set search_path = '' as $$ with d as (update public.devices set last_seen = now() where key_hash = encode(sha256(convert_to(k, 'UTF8')), 'hex') returning id), f as (update public.ba_demandes set statut = case when ok then 'faite' else 'echec' end, fini_at = now(), message = left(coalesce(msg, ''), 240) where fait > 0 and id = fait and statut in ('attente', 'prise') and device_id in (select id from d) returning id), p as (update public.ba_demandes set statut = 'prise', prise_at = now() where id = (select id from public.ba_demandes where statut = 'attente' and cree_at > now() - interval '1 hour' and id <> coalesce(fait, 0) and device_id in (select id from d) order by id limit 1) returning id) select json_build_object('ok', exists (select 1 from d), 't', floor(extract(epoch from now()))::bigint, 'dem', coalesce((select id from p), 0), 'fait', (select count(*) from f), 'ec', coalesce((select case when (data -> 'settings' ->> 'ecouteMin') in ('15', '30', '60') then (data -> 'settings' ->> 'ecouteMin')::int * 60 else 0 end from public.ba_state where id = 'main'), 0)) $$;
 
 -- ============================================================
 -- RESTAURER une copie (seulement avec Claude, après avoir fermé tous les écrans Broodautomate) :

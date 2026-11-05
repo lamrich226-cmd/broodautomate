@@ -11,6 +11,6 @@ Ces fichiers ne vont PAS dans le LILYGO : ils servent à vérifier le programme 
 - `sim/` : le programme complet (`boitier.cpp`) avec un modem A7670 et une machine simulés.
   `./lancer.sh <scénario> <mode>` ; scénarios : `normal`, `coupure`, `cle`, `sans_nitz`, `sans_heure`, `boucle` (mode 2),
   `demande` (bouton « Lire maintenant »), `demande_essai` (mode 1), `sql_absente` (fonction ba_boitier pas encore créée),
-  `evenement` (la machine envoie elle-même, puis lecture de contrôle), `rafale` (envois de la machine juste après chaque
+  `evenement` (la machine envoie elle-même, puis lecture de contrôle), `reglage` (délai de « Lire maintenant » réglé à 15 min dans l'admin), `rafale` (envois de la machine juste après chaque
   lecture : pas de lectures en boucle). Résultat : `console.txt` (Moniteur série), `envois.txt` (fonction ingest),
   `rpc.txt` (fonction ba_boitier).

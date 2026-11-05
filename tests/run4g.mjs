@@ -112,7 +112,7 @@ async function device(name, opts = {}) {
 async function open(d, file) { const p = await d.ctx.newPage(); await p.goto(URL0 + file); return p; }
 async function login(p) { await p.waitForSelector("#login-email", { timeout: 20000 }); await p.fill("#login-email", "amor@test.be"); await p.fill("#login-pass", "Secret-123"); await p.click("#login-go"); }
 const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000 });
-const view = async (p, v) => { await p.click(`nav button[data-view='${v}']`); await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450); };   // v5.4 : la souris quitte le menu flottant
+const view = async (p, v) => { if (await p.$(`nav button[data-view='${v}']`)) await p.click(`nav button[data-view='${v}']`); else await p.evaluate(x => BA.Shell.go(x), v); await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450); };   // v5.4 : la souris quitte le menu flottant
 const synced = (p, ms) => p.waitForFunction(() => BA.Store.status().pending === 0 && BA.Store.status().sync === "ok", null, { timeout: ms || 20000 });
 const ev = (p, f) => p.evaluate(f);
 const qty = (p, num, sel) => p.evaluate(([n, s]) => { const m = BA.Store.get().machines.find(x => x.num === n); const x = m && BA.Model.sel(m, s); return x ? BA.Model.qty(x) : null; }, [num, sel]);
@@ -140,7 +140,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.9.0", (await a.innerText("#app-footer")).includes("5.9.0"));
+  ok("pied de page : version 5.10.0", (await a.innerText("#app-footer")).includes("5.10.0"));
   await view(a, "rs232");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));
@@ -333,6 +333,22 @@ try {
   await a.evaluate(() => BA.Boitiers.refresh(true));
   await a.waitForSelector("button[data-bxread]:not([disabled])", { timeout: 15000 });
   ok("programme v1.1, boîtier en ligne : bouton « 📡 Lire maintenant » actif", (await a.innerText("button[data-bxread]")).includes("Lire maintenant"));
+  // v5.10 : délai de « Lire maintenant » réglable à distance (15 min, 30 min, 1 h)
+  ok("réglage « Lire maintenant » affiché, pas encore réglé (2 min)", !!(await a.$("#bx-ec")) && (await a.$eval("#bx-ec", x => x.value)) === "" && /2 min \(pas encore réglé\)/.test(await a.innerText("#bx-ec")));
+  ok("pas encore réglé : ba_boitier donne ec = 0 (le boîtier garde son délai)", rpc(key).ec === 0);
+  await a.selectOption("#bx-ec", "15");
+  await a.waitForFunction(() => BA.Store.get().settings.ecouteMin === 15, null, { timeout: 10000 });
+  await synced(a);
+  ok("réglé sur 15 min : transmis aux boîtiers (ec = 900)", rpc(key).ec === 900, rpc(key));
+  ok("bouton : « 15 min au plus »", /15 min au plus/.test(await a.getAttribute("button[data-bxread]", "title")), await a.getAttribute("button[data-bxread]", "title"));
+  await boitier(key, { fw: "1.2", ec: 900, lu: 11 });
+  await a.evaluate(() => BA.Boitiers.refresh(true));
+  await a.waitForFunction(() => /écoute toutes les 15 min/.test((document.querySelector(".bx-table") || {}).innerText || ""), null, { timeout: 15000 }).catch(() => {});
+  ok("liste des boîtiers : « écoute toutes les 15 min » (le boîtier a reçu le réglage)", /écoute toutes les 15 min/.test(await a.innerText(".bx-table")));
+  await (await a.$("#rs-boitiers .bx-ecoute")).screenshot({ path: path.join(OUT, "z-reglage-ecoute.png") });
+  await a.selectOption("#bx-ec", "60"); await synced(a);
+  ok("réglé sur 1 h : ec = 3600", rpc(key).ec === 3600);
+  await a.selectOption("#bx-ec", "15"); await synced(a);
   const avant = await salesToday(a);
   await a.click("button[data-bxread]");
   await sleep(1000);

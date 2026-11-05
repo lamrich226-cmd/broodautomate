@@ -160,3 +160,72 @@ body.operateur .selno-big { font-weight: 700; }
 #notif-panel .np-t small { color: var(--ink-dim); font-size: .78rem; }
 #notif-panel .np-foot { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
 @media (max-width: 700px) { #notif-panel { top: 56px; right: 12px; left: 12px; width: auto; } }
+/* v5.10 — réglage « Lire maintenant » (Boîtiers 4G) */
+.bx-ecoute { margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface-2); }
+.bx-ecoute label { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; }
+.bx-ecoute .note { margin: 6px 0 0; }
+
+/* ============================================================
+   v5.10 — Appli OPÉRATEUR simplifiée : 4 onglets, en-tête réduit, cartes, − / +
+   ============================================================ */
+.alert.ok { background: rgba(34,197,94,.12); border-left: 4px solid var(--ok); color: var(--ink); }
+.op-resume { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 14px; }
+.op-res { display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; border-radius: 999px; background: var(--surface); border: 1px solid var(--line); }
+.op-res b { min-width: 18px; text-align: center; }
+.mission-card .cm-actions { display: flex; gap: 8px; align-items: stretch; margin-top: 4px; }
+.mission-card .cm-actions .btn.big { flex: 1 1 auto; }
+.mission-card .cm-actions .btn.secondary { flex: 0 0 auto; border-radius: 14px; }
+.op-more { display: flex; flex-direction: column; gap: 8px; margin-bottom: 18px; }
+.op-more-item { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px 16px; border-radius: 16px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; font: inherit; }
+.op-more-item:hover { border-color: var(--blue); }
+.op-more-item .omi-i { font-size: 1.5rem; }
+.op-more-item .omi-t { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.op-more-item .omi-t small { color: var(--ink-dim); }
+.op-more-item .omi-c { font-size: 1.6rem; color: var(--ink-dim); }
+.op-more-set { display: flex; flex-direction: column; gap: 10px; align-items: stretch; max-width: 420px; }
+.op-more-set label { display: flex; align-items: center; gap: 10px; }
+.op-more-set label select { flex: 1 1 auto; }
+.op-more-set .btn { text-align: center; justify-content: center; }
+.op-back { margin: 0 0 10px; }
+details.op-aide { margin: 6px 0 12px; }
+details.op-aide > summary { cursor: pointer; color: var(--ink-dim); font-size: .92rem; padding: 6px 0; }
+/* − / + autour des nombres de l'assistant « Remplir » */
+.pm { display: inline-flex; align-items: center; gap: 6px; }
+.pm .pm-b { width: 44px; height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); font-size: 1.4rem; font-weight: 700; line-height: 1; cursor: pointer; }
+.pm .pm-b:active:not(:disabled) { background: var(--blue-2); color: #fff; }
+.pm .pm-b:disabled { opacity: .35; cursor: default; }
+.pm input[type=number] { width: 64px; text-align: center; }
+
+@media (max-width: 700px) {
+  /* en-tête sur une seule ligne : le reste est dans « Plus » */
+  body.operateur #app-header { flex-wrap: nowrap; padding: 8px 12px; gap: 8px; }
+  body.operateur #app-header h1 { font-size: 1.08rem; flex-wrap: nowrap; white-space: nowrap; }
+  body.operateur #app-header .role-tag,
+  body.operateur #status-bar #online-status,
+  body.operateur #status-bar #theme-toggle,
+  body.operateur #status-bar #lang-select,
+  body.operateur #status-bar #btn-logout,
+  body.operateur #status-bar a.badge.link { display: none; }
+  body.operateur #status-bar { flex-wrap: nowrap; gap: 6px; margin-left: auto; }
+  /* 4 onglets : tous avec leur nom */
+  body.operateur nav.tabbar button, body.operateur nav.tabbar button.active { flex: 1 1 0; font-size: .72rem; }
+  body.operateur nav.tabbar .nl { display: block; }
+  /* tableaux → cartes */
+  body.operateur .table-scroll { overflow: visible; }
+  body.operateur table.tbl-cartes, body.operateur table.tbl-cartes tbody, body.operateur table.tbl-cartes tr, body.operateur table.tbl-cartes td { display: block; width: 100%; }
+  body.operateur table.tbl-cartes { border: 0; background: transparent; min-width: 0 !important; }
+  body.operateur table.tbl-cartes thead { display: none; }
+  body.operateur table.tbl-cartes tr { border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px; margin: 0 0 10px; background: var(--surface); }
+  body.operateur table.tbl-cartes td { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border: 0; text-align: right; min-height: 0; }
+  body.operateur table.tbl-cartes td::before { content: attr(data-label); color: var(--ink-dim); font-size: .74rem; letter-spacing: .04em; text-transform: uppercase; text-align: left; flex: 0 0 auto; }
+  body.operateur table.tbl-cartes td[data-label=""]::before { content: none; }
+  body.operateur table.tbl-cartes td[data-label=""] { justify-content: flex-end; }
+  body.operateur table.tbl-cartes td > * { max-width: 62%; }
+  body.operateur .mission-card .cm-actions .btn.secondary { padding-left: 14px; padding-right: 14px; }
+}
+@media (max-width: 700px) {
+  /* une grande carte par machine, sur toute la largeur */
+  body.operateur .cards.machines-grid { grid-template-columns: 1fr; }
+  body.operateur .mission-card .cm-actions .btn.big { font-size: 1.05rem; }
+}
+.op-more-set a.btn { text-decoration: none; }

@@ -1,4 +1,4 @@
-# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.1)
+# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.2)
 
 Le boîtier reste branché sur la prise RS232 de la machine FAS. Il fait trois choses :
 
@@ -16,6 +16,17 @@ les plus anciens, stock, porte, température, coupures, erreurs de la machine da
 toute autre trame est bloquée avant l'envoi (même liste de sécurité que le logiciel).
 
 ---
+
+## Mise à jour v1.1 → v1.2 : « Lire maintenant » réglable à distance
+
+- Nouveau : le délai de « Lire maintenant » se règle **dans Broodautomate** (admin → Connexion RS232 → Boîtiers 4G :
+  15 min, 30 min ou 1 h). Le boîtier le reçoit à son prochain passage chez Supabase : **plus besoin de brancher
+  l'ordinateur** pour le changer. Tant que rien n'est réglé, il garde `DEMANDE_EVERY_SEC` (2 min).
+- À faire une seule fois : la commande SQL n° 23 de `supabase/notifications-sauvegarde.sql`, puis téléverser ce programme
+  (Arduino IDE, comme d'habitude ; `config.h` ne change pas : garde ta clé `DEVICE_KEY`).
+- Le Moniteur série écrit : « Réglage reçu de Broodautomate : « Lire maintenant » vérifié toutes les 15 min. »
+- Vérifié sur ordinateur : programme compilé pour l'ESP32 (26 % de la mémoire), simulateur `sim/lancer.sh reglage 0`
+  (8 passages en 95 min au lieu de 45, la demande est prise au passage suivant), 61 essais de `test_boitier.cpp`.
 
 ## Mise à jour v1.0 → v1.1 (boîtier déjà installé)
 

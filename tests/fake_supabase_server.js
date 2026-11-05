@@ -269,14 +269,15 @@ class FakeSupabase {
     const t = Math.floor(Date.now() / 1000);
     if (!this.t.ba_demandes) return { status: 404, body: { code: "PGRST202", message: "Could not find the function public.ba_boitier" } };
     const d = (this.t.devices || []).find(x => x.key_hash === sha256(k));
-    if (!d) return { status: 200, body: { ok: false, t, dem: 0, fait: 0 } };
+    if (!d) return { status: 200, body: { ok: false, t, dem: 0, fait: 0, ec: 0 } };
     d.last_seen = new Date().toISOString();
     let n = 0;
     const f = this.t.ba_demandes.find(x => fait > 0 && x.id === fait && x.device_id === d.id && (x.statut === "attente" || x.statut === "prise"));
     if (f) { f.statut = ok ? "faite" : "echec"; f.fini_at = new Date().toISOString(); f.message = String(msg || "").slice(0, 240); n = 1; }
     const p = this.t.ba_demandes.filter(x => x.device_id === d.id && x.statut === "attente" && Date.now() - Date.parse(x.cree_at) < 3600000 && x.id !== fait).sort((a, b) => a.id - b.id)[0];
     if (p) { p.statut = "prise"; p.prise_at = new Date().toISOString(); }
-    return { status: 200, body: { ok: true, t, dem: p ? p.id : 0, fait: n } };
+    const main = this.ba("main"), m = main && main.data && main.data.settings ? String(main.data.settings.ecouteMin) : "";
+    return { status: 200, body: { ok: true, t, dem: p ? p.id : 0, fait: n, ec: ["15", "30", "60"].includes(m) ? Number(m) * 60 : 0 } };
   }
   ba(id) { return (this.baState || []).find(r => r.id === id) || null; }
 }

@@ -6,7 +6,7 @@
 // machine — télémétrie) et envoie les relevés à Supabase par la 4G
 // (fonction « ingest » → table device_reports).
 // v5.2 : bouton « 📡 Lire maintenant » (table ba_demandes ; le boîtier v1.1
-// regarde toutes les 2 min s'il y a une demande, par la fonction ba_boitier).
+// regarde régulièrement s'il y a une demande, par la fonction ba_boitier : 2 min au départ, puis le délai réglé ici).
 // v5.3 : bouton « 📡 Lire toutes les machines » (Commander, Dashboard,
 // Boîtiers 4G) : une demande par boîtier d'un coup, avant une commande.
 // Ici :
@@ -62,7 +62,7 @@ window.BA = window.BA || {};
     "create policy \"ba_demandes_authenticated\" on public.ba_demandes for all to authenticated using (true) with check (true);",
     "grant select, insert, update, delete on public.ba_demandes to authenticated;",
     "grant all on public.ba_demandes to service_role;",
-    "create or replace function public.ba_boitier(k text, fait bigint default 0, ok boolean default true, msg text default '') returns json language sql security definer set search_path = '' as $$ with d as (update public.devices set last_seen = now() where key_hash = encode(sha256(convert_to(k, 'UTF8')), 'hex') returning id), f as (update public.ba_demandes set statut = case when ok then 'faite' else 'echec' end, fini_at = now(), message = left(coalesce(msg, ''), 240) where fait > 0 and id = fait and statut in ('attente', 'prise') and device_id in (select id from d) returning id), p as (update public.ba_demandes set statut = 'prise', prise_at = now() where id = (select id from public.ba_demandes where statut = 'attente' and cree_at > now() - interval '1 hour' and id <> coalesce(fait, 0) and device_id in (select id from d) order by id limit 1) returning id) select json_build_object('ok', exists (select 1 from d), 't', floor(extract(epoch from now()))::bigint, 'dem', coalesce((select id from p), 0), 'fait', (select count(*) from f)) $$;",
+    "create or replace function public.ba_boitier(k text, fait bigint default 0, ok boolean default true, msg text default '') returns json language sql security definer set search_path = '' as $$ with d as (update public.devices set last_seen = now() where key_hash = encode(sha256(convert_to(k, 'UTF8')), 'hex') returning id), f as (update public.ba_demandes set statut = case when ok then 'faite' else 'echec' end, fini_at = now(), message = left(coalesce(msg, ''), 240) where fait > 0 and id = fait and statut in ('attente', 'prise') and device_id in (select id from d) returning id), p as (update public.ba_demandes set statut = 'prise', prise_at = now() where id = (select id from public.ba_demandes where statut = 'attente' and cree_at > now() - interval '1 hour' and id <> coalesce(fait, 0) and device_id in (select id from d) order by id limit 1) returning id) select json_build_object('ok', exists (select 1 from d), 't', floor(extract(epoch from now()))::bigint, 'dem', coalesce((select id from p), 0), 'fait', (select count(*) from f), 'ec', coalesce((select case when (data -> 'settings' ->> 'ecouteMin') in ('15', '30', '60') then (data -> 'settings' ->> 'ecouteMin')::int * 60 else 0 end from public.ba_state where id = 'main'), 0)) $$;",
     "grant execute on function public.ba_boitier(text, bigint, boolean, text) to anon;"
   ];
   const SQL_DEM = 9;            // les commandes 10 à 17 (index 9 à 16) : bouton « Lire maintenant »
@@ -89,6 +89,11 @@ window.BA = window.BA || {};
   const pending = d => !!d && (d.statut === "attente" || d.statut === "prise") && Date.now() - demAt(d) < DEM_TIMEOUT;
   const fwOk = d => { const v = parseFloat(d && d.info && d.info.fw); return isFinite(v) && v >= 1.1; };
   const machines = () => (BA.Store.get() || { machines: [] }).machines;
+  // v5.10 : délai de « Lire maintenant » réglé ici (15 min, 30 min ou 1 h), envoyé aux boîtiers par ba_boitier
+  const ECOUTE = [15, 30, 60];
+  const ecouteMin = () => { const v = Number((((BA.Store.get() || {}).settings) || {}).ecouteMin); return ECOUTE.includes(v) ? v : 0; };
+  const duree = m => m >= 60 ? t("bx_ec_1h") : t("bx_ec_min", { n: m });
+  const delai = () => ecouteMin() ? duree(ecouteMin()) : t("bx_ec_min", { n: 3 });
   const nomM = m => m ? "#" + m.num + " — " + (m.street || m.id) + (m.city ? ", " + m.city : "") : "—";
   const seenMs = d => d && d.last_seen ? Date.parse(d.last_seen) || 0 : 0;
   // Boîtier « vivant » : vu depuis moins de 2 signaux de vie (+ 5 min), et au moins 45 min
@@ -362,7 +367,7 @@ window.BA = window.BA || {};
     if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return; }
     const row = (res.data || [])[0] || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
     demandes.set(d.id, row);
-    U().toast("📡 " + t("bx_read_sent"), 6000);
+    U().toast("📡 " + t("bx_read_sent", { d: delai() }), 6000);
     showDem();
     watch();
   }
@@ -372,7 +377,7 @@ window.BA = window.BA || {};
     const F = U().F, at = v => F.time(Date.parse(v) || Date.now());
     if (x.statut === "attente" || x.statut === "prise") {
       if (!pending(x)) return "⌛ " + t("bx_read_timeout", { h: at(x.cree_at) });
-      return x.statut === "prise" ? "📥 " + t("bx_read_taken", { h: at(x.prise_at || x.cree_at) }) : "⏳ " + t("bx_read_waiting", { h: at(x.cree_at) });
+      return x.statut === "prise" ? "📥 " + t("bx_read_taken", { h: at(x.prise_at || x.cree_at) }) : "⏳ " + t("bx_read_waiting", { h: at(x.cree_at), d: delai() });
     }
     if (x.statut === "faite") return "✅ " + t("bx_read_ok", { h: at(x.fini_at || x.cree_at) });
     return "⚠️ " + t("bx_read_ko", { h: at(x.fini_at || x.cree_at), e: x.message || "—" });
@@ -387,7 +392,7 @@ window.BA = window.BA || {};
   function btnState(d) {
     if (pending(demandes.get(d.id))) return { disabled: true, label: "⏳ " + t("bx_read_btn"), title: t("bx_read_wait") };
     if (!isAlive(d)) return { disabled: true, label: "📡 " + t("bx_read_btn"), title: t("bx_read_offline") };
-    return { disabled: false, label: "📡 " + t("bx_read_btn"), title: t("bx_read_title") };
+    return { disabled: false, label: "📡 " + t("bx_read_btn"), title: t("bx_read_title", { d: delai() }) };
   }
   // Met à jour les boutons et les états affichés (onglet Connexion RS232, page Détails, cartes « Lire toutes
   // les machines ») sans tout redessiner
@@ -501,7 +506,7 @@ window.BA = window.BA || {};
       });
     }
     lot = { at: now, dem, rows: rws, fini: false, finiAt: 0, guess: false };
-    U().toast("📡 " + t("bx_all_sent", { n: dem.size }), 7000);
+    U().toast("📡 " + t("bx_all_sent", { n: dem.size, d: delai() }), 7000);
     showDem();
     watch();
   }
@@ -516,7 +521,7 @@ window.BA = window.BA || {};
     const F = U().F, x = r.x, last = quand(r.m.lastSeen);
     switch (r.st) {
       case "ok": return "✅ " + t("bx_read_ok", { h: F.time(finAt(x)) });
-      case "wait": return "⏳ " + t("bx_all_st_wait");
+      case "wait": return "⏳ " + t("bx_all_st_wait", { d: delai() });
       case "taken": return "📥 " + t("bx_all_st_taken");
       case "ko": return "⚠️ " + t("bx_all_st_ko", { e: x.message || "—", h: last });
       case "timeout": return "⌛ " + t("bx_all_st_timeout", { h: last });
@@ -537,7 +542,7 @@ window.BA = window.BA || {};
     if (running) {
       const mine = rows.filter(r => r.mine), got = mine.filter(r => r.st !== "wait" && r.st !== "taken").length;
       head = `<b>⏳ ${E(t("bx_all_progress", { k: got, n: mine.length }))}</b>
-        <progress max="${mine.length}" value="${got}"></progress> <span class="petit">${E(t("bx_all_wait"))}</span>`;
+        <progress max="${mine.length}" value="${got}"></progress> <span class="petit">${E(t("bx_all_wait", { d: delai() }))}</span>`;
     } else if (lot) {
       const ok = rows.filter(r => r.mine && r.st === "ok").length;
       head = `<b>${ok === n ? "✅" : "⚠️"} ${E(t("bx_all_done", { k: ok, n, h: quand(lot.finiAt) }))}</b>`;
@@ -548,7 +553,7 @@ window.BA = window.BA || {};
       const fresh = rows.filter(r => r.m.lastSeen && Date.now() - r.m.lastSeen < 15 * MIN).length;
       head = `${E(t("bx_all_hint"))} <span class="petit">${E(t("bx_all_idle", { a: fresh, n }))}</span>`;
     }
-    const titre = running ? t("bx_all_running") : ready ? t("bx_all_title") : t("bx_all_none");
+    const titre = running ? t("bx_all_running") : ready ? t("bx_all_title", { d: delai() }) : t("bx_all_none");
     const btn = `<button class="btn" data-bxreadall ${running || !ready ? "disabled" : ""} title="${E(titre)}">${running ? "⏳ " + E(t("bx_all_running_btn")) : "📡 " + E(t(lot ? "bx_all_again" : "bx_all_btn"))}</button>`;
     const list = `<details class="bx-all-list" ${listOpen ? "open" : ""}><summary>${E(t("bx_all_detail"))}</summary>
       <ul>${rows.map(r => `<li><b>#${E(r.m.num)}</b> ${E(r.m.street || "")} — ${E(rowText(r))}</li>`).join("")}</ul></details>`;
@@ -661,7 +666,7 @@ window.BA = window.BA || {};
         const alive = isAlive(d);
         const st = Number(i.mode) === 1 ? t("bx_mode_test") : Number(i.mode) === 2 ? t("bx_mode_loop") : (i.st || "—");
         return `<tr data-bxid="${E(d.id)}">
-          <td><b>${E(d.name)}</b><div class="petit">${i.fw ? "v" + E(i.fw) : ""}${i.op ? " · " + E(i.op) : ""}</div></td>
+          <td><b>${E(d.name)}</b><div class="petit">${i.fw ? "v" + E(i.fw) : ""}${i.op ? " · " + E(i.op) : ""}${Number(i.ec) >= 60 ? " · ⏱ " + E(t("bx_ec_box", { d: duree(Math.round(Number(i.ec) / 60)) })) : ""}</div></td>
           <td><select class="auto-w" data-bxm="${E(d.id)}">${ms.filter(m => m.id).map(m => `<option value="${E(m.id)}" ${m.id === d.machine_id ? "selected" : ""}>${E(nomM(m))}</option>`).join("")}
             ${ms.some(m => m.id === d.machine_id) ? "" : `<option value="${E(d.machine_id)}" selected>${E(t("bx_unknown_machine", { id: d.machine_id }))}</option>`}</select></td>
           <td>${alive ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${E(ago(seenMs(d)))}</div></td>
@@ -671,6 +676,13 @@ window.BA = window.BA || {};
           <td class="nowrap"><button class="btn petit secondary" data-bxkey="${E(d.id)}" title="${E(t("bx_newkey"))}">🔑</button><button class="btn petit secondary" data-bxdel="${E(d.id)}" title="${E(t("bx_del"))}">🗑</button></td>
         </tr>`;
       }).join("")}</tbody></table></div>`;
+  }
+  function htmlEcoute() {
+    const cur = ecouteMin();
+    return `<div class="bx-ecoute"><label>⏱ ${E(t("bx_ec_label"))}
+      <select id="bx-ec" class="auto-w">${cur ? "" : `<option value="" selected disabled>${E(t("bx_ec_unset"))}</option>`}
+        ${ECOUTE.map(m => `<option value="${m}" ${m === cur ? "selected" : ""}>${E(duree(m))}</option>`).join("")}</select></label>
+      <p class="note">${E(t("bx_ec_note"))}</p></div>`;
   }
   function htmlAdd() {
     const ms = machines().filter(m => m.id);
@@ -688,7 +700,7 @@ window.BA = window.BA || {};
     else if (installed === false) body = `<div class="alert warn">${E(t("bx_not_installed"))}</div>
       <div class="carte-actions wrap-actions"><button class="btn" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button><button class="btn secondary" data-bx="check">🔄 ${E(t("bx_check"))}</button></div>`;
     else body = `${demInstalled === false ? `<div class="alert info">📡 ${E(t("bx_read_install"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></div>` : ""}
-      ${demInstalled === true ? allCard() : ""}
+      ${demInstalled === true ? allCard() + htmlEcoute() : ""}
       ${htmlList()}<h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
     return `<p class="note">${E(t("bx_intro"))}</p>
       ${htmlSteps()}
@@ -826,6 +838,14 @@ window.BA = window.BA || {};
     el.querySelectorAll("[data-bxdel]").forEach(b => b.onclick = () => delBox(b.dataset.bxdel));
     el.querySelectorAll("[data-bxkey]").forEach(b => b.onclick = () => renewKey(b.dataset.bxkey));
     el.querySelectorAll("[data-bxm]").forEach(s => s.onchange = () => moveBox(s.dataset.bxm, s.value));
+    const ec = el.querySelector("#bx-ec");
+    if (ec) ec.onchange = () => {
+      const v = Number(ec.value);
+      if (!ECOUTE.includes(v)) return;
+      BA.Actions.saveSettings({ ecouteMin: v });
+      U().toast("⏱ " + t("bx_ec_saved", { d: duree(v) }), 7000);
+      redraw(true);
+    };
   }
 
   BA.Boitiers = {
