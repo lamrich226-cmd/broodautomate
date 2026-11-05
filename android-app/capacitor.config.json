@@ -5,10 +5,24 @@
   "server": {
     "url": "https://lamrich226-cmd.github.io/broodautomate/operateur.html",
     "cleartext": false,
-    "allowNavigation": ["lamrich226-cmd.github.io", "*.supabase.co", "cdn.jsdelivr.net", "cdnjs.cloudflare.com"]
+    "allowNavigation": [
+      "lamrich226-cmd.github.io",
+      "*.supabase.co",
+      "cdn.jsdelivr.net",
+      "cdnjs.cloudflare.com"
+    ]
   },
   "android": {
     "appendUserAgent": "BroodautomateOperateurApp",
     "allowMixedContent": false
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": [
+        "badge",
+        "sound",
+        "alert"
+      ]
+    }
   }
 }

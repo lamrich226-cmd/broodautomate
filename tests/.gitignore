@@ -1,0 +1,4 @@
+node_modules/
+donnees/
+captures*/
+package-lock.json

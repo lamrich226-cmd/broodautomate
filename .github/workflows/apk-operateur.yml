@@ -3,6 +3,7 @@
 name: Appli Android operateur
 on:
   push:
+    branches: [main]
     paths:
       - "android-app/**"
       - ".github/workflows/apk-operateur.yml"
@@ -17,15 +18,30 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
       - name: Projet Android (Capacitor)
         working-directory: android-app
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           npm install --no-audit --no-fund
+          # notifications Firebase : seulement si le secret GOOGLE_SERVICES_JSON existe (sinon l'appli marche sans notifications)
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            node -e 'const f="capacitor.config.json",j=JSON.parse(require("fs").readFileSync(f,"utf8"));j.android.appendUserAgent="BroodautomateOperateurApp BAPush";require("fs").writeFileSync(f,JSON.stringify(j,null,2))'
+          fi
           npx cap add android
+          if [ -n "$GOOGLE_SERVICES_JSON" ]; then
+            printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+            node -e 'JSON.parse(require("fs").readFileSync("android/app/google-services.json","utf8"))' || { echo "Le secret GOOGLE_SERVICES_JSON n'est pas un JSON valide"; exit 1; }
+            echo "Notifications Firebase : activées"
+          else
+            echo "::warning::Secret GOOGLE_SERVICES_JSON absent : appli fabriquée SANS notifications"
+          fi
+          # Android 13+ : permission d'afficher des notifications
+          grep -q POST_NOTIFICATIONS android/app/src/main/AndroidManifest.xml || sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#&\n    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />#' android/app/src/main/AndroidManifest.xml
           # icône et couleur de fond
           for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do cp icons/mipmap-$d/*.png android/app/src/main/res/mipmap-$d/; done
           sed -i 's/#FFFFFF/#0B1220/' android/app/src/main/res/values/ic_launcher_background.xml
@@ -45,4 +61,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete appli-operateur --yes --cleanup-tag || true
-          gh release create appli-operateur BroodautomateOperateur.apk --title "Appli Android Opérateur" --notes "Appli opérateur seulement (pas d'accès au logiciel admin). Installer : télécharger le fichier BroodautomateOperateur.apk sur le téléphone, l'ouvrir, autoriser « sources inconnues » si Android le demande."
+          gh release create appli-operateur BroodautomateOperateur.apk --title "Appli Android Opérateur" --notes "Appli opérateur (pas d'accès au logiciel admin) avec notifications pour les comptes admin. Installer : télécharger le fichier BroodautomateOperateur.apk sur le téléphone, l'ouvrir, autoriser « sources inconnues » si Android le demande."

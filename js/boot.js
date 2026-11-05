@@ -92,6 +92,7 @@ window.BA = window.BA || {};
       close();
       BA.Shell.init(ctx);
       if (BA.Boitiers) BA.Boitiers.start();          // boîtiers 4G : relevés reçus par la 4G
+      if (BA.Notifs) BA.Notifs.start(ctx);           // v5.9 : cloche des notifications + téléphone (appli Android)
       if (ctx.afterInit) { try { ctx.afterInit(); } catch (e) { console.error(e); } }
       if (BA.Store.status().lost && BA.UI) BA.UI.toast(t("sync_lost"), 20000);
     },
