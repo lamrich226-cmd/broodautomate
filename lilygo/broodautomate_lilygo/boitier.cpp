@@ -1,12 +1,13 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.1)
+// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v2.0)
 // Lit la machine FAS en RS232 (EVA-DTS DDCMP, lecture seule, comme le câble
 // de Broodautomate) et envoie les relevés à Supabase par la 4G (HTTPS).
 //   • lecture de contrôle toutes les READ_EVERY_MIN minutes (60 : chaque heure) ;
 //   • la machine peut envoyer elle-même (télémétrie = 1 : vente, porte…) : son envoi
 //     part tout de suite, puis le boîtier relit la machine pour mettre les ventes à jour ;
-//   • bouton « Lire maintenant » de Broodautomate : toutes les DEMANDE_EVERY_SEC
-//     secondes, le boîtier demande à Supabase s'il y a une demande de lecture.
+//   • bouton « Lire maintenant » de Broodautomate : v2.0 = connexion permanente MQTT (HiveMQ) : l'ordre arrive tout de suite
+//     et le boîtier va chercher la demande chez Supabase ; si MQTT n'est pas réglé (ou en panne), comme avant :
+//     toutes les DEMANDE_EVERY_SEC secondes il demande à Supabase s'il y a une demande de lecture.
 // Réglages : config.h (le seul fichier à modifier).
 // ============================================================
 #include <Arduino.h>
@@ -18,7 +19,7 @@
 #include "envoi.h"
 #include "modem.h"
 
-#define FW_VERSION "1.2"
+#define FW_VERSION "2.0"
 
 using namespace ba;
 
@@ -66,6 +67,13 @@ static uint32_t demandeFaite = 0;         // demande terminée, résultat pas en
 static uint32_t ecouteSec = DEMANDE_EVERY_SEC;
 static bool demandeOk = true;
 static String demandeMsg = "";
+// v2.0 : connexion permanente MQTT. Le message reçu veut dire « va voir s'il y a une demande » (rien d'autre).
+static bool mqttActif = false;                 // réglé dans config.h (MQTT_HOST) et pas en mode essai de la liaison
+static std::string mqttCanal;                  // « ba/ » + empreinte de la clé du boîtier
+static uint32_t prochainMqtt = 0, delaiMqtt = 30000, dernierControleMqtt = 0, nbOrdres = 0, mqttEchecs = 0;
+static bool mqttEtaitConnecte = false;
+static int mqEnvoye = -1;
+static int mqEtat() { return !mqttActif ? 0 : modem.mqttConnecte ? 1 : 2; }   // 0 = coupé (réglage), 1 = connecté, 2 = essaie de se connecter
 static uint32_t prochaineDemande = 0, demandesRatees = 0;
 // Envoi fait par la machine (télémétrie) : lecture de contrôle juste après
 static uint32_t lireApres = 0, envoiMachineA = 0, finDerniereLecture = 0;
@@ -220,6 +228,7 @@ static bool envoyer(const Releve* r) {
   b += ",\"fw\":\"" FW_VERSION "\",\"mode\":" + std::to_string(MODE);
   b += ",\"seq\":" + std::to_string(++seq);
   b += ",\"ec\":" + std::to_string(ecouteSec);
+  b += ",\"mq\":" + std::to_string(mqEtat());
   b += ",\"up\":" + std::to_string(millis() / 1000);
   b += ",\"rssi\":" + std::to_string(modem.csq);
   b += ",\"op\":"; envoi::json(b, modem.operateur.c_str());
@@ -241,7 +250,7 @@ static bool envoyer(const Releve* r) {
   if (envoi::lireNombre(rep, "t", t) && (!horlogeOk || millis() - derniereSynchro > 3600000UL)) reglerHeure(t, "serveur Supabase");
   if (code == 200 && envoi::reponseOk(rep)) {
     nbEnvois++; echecsSuite = 0; premierEnvoi = false;
-    dernierEnvoiOk = millis(); dernierStatutEnvoye = statut;
+    dernierEnvoiOk = millis(); dernierStatutEnvoye = statut; mqEnvoye = mqEtat();
     Serial.println(F("[Envoi] ✔ Reçu par Supabase (réponse 200)."));
     return true;
   }
@@ -259,6 +268,46 @@ static void synchroHeure() {
   uint32_t utc;
   if (modem.heureUtc(utc)) reglerHeure(utc, "réseau 4G");
   else if (!horlogeOk) Serial.println(F("[Heure] Pas encore d'heure : elle viendra avec la première réponse de Supabase."));
+}
+
+// ---------------- Connexion permanente MQTT ----------------
+// Ouvre la connexion (réessais de plus en plus espacés), note les ordres reçus, surveille la connexion.
+static void mqttEntretien() {
+  if (!mqttActif || !modem.reseau) return;
+  modem.mqttPompe();
+  uint32_t now = millis();
+  if (modem.mqttOrdre) {
+    modem.mqttOrdre = false; nbOrdres++;
+    Serial.println(F("[MQTT] ⚡ Ordre reçu : je regarde tout de suite s'il y a une demande."));
+    prochaineDemande = now;
+  }
+  if (mqttEtaitConnecte && !modem.mqttConnecte) {                    // connexion perdue : retour à la vérification régulière
+    mqttEtaitConnecte = false;
+    Serial.println(F("[MQTT] Connexion perdue : je me reconnecte (en attendant, je vérifie chez Supabase comme avant)."));
+    if ((int32_t)(prochaineDemande - now) > (int32_t)(ecouteSec * 1000UL)) prochaineDemande = now + ecouteSec * 1000UL;
+    prochainMqtt = now + 5000UL;
+  }
+  if (!modem.mqttConnecte) {
+    if (now >= prochainMqtt && !moteur.occupe()) {
+      String hote = MQTT_HOST;
+      Serial.println("[MQTT] Connexion à " + hote + " …");
+      String canal = String(mqttCanal.c_str());
+      String client = "ba-" + canal.substring(3);
+      if (modem.mqttOuvrir(MQTT_HOST, MQTT_PORT, MQTT_USER, MQTT_PASS, client, canal, MQTT_KEEPALIVE_SEC)) {
+        mqttEtaitConnecte = true; mqttEchecs = 0; delaiMqtt = 30000; dernierControleMqtt = millis();
+        Serial.printf("[MQTT] ✔ Connecté : « Lire maintenant » est instantané (vérification de secours chez Supabase toutes les %u min).\n", (unsigned)(((uint32_t)MQTT_SECOURS_SEC > ecouteSec ? (uint32_t)MQTT_SECOURS_SEC : ecouteSec) / 60));
+        prochaineDemande = millis();                                  // un ordre a pu passer pendant qu'on n'était pas connecté
+      } else {
+        mqttEchecs++;
+        delaiMqtt = delaiMqtt < 600000UL ? delaiMqtt * 2 : 600000UL;
+        prochainMqtt = millis() + delaiMqtt;
+        if (mqttEchecs == 1 || mqttEchecs % 10 == 0) Serial.printf("[MQTT] Nouvel essai dans %u s (échec n°%u). Le bouton « Lire maintenant » marche quand même (moins vite).\n", (unsigned)(delaiMqtt / 1000), (unsigned)mqttEchecs);
+      }
+    }
+  } else if (now - dernierControleMqtt > 900000UL) {                  // toutes les 15 min : le modem se dit-il toujours connecté ?
+    dernierControleMqtt = now;
+    if (!modem.mqttVivant()) Serial.println(F("[MQTT] Le modem n'est plus connecté."));
+  }
 }
 
 // ---------------- Essai de la liaison RS232 (MODE 2) ----------------
@@ -288,7 +337,9 @@ static void afficherEtat() {
   if (demandeId || lectureDem) Serial.printf(" ; demande en cours n°%u", (unsigned)(lectureDem ? lectureDem : demandeId));
   if (demandesRatees) Serial.printf(" ; %u vérifications ratées", (unsigned)demandesRatees);
   Serial.println();
-  Serial.println(F("Commandes : etat, lire, envoi, demande, aide, ou une commande AT (ex. AT+CSQ)"));
+  if (mqttActif) Serial.printf("MQTT : %s ; ordres reçus : %u\n", modem.mqttConnecte ? "connecté (Lire maintenant instantané)" : "pas connecté (vérification chez Supabase)", (unsigned)nbOrdres);
+  else Serial.println(F("MQTT : coupé (MQTT_HOST pas rempli dans config.h)"));
+  Serial.println(F("Commandes : etat, lire, envoi, demande, mqtt, aide, ou une commande AT (ex. AT+CSQ)"));
   Serial.println(F("------------------------------------------------------------"));
 }
 static void console() {
@@ -302,12 +353,13 @@ static void console() {
     if (m == "etat" || m == "état" || m == "aide" || m == "help") afficherEtat();
     else if (m == "lire") { lectureDemandee = true; Serial.println(F("[Console] Lecture de la machine demandée.")); }
     else if (m == "envoi") { dernierPing = 0; prochainEssaiEnvoi = 0; dernierEnvoiOk = millis() - (uint32_t)HEARTBEAT_MIN * 60000UL - 1; Serial.println(F("[Console] Signal de vie demandé.")); }
+    else if (m == "mqtt") { if (mqttActif) { modem.mqttConnecte = false; mqttEtaitConnecte = false; prochainMqtt = 0; Serial.println(F("[Console] Je rouvre la connexion MQTT.")); } else Serial.println(F("[Console] MQTT coupé : remplis MQTT_HOST, MQTT_USER et MQTT_PASS dans config.h.")); }
     else if (m == "demande") { prochaineDemande = millis(); Serial.println(F("[Console] Je regarde tout de suite s'il y a une demande de lecture.")); }
     else if (m.startsWith("at")) {
       if (MODE == 2) { Serial.println(F("[Console] Modem éteint en mode 2.")); continue; }
       Serial.println("[Console] " + cmd + " →");
       Serial.println(modem.passerelle(cmd));
-    } else Serial.println(F("[Console] Commande inconnue. Tape : etat, lire, envoi, demande ou une commande AT."));
+    } else Serial.println(F("[Console] Commande inconnue. Tape : etat, lire, envoi, demande, mqtt ou une commande AT."));
   }
 }
 
@@ -329,6 +381,9 @@ void setup() {
   }
   if (strstr(DEVICE_KEY, "COLLE_ICI") || strlen(DEVICE_KEY) < 16)
     Serial.println(F("[Config] ⚠ DEVICE_KEY n'est pas remplie dans config.h : Supabase refusera les envois."));
+  mqttActif = !strstr(MQTT_HOST, "COLLE_ICI") && strlen(MQTT_HOST) > 3 && !strstr(MQTT_PASS, "COLLE_ICI") && !strstr(DEVICE_KEY, "COLLE_ICI");
+  if (mqttActif) { mqttCanal = envoi::canalMqtt(DEVICE_KEY); Serial.printf("[MQTT] Connexion permanente réglée (canal %s).\n", mqttCanal.c_str()); }
+  else Serial.println(F("[MQTT] Coupé (MQTT_HOST ou MQTT_PASS pas remplis dans config.h) : « Lire maintenant » reste vérifié régulièrement chez Supabase."));
   modem.idle = pompe;
   if (modem.demarrer() && modem.connecter()) synchroHeure();
   dernierEssaiReseau = millis();
@@ -350,6 +405,9 @@ void loop() {
   }
   // Heure : au démarrage puis toutes les 6 heures
   if (modem.reseau && (!horlogeOk || now - derniereSynchro > 6UL * 3600000UL) && now - dernierEssaiHeure > 120000UL) synchroHeure();
+
+  // Connexion permanente MQTT : ordre « Lire maintenant » reçu tout de suite
+  mqttEntretien();
 
   // La machine a envoyé d'elle-même : lecture de contrôle 5 s après (au plus une par minute)
   if (MODE == 0 && lireApres && (int32_t)(now - lireApres) >= 0 && !moteur.occupe()) {
@@ -374,7 +432,8 @@ void loop() {
   if (now >= prochainEssaiEnvoi || (int32_t)(prochainEssaiEnvoi - now) > 900000) {
     bool aEnvoyer = !file.empty();
     uint32_t hb = (MODE == 1 ? 2UL : (uint32_t)HEARTBEAT_MIN) * 60000UL;
-    bool ping = premierEnvoi || dernierEnvoiOk == 0 || now - dernierEnvoiOk >= hb || (statut != dernierStatutEnvoye && now - dernierPing > 120000UL);
+    bool ping = premierEnvoi || dernierEnvoiOk == 0 || now - dernierEnvoiOk >= hb || (statut != dernierStatutEnvoye && now - dernierPing > 120000UL)
+              || (mqttActif && mqEtat() != mqEnvoye && modem.mqttConnecte && now - dernierPing > 300000UL);
     if ((aEnvoyer || ping) && !moteur.occupe()) {
       reseauUtilise = true;
       if (!modem.reseau || !modem.encoreConnecte()) {
@@ -412,7 +471,9 @@ void loop() {
     if (!modem.encoreConnecte()) prochaineDemande = millis() + 30000UL;
     else {
       bool ok = demander();
+      // MQTT connecté : l'ordre arrive tout seul, la vérification chez Supabase n'est plus qu'un secours (rare : peu de données)
       uint32_t base = ecouteSec * 1000UL;
+      if (mqttActif && modem.mqttConnecte && base < (uint32_t)MQTT_SECOURS_SEC * 1000UL) base = (uint32_t)MQTT_SECOURS_SEC * 1000UL;
       uint32_t attente = ok ? (demandeFaite ? 1000UL : base)
                             : (demandesRatees < 3 ? base : demandesRatees < 6 ? (base > 600000UL ? base : 600000UL) : (base > 1800000UL ? base : 1800000UL));
       prochaineDemande = millis() + attente;

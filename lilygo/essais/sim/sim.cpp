@@ -23,6 +23,9 @@ struct FauxModem : Port {
   // fonction ba_boitier (bouton « Lire maintenant ») : demandes en attente, appels reçus
   std::deque<uint32_t> demandes; std::vector<std::string> appelsRpc; bool rpcAbsente = false; int rpcSansCle = 0;
   uint32_t ecoute = 0;   // réglage « Lire maintenant » envoyé par ba_boitier (« ec », secondes ; 0 = pas réglé)
+  // MQTT (connexion permanente) : serveur simulé
+  bool mqttServeurOk = true, mqttMauvaisMdp = false, mqttDemarre = false, mqttCo = false, attendSub = false;
+  size_t subAttendus = 0; std::string subCorps, mqttCanalVu; int mqttConnexions = 0, mqttAbonnements = 0;
   void rep(const std::string& t, uint32_t apres = 2) { envoyer(t, apres); }
   static std::string deux(int v) { char b[4]; snprintf(b, sizeof b, "%02d", v); return b; }
   std::string cclk(bool utc) {
@@ -36,6 +39,7 @@ struct FauxModem : Port {
   void recu(const uint8_t* b, size_t n) override {
     for (size_t i = 0; i < n; i++) {
       if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; envois.push_back(corps); rep("\r\nOK\r\n", 20); } continue; }
+      if (attendSub) { subCorps += (char)b[i]; if (subCorps.size() == subAttendus) { attendSub = false; mqttCanalVu = subCorps; mqttAbonnements++; rep("\r\nOK\r\n\r\n+CMQTTSUB: 0,0\r\n", 30); } continue; }
       ligne += (char)b[i];
       if (ligne.size() >= 2 && ligne.substr(ligne.size() - 2) == "\r\n") { std::string c = ligne.substr(0, ligne.size() - 2); ligne.clear(); commande(c); }
     }
@@ -45,6 +49,17 @@ struct FauxModem : Port {
     if (commence("AT+HTTPPARA=\"URL\",\"")) { url = c.substr(19, c.size() - 20); rep("\r\nOK\r\n"); return; }
     if (commence("AT+HTTPPARA=\"USERDATA\",\"")) { entete = c.substr(24, c.size() - 25); rep("\r\nOK\r\n"); return; }
     if (c == "AT" || c == "ATE0" || commence("AT+CMEE") || commence("AT+CTZU") || commence("AT+CFUN") || commence("AT+CDNSCFG") || commence("AT+COPS=") || commence("AT+CNMP") || commence("AT+CEREG=") || commence("AT+CGDCONT") || commence("AT+CSSLCFG") || commence("AT+HTTPPARA")) rep("\r\nOK\r\n");
+    else if (c == "AT+CMQTTSTART") { mqttDemarre = true; rep("\r\nOK\r\n\r\n+CMQTTSTART: 0\r\n", 40); }
+    else if (commence("AT+CMQTTACCQ=") || commence("AT+CMQTTSSLCFG=")) rep("\r\nOK\r\n");
+    else if (commence("AT+CMQTTCONNECT=0,\"tcp://")) {
+      if (!mqttServeurOk || !reseau) { rep("\r\n+CMQTTCONNECT: 0,13\r\n", 2500); return; }
+      if (mqttMauvaisMdp) { rep("\r\nOK\r\n\r\n+CMQTTCONNECT: 0,5\r\n", 800); return; }
+      mqttCo = true; mqttConnexions++; rep("\r\nOK\r\n\r\n+CMQTTCONNECT: 0,0\r\n", 800);
+    }
+    else if (c == "AT+CMQTTCONNECT?") rep(mqttCo ? "\r\n+CMQTTCONNECT: 0,\"tcp://x.s1.eu.hivemq.cloud:8883\",120,1\r\n\r\nOK\r\n" : "\r\nOK\r\n");
+    else if (commence("AT+CMQTTSUB=0,")) { subAttendus = (size_t)atol(c.c_str() + 14); subCorps.clear(); attendSub = true; rep("\r\n>", 5); }
+    else if (commence("AT+CMQTTDISC=") || commence("AT+CMQTTREL=")) { mqttCo = false; rep("\r\nOK\r\n"); }
+    else if (c == "AT+CMQTTSTOP") { mqttDemarre = false; mqttCo = false; rep("\r\nOK\r\n"); }
     else if (c == "AT+CGMR") rep("\r\n+CGMR: A011B07A7670M7_F\r\n\r\nOK\r\n");
     else if (c == "AT+CPIN?") rep("\r\n+CPIN: READY\r\n\r\nOK\r\n");
     else if (c == "AT+CEREG?" || c == "AT+CGREG?" || c == "AT+CREG?") rep(std::string("\r\n") + c.substr(2, c.size() - 3) + ": 0," + (reseau ? "1" : "2") + "\r\n\r\nOK\r\n");
@@ -132,6 +147,9 @@ void simTick() {
   if (a == 5) Serial.console += "etat\n";
   if (a == 6) Serial.console += "AT+CSQ\n";
   if (a == 7) Serial.console += "etat\n";
+  if (a == 8) { modemSim.demandes.push_back(g_millis / 60000); modemSim.rep("\r\n+CMQTTRXSTART: 0,19,1\r\n+CMQTTRXTOPIC: 0,19\r\nba/xxxxxxxxxxxxxxxx\r\n+CMQTTRXPAYLOAD: 0,1\r\n1\r\n+CMQTTRXEND: 0\r\n", 3); }
+  if (a == 9) { modemSim.mqttCo = false; modemSim.mqttServeurOk = false; modemSim.rep("\r\n+CMQTTCONNLOST: 0,1\r\n", 3); }
+  if (a == 10) modemSim.mqttServeurOk = true;
 }
 static void simMachineTick() { if (machineSim.envoiPrevu && g_millis >= machineSim.envoiPrevu) { machineSim.envoiPrevu = 0; machineSim.ouvrirSession(); } }
 
@@ -153,6 +171,9 @@ int main(int argc, char** argv) {
   if (scen == "sql_absente") { modemSim.rpcAbsente = true; duree = 40UL * 60000UL; }
   // v1.2 : l'admin règle « Lire maintenant » sur 15 min ; une demande à 50 min est prise au passage suivant
   if (scen == "reglage") { modemSim.ecoute = 900; modemSim.demandes = {50}; duree = 95UL * 60000UL; }
+  // v2.0 MQTT (config.h doit avoir MQTT_HOST/MQTT_PASS remplis : lancer.sh le fait) : connexion, ordre instantané, perte puis retour
+  if (scen == "mqtt") { evenements[12UL * 60000UL + 500] = 8; evenements[30UL * 60000UL] = 9; evenements[34UL * 60000UL] = 10; evenements[50UL * 60000UL + 700] = 8; duree = 70UL * 60000UL; }
+  if (scen == "mqtt_mdp") { modemSim.mqttMauvaisMdp = true; duree = 20UL * 60000UL; }
   // la machine envoie elle-même un événement (vente) : envoi + lecture de contrôle juste après
   const char* EV = "DXS*FAS000000001*VA*V1/6*1\r\nST*001*0001\r\nEA1*EGS*261030*1442***+1\r\nEA2*EGS****1\r\nG85*1234\r\nSE*5*001*0001\r\nDXE*1*1\r\n";
   if (scen == "evenement") { machineSim.evenement = EV; evenements[20UL * 60000UL] = 2; evenements[20UL * 60000UL + 10] = 1; duree = 30UL * 60000UL; }
@@ -168,6 +189,7 @@ int main(int argc, char** argv) {
   o = fopen("rpc.txt", "w");
   for (auto& e : modemSim.appelsRpc) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
+  fprintf(stderr, "MQTT connexions=%d abonnements=%d canal=%s\n", modemSim.mqttConnexions, modemSim.mqttAbonnements, modemSim.mqttCanalVu.c_str());
   fprintf(stderr, "RESUME scen=%s envois=%zu lectures=%d sessionsMachine=%d restarts=%d http=%d rpc=%zu rpcSansCle=%d\n", scen.c_str(), modemSim.envois.size(), machineSim.lectures, machineSim.sessionsMachine, g_restarts, modemSim.actions, modemSim.appelsRpc.size(), modemSim.rpcSansCle);
   return 0;
 }

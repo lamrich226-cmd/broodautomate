@@ -25,6 +25,17 @@
 #define DEMANDE_URL   "https://ujvihkryzjrawamekwpu.supabase.co/rest/v1/rpc/ba_boitier"       // bouton « Lire maintenant »
 #define SUPABASE_KEY  "sb_publishable_s6F8C6S_gDlh68L5BfJ47Q_coFMjWKI"                        // clé publique (pas secrète)
 
+// ---------- 4 bis. Connexion permanente MQTT (v2.0) : « Lire maintenant » instantané ----------
+// Serveur de messages gratuit (HiveMQ Cloud). Tant que MQTT_HOST contient « COLLE_ICI », la connexion permanente
+// est coupée et le boîtier fonctionne comme en v1.2 (il regarde toutes les DEMANDE_EVERY_SEC secondes).
+// Le boîtier reste connecté (quelques Mo par mois) et reçoit l'ordre « lis maintenant » tout de suite.
+#define MQTT_HOST  "COLLE_ICI_L_ADRESSE_DU_CLUSTER"     // ex. abcd1234.s1.eu.hivemq.cloud
+#define MQTT_PORT  8883                                 // connexion sécurisée (TLS)
+#define MQTT_USER  "boitier"                            // identifiant créé dans HiveMQ (Access Management)
+#define MQTT_PASS  "COLLE_ICI_LE_MOT_DE_PASSE_MQTT"     // mot de passe de cet identifiant
+#define MQTT_KEEPALIVE_SEC 120                          // « je suis là » toutes les N secondes (60 à 240 ; plus court = plus de données)
+#define MQTT_SECOURS_SEC   3600                         // quand MQTT marche, vérification de secours chez Supabase toutes les N secondes
+
 // ---------- 5. Machine (mêmes réglages que le câble RS232 de Broodautomate) ----------
 #define MACHINE_BAUD     9600     // vitesse de la commande 90 de la machine
 #define READ_EVERY_MIN   60       // lecture de contrôle (liste 2) toutes les N minutes : erreurs, alertes, ventes ; 0 = jamais

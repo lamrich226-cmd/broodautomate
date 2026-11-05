@@ -20,12 +20,16 @@ class Modem {
   bool reseau = false;                // enregistré sur le réseau 4G et données actives
   int csq = 99;                       // qualité du signal 0…31 (99 = inconnue)
   String operateur, ip, derniereErreur, opBon;
+  // v2.0 : connexion permanente MQTT (pile MQTT du modem). Le message reçu n'a pas d'importance : il veut dire « lis maintenant ».
+  bool mqttConnecte = false;          // connecté au serveur et abonné au canal du boîtier
+  bool mqttOrdre = false;             // un message est arrivé (à remettre à faux après usage)
+  String mqttErreur;
 
   // ---------- Allumage ----------
   bool demarrer() {
     s_.setRxBufferSize(2048);
     s_.begin(115200, SERIAL_8N1, MODEM_RX_PIN, MODEM_TX_PIN);
-    pret = reseau = false;
+    pret = reseau = false; mqttConnecte = false;
     Serial.println(F("[4G] Allumage du modem…"));
     // Alimentation du modem (obligatoire sur la T-A7670)
     pinMode(BOARD_POWERON_PIN, OUTPUT); digitalWrite(BOARD_POWERON_PIN, HIGH);
@@ -56,7 +60,7 @@ class Modem {
   // ---------- Réseau ----------
   // Enregistrement sur le réseau + données actives (jusqu'à 2 minutes)
   bool connecter() {
-    reseau = false;
+    reseau = false; mqttConnecte = false;
     if (!pret && !demarrer()) return false;
     if (!at("AT", "OK", 1000)) { pret = false; if (!demarrer()) return false; }
     at("AT+CTZU=1");                                // heure fournie par l'opérateur
@@ -212,6 +216,52 @@ class Modem {
     return code;
   }
 
+  // ---------- MQTT (connexion permanente, TLS) ----------
+  // Ouvre la connexion et s'abonne au canal du boîtier. Le modem envoie ensuite tout seul son « je suis là »
+  // (keepalive) ; quand un message arrive il l'annonce par +CMQTTRXSTART… (lu par verifierUrc).
+  bool mqttOuvrir(const char* hote, int port, const char* user, const char* pass, const String& clientId, const String& canal, int keepalive) {
+    mqttConnecte = false; mqttErreur = "";
+    mqttFermer();
+    if (!atLigne("AT+CMQTTSTART", "+CMQTTSTART:", 15000) || (rep_.indexOf("+CMQTTSTART: 0") < 0 && rep_.indexOf("+CMQTTSTART: 23") < 0)) {
+      mqttErreur = "CMQTTSTART : " + nettoie(rep_); return mqttEchec();
+    }
+    if (!at("AT+CMQTTACCQ=0,\"" + clientId + "\",1", "OK", 5000)) { mqttErreur = "CMQTTACCQ : " + nettoie(rep_); return mqttEchec(); }
+    // TLS : contexte n°1 (le n°0 sert au HTTPS). Le certificat du serveur n'est pas vérifié (comme pour le HTTPS du boîtier).
+    at("AT+CSSLCFG=\"sslversion\",1,4", "OK", 2000);
+    at("AT+CSSLCFG=\"authmode\",1,0", "OK", 2000);
+    at("AT+CSSLCFG=\"enableSNI\",1,1", "OK", 2000);
+    if (!at("AT+CMQTTSSLCFG=0,1", "OK", 3000)) { mqttErreur = "CMQTTSSLCFG : " + nettoie(rep_); return mqttEchec(); }
+    String c = String("AT+CMQTTCONNECT=0,\"tcp://") + hote + ":" + String(port) + "\"," + String(keepalive) + ",1,\"" + user + "\",\"" + pass + "\"";
+    if (!atLigne(c, "+CMQTTCONNECT:", 45000)) { mqttErreur = "connexion refusée ou sans réponse : " + nettoie(rep_); return mqttEchec(); }
+    if (rep_.indexOf("+CMQTTCONNECT: 0,0") < 0) { mqttErreur = "serveur : " + nettoie(rep_) + " (adresse du cluster, identifiant ou mot de passe MQTT ?)"; return mqttEchec(); }
+    // abonnement au canal (qualité 0 : pas de message gardé, pas de vieil ordre)
+    if (!at("AT+CMQTTSUB=0," + String(canal.length()) + ",0", ">", 5000)) { mqttErreur = "CMQTTSUB : " + nettoie(rep_); return mqttEchec(); }
+    s_.print(canal);
+    if (!attendreTexte("+CMQTTSUB:", 15000, true) || rep_.indexOf("+CMQTTSUB: 0,0") < 0) { mqttErreur = "abonnement : " + nettoie(rep_); return mqttEchec(); }
+    mqttConnecte = true; mqttOrdre = false;
+    return true;
+  }
+  // Vrai si le modem se dit toujours connecté (à demander de temps en temps)
+  bool mqttVivant() {
+    if (!mqttConnecte) return false;
+    if (!at("AT+CMQTTCONNECT?", "OK", 3000)) { return mqttConnecte; }     // pas de réponse claire : on garde, la perte se saura par +CMQTTCONNLOST
+    if (rep_.indexOf("tcp://") < 0) mqttConnecte = false;
+    return mqttConnecte;
+  }
+  void mqttFermer() {
+    at("AT+CMQTTDISC=0,5", "OK", 5000);
+    at("AT+CMQTTREL=0", "OK", 3000);
+    at("AT+CMQTTSTOP", "OK", 5000);
+    mqttConnecte = false;
+  }
+  // Appelée souvent par loop() : lit ce que le modem a dit sans qu'on lui demande (message MQTT, perte de connexion)
+  void mqttPompe() {
+    if (!s_.available()) return;
+    String t;
+    while (s_.available() && t.length() < 2000) t += (char)s_.read();
+    verifierUrc(t);
+  }
+
   // ---------- Commande tapée dans le Moniteur série (dépannage) ----------
   String passerelle(const String& cmd, uint32_t delai = 8000) {
     at(cmd, "OK", delai);
@@ -228,11 +278,18 @@ class Modem {
   String rep_;
 
   bool envoyer(const String& cmd, const char* attendu, uint32_t delai, bool ligne) {
+    if (s_.available()) { String reste; while (s_.available() && reste.length() < 2000) reste += (char)s_.read(); verifierUrc(reste); }   // un message MQTT peut arriver ici : on le note avant de le jeter
     while (s_.available()) s_.read();
     s_.print(cmd); s_.print("\r\n");
     rep_ = "";
     return attendreTexte(attendu, delai, ligne);
   }
+  // Annonces spontanées du modem (MQTT) : message reçu → mqttOrdre ; connexion perdue → mqttConnecte = faux
+  void verifierUrc(const String& t) {
+    if (t.indexOf("+CMQTTRXSTART") >= 0 || t.indexOf("+CMQTTRXEND") >= 0 || t.indexOf("+CMQTTRXTOPIC") >= 0) mqttOrdre = true;
+    if (t.indexOf("+CMQTTCONNLOST") >= 0 || t.indexOf("+CMQTTNONET") >= 0) mqttConnecte = false;
+  }
+  bool mqttEchec() { Serial.println("[MQTT] ✖ " + mqttErreur); mqttFermer(); return false; }
   void attendre(uint32_t ms) { uint32_t t0 = millis(); while (millis() - t0 < ms) { if (idle) idle(); delay(1); } }
   void impulsion(uint32_t ms) {
     pinMode(MODEM_PWRKEY_PIN, OUTPUT);
@@ -242,6 +299,11 @@ class Modem {
   }
   // Attend un texte dans la réponse ; ligne complète si demandé. Faux sur « ERROR » ou délai dépassé.
   bool attendreTexte(const char* attendu, uint32_t delai, bool ligne = false) {
+    bool ok = attendreTexteBrut(attendu, delai, ligne);
+    verifierUrc(rep_);                                  // un message MQTT peut arriver pendant n'importe quelle attente
+    return ok;
+  }
+  bool attendreTexteBrut(const char* attendu, uint32_t delai, bool ligne) {
     uint32_t t0 = millis();
     while (millis() - t0 < delai) {
       while (s_.available()) rep_ += (char)s_.read();
