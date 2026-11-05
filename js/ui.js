@@ -635,14 +635,14 @@ window.BA = window.BA || {};
         <td><input id="ps-cap-${m.num}-${sel.n}" class="ps-cap num-in" type="number" min="1" max="50" value="${sel.cap}" data-sel="${sel.n}"></td>
         <td class="nowrap"><b>${q}</b>${q > 0 ? ` <button class="btn petit secondary rm-mini" data-act="rm-bread" data-sel="${sel.n}" title="${E(t("btn_rm_tip"))}" aria-label="${E(t("btn_rm_tip"))} ${sel.n}">➖</button>` : ""}${o ? `<div class="petit only-phone">${F.dt(o.date)}</div>` : ""}</td>
         <td class="no-phone">${o ? `${F.dt(o.date)} <span class="petit">(${t("n_breads", { n: o.qty })} · ${F.age(s.now - o.date)})</span>` : "—"}</td>
-        ${admin ? `<td><input id="ps-price-${m.num}-${sel.n}" class="ps-price num-in" type="number" min="0" step="0.1" value="${sel.price.toFixed(2)}" data-sel="${sel.n}"></td>` : ""}
+        <td><input id="ps-price-${m.num}-${sel.n}" class="ps-price num-in" type="number" min="0" step="0.1" value="${sel.price.toFixed(2)}" data-sel="${sel.n}" aria-label="${E(t("col_price"))} ${sel.n}"></td>
         <td>${status}</td>
-        <td class="nowrap">${q > 0 && m.sels.some(x => x !== sel && x.type === sel.type) ? `<button class="btn petit secondary mv-btn" data-act="sel-move" data-sel="${sel.n}" title="${E(t("btn_move_tip"))}" aria-label="${E(t("btn_move"))} ${sel.n}"><span class="mv-arrows">⇄</span></button> ` : ""}${m.sels.length > 1 ? `<button class="btn petit secondary sel-del" data-act="sel-del" data-sel="${sel.n}" title="${E(t("btn_del_sel"))}" aria-label="${E(t("btn_del_sel"))} ${sel.n}">🗑</button>` : ""}</td></tr>`;
+        <td class="nowrap">${q > 0 && m.sels.some(x => x !== sel && x.type === sel.type) ? `<button class="btn petit secondary mv-btn" data-act="sel-move" data-sel="${sel.n}" title="${E(t("btn_move_tip"))}" aria-label="${E(t("btn_move"))} ${sel.n}"><span class="mv-arrows">⇄</span>${admin ? "" : " " + t("btn_move")}</button> ` : ""}${m.sels.length > 1 ? `<button class="btn petit secondary sel-del" data-act="sel-del" data-sel="${sel.n}" title="${E(t("btn_del_sel"))}" aria-label="${E(t("btn_del_sel"))} ${sel.n}">🗑${admin ? "" : " " + t("btn_del_short")}</button>` : ""}</td></tr>`;
     }).join("");
     return `
       ${msg ? `<div class="alert ${msg.kind === "ok" ? "info" : "err"}">${msg.kind === "ok" ? "✅" : "⚠️"} ${E(msg.text)}</div>` : ""}
       <div class="table-scroll"><table class="sel-table">
-      <thead><tr><th>${t("col_sel")}</th><th>${t("col_type")}</th><th>${t("col_cap")}</th><th>${t("col_qty")}</th><th class="no-phone">${t("col_oldest")}</th>${admin ? `<th>${t("col_price")}</th>` : ""}<th>${t("col_status")}</th><th></th></tr></thead>
+      <thead><tr><th>${t("col_sel")}</th><th>${t("col_type")}</th><th>${t("col_cap")}</th><th>${t("col_qty")}</th><th class="no-phone">${t("col_oldest")}</th><th>${t("col_price")}</th><th>${t("col_status")}</th><th></th></tr></thead>
       <tbody>${rows}</tbody></table></div>
       <div class="card add-sel">
         <h3>➕ ${t("add_sel_title")}</h3>
@@ -651,7 +651,7 @@ window.BA = window.BA || {};
           <label>${t("col_type")} <select id="as-type-${m.num}" class="auto-w" data-f="type">${typeOptions(s, f.type, true).replace(`value="__new"`, `value="__new" ${f.type === "__new" ? "selected" : ""}`)}</select></label>
           ${f.type === "__new" ? `<label>${t("new_type_name")} <input id="as-newtype-${m.num}" type="text" maxlength="40" class="txt-in" placeholder="${E(t("new_type_ph"))}" value="${E(f.newType)}" data-f="newType"></label>` : ""}
           <label>${t("col_cap")} <input id="as-cap-${m.num}" class="num-in" type="number" min="1" max="50" value="${E(f.cap)}" data-f="cap"></label>
-          ${admin ? `<label>${t("col_price")} <input id="as-price-${m.num}" class="num-in" type="number" min="0" step="0.1" placeholder="${s.settings.salePrice.toFixed(2)}" value="${E(f.price)}" data-f="price"></label>` : ""}
+          <label>${t("col_price")} <input id="as-price-${m.num}" class="num-in" type="number" min="0" step="0.1" placeholder="${s.settings.salePrice.toFixed(2)}" value="${E(f.price)}" data-f="price"></label>
           <button class="btn" data-act="sel-add">➕ ${t("btn_add_sel")}</button>
         </div>
         <p class="petit">${t("add_sel_help")}</p>
@@ -687,7 +687,7 @@ window.BA = window.BA || {};
     });
     el.querySelectorAll('[data-act="type-cancel"]').forEach(b => b.onclick = () => { st.selEdit = null; rerender(); });
     el.querySelectorAll(".ps-cap").forEach(i => i.onchange = () => say(BA.Actions.updateSelection(num, i.dataset.sel, { cap: Number(i.value) }), "saved_sel"));
-    if (admin) el.querySelectorAll(".ps-price").forEach(i => i.onchange = () => { const v = Number(i.value); if (v >= 0) say(BA.Actions.updateSelection(num, i.dataset.sel, { price: v }), "saved_sel"); });
+    el.querySelectorAll(".ps-price").forEach(i => i.onchange = () => { const v = Number(i.value); if (i.value !== "" && v >= 0) say(BA.Actions.updateSelection(num, i.dataset.sel, { price: v }), "saved_price", { n: i.dataset.sel, p: F.eur(v) }); else say("err_price"); });
     el.querySelectorAll('.sel-table [data-act="rm-bread"]').forEach(b => b.onclick = () => removeDialog(num, b.dataset.sel));
     el.querySelectorAll('.sel-table [data-act="sel-move"]').forEach(b => b.onclick = () => moveDialog(num, b.dataset.sel, null));
     // Suppression : une fenêtre demande toujours de confirmer (avec un avertissement s'il reste du pain dedans)
@@ -719,7 +719,7 @@ window.BA = window.BA || {};
     const add = el.querySelector('[data-act="sel-add"]');
     if (add) add.onclick = () => {
       el.querySelectorAll(".add-sel [data-f]").forEach(i => { f[i.dataset.f] = i.value; });
-      const err = BA.Actions.addSelection(num, { n: f.n, type: f.type, newType: f.newType, cap: f.cap, price: admin ? f.price : null });
+      const err = BA.Actions.addSelection(num, { n: f.n, type: f.type, newType: f.newType, cap: f.cap, price: f.price });
       if (!err) {
         const added = M.sel(M.machine(BA.Store.get(), num), Number(f.n));
         if (f.type === "__new" && added) f.type = added.type;     // le nouveau type reste choisi pour la suivante

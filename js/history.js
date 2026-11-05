@@ -14,7 +14,7 @@ window.BA = window.BA || {};
   const t = (k, v) => BA.I18n.t(k, v);
   const st = () => BA.Shell.state;
   const PERIODS = ["today", "yesterday", "7", "30", "90", "365", "custom"];
-  const ICON = { sale: "🧾", rm: "➖", load: "🧺", inv: "🔢", keep: "👍", date: "📅", mv: "🔀", seladd: "➕", seldel: "🗑" };
+  const ICON = { sale: "🧾", rm: "➖", load: "🧺", inv: "🔢", keep: "👍", date: "📅", mv: "🔀", seladd: "➕", seldel: "🗑", price: "💶" };
 
   // ---------- Filtres ----------
   function filters(admin) {
@@ -39,7 +39,7 @@ window.BA = window.BA || {};
   function kindOk(e, kind) {
     if (kind === "all") return true;
     if (kind === "rm") return isRm(e);
-    if (kind === "other") return ["keep", "date", "mv", "seladd", "seldel"].includes(e.k);
+    if (kind === "other") return ["keep", "date", "mv", "seladd", "seldel", "price"].includes(e.k);
     return e.k === kind;
   }
   // Mouvements filtrés, du plus récent au plus ancien
@@ -83,6 +83,7 @@ window.BA = window.BA || {};
     if (e.k === "mv") p.push(t("hist_mv", { a: e.s, b: e.s2 }));
     if (e.k === "seladd" && e.c) p.push(t("hist_cap", { n: e.c }));
     if (e.k === "seldel" && e.q) p.push(t("hist_seldel_q", { q: e.q }));
+    if (e.k === "price") p.push(t("hist_price", { a: e.p0 != null ? F.eur(e.p0) : "—", b: F.eur(e.p) }));
     if (e.x) p.push(t("hist_note", { x: e.x }));
     if (e.it) p.push(t("hist_src_fill"));
     return p.join(" · ");

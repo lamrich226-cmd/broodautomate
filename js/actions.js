@@ -238,7 +238,12 @@ window.BA = window.BA || {};
           if (c < M.qty(sel)) return "err_cap_stock";
           sel.cap = c;
         }
-        if (values.price != null && Number(values.price) >= 0) sel.price = Math.round(Number(values.price) * 100) / 100;
+        if (values.price != null && Number(values.price) >= 0) {
+          const p0 = sel.price, p1 = Math.round(Number(values.price) * 100) / 100;
+          sel.price = p1;
+          // v5.11.1 : l'opérateur peut aussi changer le prix ; chaque changement est noté dans l'Historique (qui, quand, avant → après)
+          if (p1 !== p0) M.log(s, { k: "price", n: m.num, s: sel.n, y: sel.type, p: p1, p0 });
+        }
         return null;
       });
     },

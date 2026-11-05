@@ -109,3 +109,41 @@
   Object.assign(D.nl, { prof_click_hint: "Klik op een getal (bijvoorbeeld onder „ma.”) om die dag per broodsoort in te stellen." });
   Object.assign(D.en, { prof_click_hint: "Click a number (for example under “Mon.”) to set that day per kind of bread." });
 })();
+
+// v5.11.1 : l'opérateur peut changer le prix ; ajouter / supprimer une sélection plus visibles
+(function () {
+  const D = BA.I18n.dicts;
+  Object.assign(D.fr, {
+    btn_del_short: "Supprimer",
+    saved_price: "Prix de la sélection {n} : {p} (noté dans l'Historique).",
+    hk_other: "Autres (dates, encore bon, sélections, prix)",
+    err_price: "Prix incorrect : écris un nombre (par exemple 2.50).",
+    mv_price: "Prix changé",
+    hist_price: "{a} → {b}",
+    op_sel_help: "Ici tu peux ajouter une sélection (bouton ➕), en supprimer une (🗑 Supprimer), changer le type de pain, la capacité et le prix. Chaque changement de prix est noté dans l'Historique.",
+    products_op_note: "Le plus ancien pain de chaque sélection est vendu en premier. Les lots de plus de {h} h sont à retirer (un lot encore bon peut être gardé une seule fois ⏳ ; au jour suivant, il devient invalide ⛔ : à retirer obligatoirement). Le prix d'ici ne change pas la machine : son prix de vente se règle sur la machine elle-même. Le logiciel s'en sert quand le relevé de la machine ne donne pas le montant des ventes.",
+    op_more_stock_t: "Ajouter, supprimer une sélection, changer le prix, retirer des pains"
+  });
+  Object.assign(D.nl, {
+    btn_del_short: "Verwijderen",
+    saved_price: "Prijs van selectie {n}: {p} (genoteerd in de Geschiedenis).",
+    hk_other: "Andere (datums, nog goed, selecties, prijs)",
+    err_price: "Ongeldige prijs: vul een getal in (bijvoorbeeld 2.50).",
+    mv_price: "Prijs gewijzigd",
+    hist_price: "{a} → {b}",
+    op_sel_help: "Hier kun je een selectie toevoegen (knop ➕), er een verwijderen (🗑 Verwijderen), de broodsoort, de capaciteit en de prijs wijzigen. Elke prijswijziging wordt genoteerd in de Geschiedenis.",
+    products_op_note: "Het oudste brood van elke selectie wordt eerst verkocht. Loten ouder dan {h} u moeten weg (een nog goed lot mag één keer gehouden worden ⏳; de volgende dag is het ongeldig ⛔: verplicht te verwijderen). De prijs hier verandert de automaat niet: de verkoopprijs stel je in op de automaat zelf. De software gebruikt hem als de uitlezing van de automaat het verkoopbedrag niet geeft.",
+    op_more_stock_t: "Selectie toevoegen of verwijderen, prijs wijzigen, broden weghalen"
+  });
+  Object.assign(D.en, {
+    btn_del_short: "Delete",
+    saved_price: "Price of selection {n}: {p} (noted in the History).",
+    hk_other: "Other (dates, still good, selections, price)",
+    err_price: "Wrong price: type a number (for example 2.50).",
+    mv_price: "Price changed",
+    hist_price: "{a} → {b}",
+    op_sel_help: "Here you can add a selection (➕ button), delete one (🗑 Delete), change the kind of bread, the capacity and the price. Every price change is noted in the History.",
+    products_op_note: "The oldest bread of each selection is sold first. Lots older than {h} h must be removed (a lot that is still good may be kept once ⏳; the next day it becomes invalid ⛔: it must be removed). The price here does not change the machine: its selling price is set on the machine itself. The software uses it when the machine's reading does not give the sales amount.",
+    op_more_stock_t: "Add or delete a selection, change the price, remove bread"
+  });
+})();

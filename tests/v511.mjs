@@ -45,7 +45,9 @@ const etat = {
 (async () => {
   await new Promise(r => srv.listen(0, r));
   const URL0 = "http://127.0.0.1:" + srv.address().port + "/";
-  const fake = new FakeSupabase({ boitiers: true });
+  const fake = new FakeSupabase({ boitiers: true, users: [
+    { id: "11111111-2222-3333-4444-555555555555", email: "amor@test.be", password: "Secret-123" },
+    { id: "99999999-2222-3333-4444-555555555555", email: "op@test.be", password: "Secret-123", meta: { role: "operator" } }] });
   fake.baState = [{ id: "main", version: 3, data: etat, updated_at: new Date().toISOString() }];
   fake.t.machines = [{ id: "FAS-FAS000000001", name: "Rue de l'Essai 1", city: "Deurne", serial: "FAS000000001", model: null, status: "unknown", temp_c: 17, last_seen: null, created_at: "2026-10-27T10:00:00Z" }];
   fake.t.ba_demandes = [];
@@ -53,16 +55,16 @@ const etat = {
     last_seen: new Date().toISOString(), info: { fw: "1.2", mode: 1, stok: false, st: "essai sans machine", hb: 30, rd: 60, ec: 900, lok: 0 }, created_at: "2026-10-27T10:00:00Z" });
   const browser = await chromium.launch();
   const errs = [];
-  const device = async (name, opts) => {
+  const device = async (name, opts, page = "index.html", email = "amor@test.be") => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts));
     for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
     await fake.attach(ctx, name);
     const p = await ctx.newPage();
     p.on("pageerror", e => errs.push(name + " : " + e.message));
     p.on("console", m => { if (m.type() === "error" && !/WebSocket|Failed to load resource/.test(m.text())) errs.push(name + " : " + m.text()); });
-    await p.goto(URL0 + "index.html");
+    await p.goto(URL0 + page);
     await p.waitForSelector("#login-email", { timeout: 20000 });
-    await p.fill("#login-email", "amor@test.be"); await p.fill("#login-pass", "Secret-123"); await p.click("#login-go");
+    await p.fill("#login-email", email); await p.fill("#login-pass", "Secret-123"); await p.click("#login-go");
     await p.waitForSelector("#app-nav button", { timeout: 40000, state: "attached" });
     await sleep(2500);
     return p;
@@ -151,6 +153,34 @@ const etat = {
   const h = await tel.evaluate(() => ({ h: Math.round(document.getElementById("app-header").getBoundingClientRect().height), over: document.scrollingElement.scrollWidth > innerWidth + 1, titre: document.getElementById("page-title").textContent, tabs: document.querySelectorAll("#app-tabbar button").length }));
   ok("téléphone : bandeau sur une ligne avec le titre de la page, 5 onglets en bas, pas de défilement de côté", h.h <= 64 && !h.over && h.titre === "Dashboard" && h.tabs === 5, h);
   await tel.screenshot({ path: path.join(OUT, "v511-05-telephone-nuit.png") });
+  console.log("== 6. Opérateur (v5.11.1) : ajouter / supprimer une sélection, changer le prix");
+  const op = await device("op", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: "light" }, "operateur.html", "op@test.be");
+  await op.evaluate(() => BA.Shell.go("more")); await sleep(500);
+  ok("« Plus » : « Sélections et stock » dit qu'on peut ajouter, supprimer et changer le prix", /supprimer une sélection, changer le prix/i.test(await op.innerText("#view-more")));
+  await op.evaluate(() => BA.Shell.go("products")); await sleep(700);
+  ok("page Sélections et stock : bouton « ➕ Ajouter une sélection » en haut et explication", (await op.isVisible("#add-sel-go")) && /changer le type de pain, la capacité et le prix/.test(await op.innerText("#view-products")));
+  ok("chaque sélection : prix modifiable et bouton « 🗑 Supprimer » écrit en entier", (await op.$$("#view-products .ps-price")).length === 3 && /Supprimer/.test(await op.innerText("#view-products .sel-del")));
+  await op.fill("#ps-price-1-11", "2.80"); await op.press("#ps-price-1-11", "Tab"); await sleep(700);
+  const pr = await op.evaluate(() => { const s = BA.Store.get(); const sel = BA.Model.sel(s.machines[0], 11); const j = s.journal.filter(e => e.k === "price").pop(); return { p: sel.price, j: j && { p: j.p, p0: j.p0, b: j.b } }; });
+  ok("opérateur : prix de la sélection 11 → 2,80 €, noté dans l'Historique (2,50 → 2,80, par l'opérateur)", pr.p === 2.8 && pr.j && pr.j.p === 2.8 && pr.j.p0 === 2.5 && pr.j.b === "op", pr);
+  // v5.11.1 : le message de confirmation apparaît aussi chez l'opérateur (avant, il était dessiné dans une copie détachée de la page)
+  const msgOp = await op.evaluate(() => { const x = document.querySelector("#view-products .alert.info"); return x && x.isConnected && x.offsetParent !== null ? x.textContent : null; });
+  ok("opérateur : message « ✅ Prix de la sélection 11 : 2,80 € » visible", !!msgOp && /Prix de la sélection 11\s*:\s*2,80\s*€/.test(msgOp), msgOp);
+  await op.fill("#ps-cap-1-11", "5"); await op.press("#ps-cap-1-11", "Tab"); await sleep(700);
+  ok("opérateur : capacité changée avec son message de confirmation", await op.evaluate(() => BA.Model.sel(BA.Store.get().machines[0], 11).cap === 5 && !!document.querySelector("#view-products .alert.info")));
+  await op.click("#add-sel-go"); await sleep(600);
+  await op.fill("#as-n-1", "16"); await op.fill("#as-cap-1", "4"); await op.fill("#as-price-1", "3.20");
+  await op.click("[data-act=sel-add]"); await sleep(700);
+  const add = await op.evaluate(() => { const sel = BA.Model.sel(BA.Store.get().machines[0], 16); return sel && { cap: sel.cap, price: sel.price }; });
+  ok("opérateur : sélection 16 ajoutée avec son prix (4 places, 3,20 €)", add && add.cap === 4 && add.price === 3.2, add);
+  await op.screenshot({ path: path.join(OUT, "v511-06-operateur-selections.png"), fullPage: true });
+  await op.click("#view-products [data-act=sel-del][data-sel='16']"); await sleep(300);
+  await op.click("#dlg-ok"); await sleep(700);
+  ok("opérateur : sélection 16 supprimée (après confirmation)", await op.evaluate(() => !BA.Model.sel(BA.Store.get().machines[0], 16)));
+  await op.evaluate(() => BA.Shell.go("history")); await sleep(700);
+  ok("Historique de l'opérateur : « 💶 Prix changé » 2,50 € → 2,80 €", /Prix changé/.test(await op.innerText("#view-history")) && /2,50\s*€\s*→\s*2,80\s*€/.test(await op.innerText("#view-history")));
+  await p.evaluate(() => BA.Shell.go("history")); await sleep(1200);
+  ok("le PC admin voit le changement de prix de l'opérateur", /Prix changé/.test(await p.innerText("#view-history")));
   ok("aucune erreur dans les pages", !errs.length, errs);
   console.log(ko ? ko + " ÉCHEC(S)" : "TOUT EST BON");
   await browser.close(); srv.close(); process.exit(ko ? 1 : 0);

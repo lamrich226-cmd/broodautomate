@@ -122,3 +122,10 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - **Profils par jour → clic sur un chiffre** : la fenêtre « #1 … — lundi » par type de pain marche aussi pour une machine **sans historique de ventes** : on écrit directement le nombre de pains de chaque sorte ; la « journée normale » devient la moyenne des jours réglés à la main, jusqu'à ce que l'historique prenne le relais.
 - **Connexion RS232** : la page est rangée en 4 onglets — **Câble** (choisir la machine, Connecter, Lire maintenant ; réglages et journal repliés), **Boîtiers 4G**, **Mes machines**, **Outils** (clé USB, test EVA-DTS).
 - Point de retour : v5.10.0 = commit 7cffeec.
+
+## v5.11.1 — l'opérateur change aussi le prix d'une sélection
+- **Appli opérateur → Plus → Sélections et stock** : la colonne **Prix** se change directement (écrire le nouveau prix, il est enregistré en quittant la case). Le prix est aussi demandé quand on ajoute une sélection. Ajouter et supprimer une sélection existaient déjà (en bas de la page) ; ils sont maintenant plus visibles : bouton **« ➕ Ajouter une sélection »** en haut de la page, boutons **« ⇄ Déplacer »** et **« 🗑 Supprimer »** écrits en entier sur chaque ligne.
+- Chaque changement de prix (opérateur ou admin) est noté dans l'**Historique** : « 💶 Prix changé — 2,50 € → 2,80 € », avec qui l'a fait et quand (filtre « Autres (dates, encore bon, sélections, prix) »).
+- Le prix d'ici ne change pas la machine : son prix de vente se règle toujours sur la machine elle-même. Le montant des ventes vient du relevé de la machine ; le prix d'ici ne sert que si le relevé ne donne pas le montant d'une sélection.
+- Correction : chez l'opérateur, le message « ✅ enregistré » (prix, capacité, sélection ajoutée…) n'apparaissait jamais dans les pages ouvertes depuis « Plus ». Il apparaît maintenant.
+- Point de retour : v5.11.0 = commit 0fee273.

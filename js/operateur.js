@@ -122,10 +122,18 @@
   }
 
   // Pages ouvertes depuis « Plus » : bouton « Retour » en haut
+  // v5.11.1 : le cadre (bouton Retour + .op-sub) est gardé d'un dessin à l'autre. Avant, chaque mise à jour
+  // créait un nouveau .op-sub : les boutons de la page redessinaient l'ancien (détaché) et le message
+  // « ✅ enregistré » (prix, capacité, sélection ajoutée…) n'apparaissait jamais chez l'opérateur.
   const sousPage = render => (el, ctx) => {
-    el.innerHTML = `<button type="button" class="btn secondary petit op-back">‹ ${t("op_back_more")}</button><div class="op-sub"></div>`;
-    el.querySelector(".op-back").onclick = () => BA.Shell.go("more");
-    render(el.querySelector(".op-sub"), ctx);
+    let back = el.querySelector(":scope > .op-back"), sub = el.querySelector(":scope > .op-sub");
+    if (!back || !sub) {
+      el.innerHTML = `<button type="button" class="btn secondary petit op-back"></button><div class="op-sub"></div>`;
+      back = el.querySelector(".op-back"); sub = el.querySelector(".op-sub");
+    }
+    back.textContent = "‹ " + t("op_back_more");
+    back.onclick = () => BA.Shell.go("more");
+    render(sub, ctx);
   };
 
   // ================= Produits / Stock =================
@@ -137,11 +145,15 @@
     el.innerHTML = `
       <h2>🍞 ${t("nav_products")}</h2>
       ${U.machinePicker(s, m.num, "prod-machine")}
-      <div class="carte-actions"><button class="btn big" id="fill-btn">🧺 ${t("btn_fill")}</button></div>
+      <div class="carte-actions"><button class="btn big" id="fill-btn">🧺 ${t("btn_fill")}</button>
+        <button class="btn big secondary" id="add-sel-go">➕ ${t("add_sel_title")}</button></div>
+      <p class="note" data-aide="1">${t("op_sel_help")}</p>
       ${U.stockTable(s, m, false)}
       <p class="note">${t("products_op_note", { h: s.settings.thrHours })}</p>`;
     el.querySelector("#prod-machine").onchange = e => { st().machine = Number(e.target.value); renderProducts(el); };
     el.querySelector("#fill-btn").onclick = () => Wizard.open(m.num);
+    // v5.11.1 : le formulaire d'ajout est en bas de la page : ce bouton y va directement
+    el.querySelector("#add-sel-go").onclick = () => { const f = el.querySelector(".add-sel"); if (!f) return; f.scrollIntoView({ behavior: "smooth", block: "center" }); const n = f.querySelector("input"); if (n) setTimeout(() => n.focus({ preventScroll: true }), 350); };
     U.bindStockTable(el, m.num, false, () => renderProducts(el));
   }
 
