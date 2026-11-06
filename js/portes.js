@@ -18,7 +18,7 @@ window.BA = window.BA || {};
   const FAST = 15000, SLOW = 60000;
   let v = 0;                    // « version » des portes déjà reçues (la plus récente heure de changement)
   let ok = null;                // null : pas encore essayé · true : la fonction répond · false : fonction absente
-  let timer = null, busy = false, last = 0, open = new Map();      // open : id de la machine → heure d'ouverture (ms)
+  let timer = null, busy = false, last = 0, open = new Map(), liste = [];      // open : id de la machine → heure d'ouverture (ms)
 
   const missing = e => !!e && (e.code === "PGRST202" || e.code === "42883" || /ba_portes|schema cache|does not exist|Could not find/i.test(e.message || ""));
 
@@ -31,12 +31,14 @@ window.BA = window.BA || {};
       ok = true; last = Date.now();
       const j = r.data || {};
       if (Array.isArray(j.l)) {
-        open = new Map(j.l.filter(p => p.o).map(p => [p.m, Date.parse(p.d) || Date.now()]));
-        const s = BA.Store.get();
-        // une écriture seulement s'il y a vraiment quelque chose à changer (sinon rien n'est envoyé)
-        if (s && BA.Reel.portesPlan(s, j.l).length) BA.Store.update(st => BA.Reel.portes(st, j.l));
+        liste = j.l;
+        open = new Map(liste.filter(p => p.o).map(p => [p.m, Date.parse(p.d) || Date.now()]));
         v = Number(j.v) || 0;
       }
+      // À CHAQUE tour (même si rien n'a changé côté serveur) : la porte de l'appli doit suivre celle du serveur.
+      // Une porte restée « ouverte » dans l'appli (ouverte par un relevé, jamais refermée) est ainsi corrigée toute seule.
+      const s = BA.Store.get();
+      if (s && liste.length && BA.Reel.portesPlan(s, liste).length) BA.Store.update(st => BA.Reel.portes(st, liste));
     } catch (e) {
       console.warn("Portes :", e.message || e);
     } finally { busy = false; }

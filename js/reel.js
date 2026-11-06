@@ -81,10 +81,17 @@ window.BA = window.BA || {};
     ev.level = info ? "info" : d.gravite === "p" && e.active !== false ? "err" : "warn";
     if ((info || e.active === false) && !ev.resolved) { ev.resolved = true; ev.resolvedAt = s.now; }
   }
+  // « ECF_38 » (EA1) et « 16/38 » (MA5) sont le MÊME événement écrit de deux façons : on garde seulement l'erreur FAS
+  function sansDoublonFas(evs, fasList) {
+    return (evs || []).filter(e => {
+      const o = BA.Alertes && BA.Alertes.observee ? BA.Alertes.observee(e.code) : null;
+      return !(o && (fasList || []).some(f => String(f.code) === o.fas && String(f.sous || "") === o.sous && (!e.date || !f.date || (f.date === e.date && f.time === e.time))));
+    });
+  }
   function fasEvent(s, m, e, hist) {
     const d = BA.Alertes.fas(e.code, e.sous);
     const ev = M.addEvent(s, m.num, "FAS_ERROR", {
-      code: e.code, sous: e.sous || "", title: d.titre, expl: d.expl, sol: (d.solution || []).join(" "), count: e.nouveaux || e.count || 1,
+      code: e.code, sous: e.sous || "", title: d.titre, expl: d.expl, sol: (d.terrain ? [d.terrain] : []).concat(d.solution || []).join(" "), count: e.nouveaux || e.count || 1,
       when: when(e.date, e.time), until: s.now + ERR_H(),
       key: "f" + e.code + "/" + (e.sous || "") + "|" + (e.date || "") + "|" + (e.time || "")
     });
@@ -129,7 +136,7 @@ window.BA = window.BA || {};
       const busy = s.interventions.some(x => x.num === m.num && x.status === "open");
       if (p.o && !m.door) out.push({ num: m.num, open: true, at });
       else if (p.o && m.door && at && Math.abs((m.doorAt || 0) - at) > 1000) out.push({ num: m.num, open: true, at });     // même porte, heure exacte
-      else if (!p.o && m.door && !busy && at >= (m.doorAt || 0)) out.push({ num: m.num, open: false, at });
+      else if (!p.o && m.door && !busy && at + 5 * 60000 >= (m.doorAt || 0)) out.push({ num: m.num, open: false, at });        // le serveur dit « fermée » : l'appli suit (marge 5 min : l'appli note l'heure de SON import du relevé)
     });
     return out;
   }
@@ -232,7 +239,7 @@ window.BA = window.BA || {};
         if (m.sels.length && m.sels.every(z => M.qty(z) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
       }
       if (!diff.baseline) {
-        grouper(nv.eva, e => e.code + "|" + e.date + "|" + e.time).concat(nv.activations).forEach(e => machineEvent(s, m, e));
+        grouper(sansDoublonFas(nv.eva, nv.fas), e => e.code + "|" + e.date + "|" + e.time).concat(nv.activations).forEach(e => machineEvent(s, m, e));
         grouper(nv.fas, e => e.code + "/" + e.sous + "|" + e.date + "|" + e.time).forEach(e => fasEvent(s, m, e));
         nv.pow.forEach(p => powerEvent(s, m, p));
         nv.temp.forEach(tt => tempEvent(s, m, Number(tt.c), when(tt.date, tt.time)));
@@ -266,7 +273,7 @@ window.BA = window.BA || {};
       let n = 0;
       doorState(s, m, a.events);
       closeFinished(s, m, a.events);
-      a.events.forEach(e => { if (fresh("eva|" + e.code + "|" + e.date + "|" + e.time + "|" + e.active + "|" + e.count)) { machineEvent(s, m, e); n++; } });
+      sansDoublonFas(a.events, a.fasErrors).forEach(e => { if (fresh("eva|" + e.code + "|" + e.date + "|" + e.time + "|" + e.active + "|" + e.count)) { machineEvent(s, m, e); n++; } });
       a.fasErrors.forEach(e => { if (fresh("fas|" + e.code + "/" + e.sous + "|" + e.date + "|" + e.time)) { fasEvent(s, m, e); n++; } });
       (a.temperatures || []).forEach(tt => { if (fresh("temp|" + tt.date + "|" + tt.time)) { tempEvent(s, m, tt.celsius, when(tt.date, tt.time)); n++; } });
       if (a.temperatures && a.temperatures.length) m.temp = a.temperatures[0].celsius;

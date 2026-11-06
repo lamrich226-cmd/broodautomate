@@ -59,6 +59,13 @@ delete env.FCM_SERVICE_ACCOUNT;
 r = await post({ k: KEY, role: "machine", raw: "DXS\nEA7*5*1\nDXE" });
 const c = DB.ba_notifications.find(n => n.type === "coupure");
 ok("sans Firebase : notification gardée pour la cloche, pas envoyée", c && !c.envoye_at && pushes.length === 5, c);
+// v5.15 : porte = le plus récent de EGS / EGT, quel que soit l'ordre des lignes (le relevé ne garde que la dernière de chaque)
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*261106*1152\nEA2*EGS****1\nEA1*EGT*261106*1138\nEA2*EGT****0\nDXE" });
+ok("EGS 11:52 listé avant un EGT plus ancien 11:38 : porte OUVERTE", DB.devices[0].info.porte.ouverte === true, DB.devices[0].info.porte);
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*261106*1152\nEA2*EGS****0\nEA1*EGT*261106*1153\nEA2*EGT****1\nDXE" });
+ok("EGT 11:53 plus récent que EGS 11:52 : porte FERMÉE", DB.devices[0].info.porte.ouverte === false, DB.devices[0].info.porte);
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGT*261106*1160\nDXE" });
+ok("un seul événement EGT : fermée", DB.devices[0].info.porte.ouverte === false);
 // v5.13 : notification immédiate à l'ouverture de la porte (réglage « porteNotif », éteint par défaut)
 DB.ba_state = [{ id: "main", data: { settings: {} } }];
 const instant = () => DB.ba_notifications.filter(n => /: porte ouverte$/.test(n.titre)).length;

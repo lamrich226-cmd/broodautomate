@@ -38,8 +38,9 @@ window.BA = window.BA || {};
             solution: ["Vérifier la sonde intérieure (repère A)."] },
     "11": { titre: "Sonde de l'évaporateur défectueuse", expl: "la sonde de l'évaporateur (groupe froid) ne fonctionne pas", sous: ["38", "39"],
             solution: ["Vérifier la sonde de l'évaporateur (repère E)."] },
-    "16": { titre: "Erreur de communication avec une carte", expl: "la carte principale ne communique plus avec une carte de la machine (tableau électrique)", sous: ["33", "38", "39"],
-            solution: ["Vérifier les branchements des cartes.", "Vérifier l'état des câbles entre les cartes.", "Une des cartes peut être cassée."] },
+    "16": { titre: "Erreur de communication avec une carte", expl: "la carte principale ne communique plus avec un appareil de la machine (la carte du panneau de commande, d'après le manuel). La machine ne donne pas la cause de la coupure", sous: ["33", "38", "39"],
+            solution: ["Vérifier la connexion aux cartes.", "Vérifier l'état des câbles de liaison.", "Une des cartes peut être cassée."],
+            terrain: "Constaté sur place le 06/11/2026 : un pain coincé entre l'ascenseur et la spirale a provoqué cette erreur, sans aucune carte abîmée. Regarde d'abord s'il y a un blocage mécanique, puis relis la machine." },
     "17": { titre: "Communication coupée pendant une vente (crédit pas encaissé)", expl: "la communication entre les cartes s'est coupée pendant une vente ; le crédit n'a pas été encaissé", sous: ["38", "39"],
             solution: ["Vérifier les branchements des cartes.", "Vérifier l'état des câbles.", "La carte d'alimentation peut être cassée."] },
     "18": { titre: "Communication coupée pendant une vente (crédit encaissé)", expl: "la communication entre les cartes s'est coupée pendant une vente ; le crédit a été encaissé", sous: ["38", "39"],
@@ -58,7 +59,9 @@ window.BA = window.BA || {};
             note: "Le manuel français écrit « après l'étalonnage » pour 31 et 32 ; l'italien et l'anglais disent « pendant » pour 32." },
     "33": { titre: "Cellules photoélectriques débranchées pendant une vente", expl: "les cellules qui détectent le produit ne répondent plus pendant la vente", sous: ["38", "39"],
             solution: ["Vérifier la carte des cellules photoélectriques."] },
-    "39": { titre: "Chariot de blocage de la cloison arrière de l'ascenseur", expl: "erreur du chariot qui verrouille la cloison arrière de l'ascenseur", sous: ["54"],
+    "38": { titre: "Chariot de blocage de la cloison arrière : erreur à la hauteur de la sélection", expl: "le chariot qui verrouille la cloison arrière de l'ascenseur a eu une erreur quand l'ascenseur était à la hauteur de la sélection", sous: ["54"],
+            solution: ["Vérifier le micro-interrupteur du chariot de verrouillage / déverrouillage de la cloison arrière de l'ascenseur."] },
+    "39": { titre: "Chariot de blocage de la cloison arrière : erreur au début du cycle de vente", expl: "le chariot qui verrouille la cloison arrière de l'ascenseur a eu une erreur au début d'une vente", sous: ["54"],
             solution: ["Vérifier le micro-interrupteur du chariot de verrouillage / déverrouillage de la cloison arrière de l'ascenseur."] },
     "40": { titre: "Erreur de l'ascenseur", expl: "un mouvement de l'ascenseur n'a pas abouti", sous: ["0", "1", "2", "3", "4", "5", "6"],
             solution: [],
@@ -581,7 +584,7 @@ window.BA = window.BA || {};
     return {
       code: c, sous: s, titre: f.titre,
       expl: f.expl + (detail ? " — " + detail : ""),
-      solution: f.solution.slice(), note: f.note || "",
+      solution: f.solution.slice(), note: f.note || "", terrain: f.terrain || "",
       gravite: "p", source: "fas", connu: true
     };
   }
@@ -663,6 +666,7 @@ window.BA = window.BA || {};
     FAS, SOUS_CODES, GROUPES, GRAVITES, OBSERVEES,
     decrire,
     fas: fasDecrire,
+    observee: c => OBSERVEES[c] || null,          // ex. « ECF_38 » = erreur FAS 16/38 (même événement écrit de 2 façons)
     chercher,
     gravite: g => GRAVITES[g] || GRAVITES.s,
     nombreCodes() {

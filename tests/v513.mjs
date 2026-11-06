@@ -183,6 +183,27 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   await p.screenshot({ path: path.join(OUT, "v514-01-journal-traduit.png") });
   ok("pas d'erreur dans la console", errs.length === 0, errs);
 
+  console.log("\n== 6b. Porte restée « ouverte » dans l'appli alors que le serveur dit « fermée » : l'appli se corrige toute seule");
+  await p.evaluate(() => BA.Store.update(s => { const m = s.machines.find(x => x.num === 1); m.door = true; m.doorAt = Date.now(); }));
+  ok("(départ) la machine #1 est notée ouverte", (await door(1)).door === true);
+  const dt3 = await waitDoor(1, false, 25000);
+  ok("refermée dans l'appli en moins de 20 s (" + dt3 + " ms) sans nouveau relevé", dt3 >= 0 && dt3 < 20000);
+
+  console.log("\n== 7. Erreur 16/38 + ECF_38 : une seule alerte ; messages conformes au manuel");
+  const r7 = await p.evaluate(raw => {
+    const an = BA.EvaDts.parse(raw);
+    BA.Store.update(s => { s.events = s.events.filter(e => e.num !== 1); BA.Reel.applyEvents(s, 1, { t: Date.now(), analyse: an, src: "boitier" }); });
+    const evs = BA.Store.get().events.filter(e => e.num === 1);
+    const f16 = evs.filter(e => e.code === "FAS_ERROR" && String(e.code2 || e.data && e.data.code || e.sous || "") !== "");
+    return { codes: evs.map(e => e.code + "|" + (e.title || "")), fas: evs.filter(e => e.code === "FAS_ERROR"), ecf: evs.filter(e => /ECF/.test(JSON.stringify(e))).length - evs.filter(e => e.code === "FAS_ERROR" && /ECF/.test(JSON.stringify(e))).length,
+      a16: BA.Alertes.fas("16", "38"), a38: BA.Alertes.fas("38", "54") };
+  }, RAW3);
+  ok("une seule alerte pour 16/38 (pas aussi « ECF_38 »)", r7.fas.length === 1, r7.codes);
+  ok("le texte de l'alerte : le pain coincé d'abord, puis les 3 points du manuel (dont « une carte peut être cassée » en dernier)", /^Constaté sur place[\s\S]*pain coincé[\s\S]*Vérifier la connexion aux cartes[\s\S]*Une des cartes peut être cassée\.$/.test(((r7.fas[0].data && r7.fas[0].data.sol) || r7.fas[0].sol || "")), r7.fas[0].sol);
+  ok("16 : plus de « tableau électrique » (le manuel dit « control panel board »)", !/tableau électrique/.test(r7.a16.expl) && /panneau de commande/.test(r7.a16.expl), r7.a16.expl);
+  ok("code 38 connu (chariot de la cloison arrière, hauteur de la sélection)", r7.a38.connu === true && /hauteur de la sélection/.test(r7.a38.titre), r7.a38);
+  ok("pas d'erreur dans la console", errs.length === 0, errs);
+
   await browser.close(); srv.close();
   console.log(ko ? "\n" + ko + " ÉCHEC(S)" : "\nTout est OK"); process.exit(ko ? 1 : 0);
 })();
