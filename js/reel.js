@@ -277,6 +277,16 @@ window.BA = window.BA || {};
       if (v.street != null) m.street = String(v.street).trim().slice(0, 80);
       if (v.city != null) m.city = String(v.city).trim().slice(0, 60);
       if (v.region != null) m.region = v.region === "bxl" ? "bxl" : "vl";
+      // v5.12 : n° de PLAQUE corrigeable (il sert à vérifier qu'un boîtier lit bien cette machine) ;
+      // l'identifiant interne (m.id, lien avec Supabase et les boîtiers) ne change pas
+      if (v.serial != null) {
+        const p = String(v.serial).replace(/\s+/g, "").replace(/^FAS-/i, "");
+        if (!p || p.length > 30 || !/^[A-Za-z0-9-]+$/.test(p)) return "rs_err_plate";
+        if (/^(FAS)?0*1$/i.test(p)) return "rs_err_plate_generic";
+        const norm = x => String(x || "").toUpperCase().replace(/^FAS-?/, "").replace(/[^0-9A-Z]/g, "").replace(/^0+/, "");
+        if (s.machines.some(x => x !== m && x.serial && norm(x.serial) === norm(p))) return "rs_err_plate_used";
+        m.serial = p;
+      }
       return null;
     },
     removeMachine(s, num) {

@@ -659,8 +659,10 @@
       { id: "stats",     icon: "📈", label: "nav_stats",     render: renderStats,       live: false },
       { id: "history",   icon: "🧾", label: "nav_history",   render: BA.History.render, live: false, tick: BA.History.tick },
       { id: "alerts",    icon: "⚠️", label: "nav_alerts",    render: U.renderAlerts,    live: true },
-      // v5 : l'onglet garde les fonctions de la v3.2 (câble, relevés, machines) ; mis à jour par morceaux
-      { id: "rs232",     icon: "🔌", label: "nav_rs232",     render: el => BA.Rs232.render(el), live: false, tick: () => BA.Rs232.tick() },
+      // v5.12 : « Connexion RS232 » ne montre plus que les boîtiers et leur état ; le câble, la clé USB, les machines,
+      // le détail des boîtiers, le journal et le système sont dans la page « Technique »
+      { id: "rs232",     icon: "🔌", label: "nav_rs232",     render: el => BA.Boitiers.summary(el), live: false, tick: () => BA.Boitiers.tickSummary() },
+      { id: "technique", icon: "🔧", label: "nav_technique", render: el => BA.Technique.render(el), live: false, tick: () => BA.Technique.tick() },
       { id: "settings",  icon: "⚙️", label: "nav_settings",  render: renderSettings,    live: false }
     ],
     footer() {

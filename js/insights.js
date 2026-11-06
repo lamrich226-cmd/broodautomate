@@ -344,7 +344,11 @@ window.BA = window.BA || {};
     const S = sh();
     if (id === "must" || id === "remove" || id === "empty") { S.orderTab = "stock"; BA.Shell.go("order"); }
     else if (id === "door") { if (num) S.machine = Number(num); BA.Shell.go("details"); }
-    else if (id === "offline") { if (BA.Rs232 && BA.Rs232.tab) BA.Rs232.tab(BA.Boitiers && BA.Boitiers.devices && BA.Boitiers.devices().length ? "boxes" : "cable"); BA.Shell.go("rs232"); }
+    // v5.12 : avec des boîtiers, leur état est sur « Connexion RS232 » ; sans boîtier : le câble (page Technique)
+    else if (id === "offline") {
+      if (BA.Boitiers && BA.Boitiers.devices && BA.Boitiers.devices().length) BA.Shell.go("rs232");
+      else { if (BA.Technique) BA.Technique.tab("cable"); BA.Shell.go("technique"); }
+    }
     else if (id === "alerts") { S.alertFilter = "active"; BA.Shell.go("alerts"); }
     else if (id === "returns") { statsState().tab = "returns"; BA.Shell.go("stats"); }
     else if (id === "weekly") {

@@ -21,9 +21,12 @@
 //   appareil a écrit entre-temps) ;
 // - « en ligne » : boîtier vu récemment (signal de vie toutes les 30 min) ;
 // - alertes : boîtier muet, boîtier qui n'arrive plus à lire la machine ;
-// - onglet Connexion RS232 → « Boîtiers 4G » : ajouter un boîtier (clé
-//   secrète créée ici, seule son empreinte SHA-256 va dans Supabase),
-//   commandes SQL une par une, code de la fonction « ingest ».
+// - page Technique → « Boîtiers 4G » (v5.12, avant : onglet Connexion RS232) :
+//   ajouter un boîtier (clé secrète créée ici, seule son empreinte SHA-256 va
+//   dans Supabase), commandes SQL une par une, code de la fonction « ingest »,
+//   détail de chaque boîtier et données 4G estimées ;
+// - v5.12 : la page « Connexion RS232 » ne montre plus que les boîtiers et leur
+//   état (combien, lesquels, en ligne / hors ligne, machine lue ou pas).
 // ============================================================
 
 window.BA = window.BA || {};
@@ -643,7 +646,12 @@ window.BA = window.BA || {};
       if (a && !a.disabled) { a.disabled = true; readAll().catch(err => U().toast("⚠️ " + t("bx_error", { e: err.message }))).finally(() => showDem()); }
     });
     // détail par machine ouvert ou fermé : gardé quand la carte est redessinée
-    document.addEventListener("toggle", e => { if (e.target && e.target.matches && e.target.matches("details.bx-all-list")) listOpen = e.target.open; }, true);
+    document.addEventListener("toggle", e => {
+      if (!e.target || !e.target.matches) return;
+      if (e.target.matches("details.bx-all-list")) listOpen = e.target.open;
+      // v5.12 : détail d'un boîtier (page Technique)
+      if (e.target.matches("details.bx-more")) { const id = e.target.dataset.bxmore; if (e.target.open) openDet.add(id); else openDet.delete(id); }
+    }, true);
   }
 
   // ---------------- Affichage ----------------
@@ -667,6 +675,125 @@ window.BA = window.BA || {};
     return " · 📡 " + etatTxt(d);
   }
 
+  // ---------------- v5.12 : détail d'un boîtier (page Technique → Boîtiers 4G) ----------------
+  // « toutes les heures », « toutes les 2 h », « toutes les 15 min »
+  const every = m => { m = Number(m) || 0; return m === 60 ? t("every_hour") : m > 60 && m % 60 === 0 ? t("every_h", { n: m / 60 }) : t("every_min", { n: m }); };
+  // Réseau 4G : le boîtier donne le code de l'opérateur (pays 206 = Belgique)
+  const RESEAUX = { "20601": "Proximus", "20610": "Orange", "20620": "BASE / Telenet" };
+  const reseau = op => { const c = String(op || "").replace(/\D/g, ""); return RESEAUX[c] ? RESEAUX[c] + " (" + c + ")" : String(op || ""); };
+  function dur(ms) {
+    const m = Math.floor(Math.max(0, ms) / MIN), h = Math.floor(m / 60), d = Math.floor(h / 24);
+    if (h < 1) return t("dur_min", { m });
+    if (d < 2) return t("dur_h", { h, m: String(m % 60).padStart(2, "0") });
+    return t("dur_d", { d, h: h % 24 });
+  }
+  // Données 4G : ESTIMATION à partir de ce que le boîtier dit de lui-même (programme v1.1 et plus) :
+  // seq = envois à Supabase depuis son démarrage, up = secondes depuis le démarrage, ec = délai (s) entre deux
+  // vérifications « Lire maintenant », lu = lectures de la machine. Un échange HTTPS coûte environ 5 à 9 Ko
+  // (connexion sécurisée comprise) ; un relevé complet de la Power Lift ajoute environ 2,8 Ko (2 791 octets).
+  // Le chiffre exact n'est que sur l'appli de la carte SIM.
+  const KO_MIN = 5, KO_MAX = 9, KO_RELEVE = 2.8;
+  function estimate(d) {
+    const i = (d && d.info) || {};
+    const seq = Number(i.seq), up = Number(i.up);
+    if (i.seq == null || i.up == null || !(seq >= 0) || !(up > 0)) return null;
+    const ec = Number(i.ec) >= 60 ? Number(i.ec) : 120;              // 120 s : délai du programme tant qu'il n'a pas reçu le réglage
+    const polls = Math.floor(up / ec);
+    const releves = Math.min(seq, Math.max(0, Number(i.lu) || 0));   // au plus un relevé envoyé par lecture
+    const calls = seq + polls;
+    const lo = (calls * KO_MIN + releves * KO_RELEVE) / 1024, hi = (calls * KO_MAX + releves * KO_RELEVE) / 1024;   // Mo
+    const f = up >= 3600 ? 30 * 86400 / up : 0;                       // projection sur 30 jours au même rythme (après 1 h)
+    return { seq, polls, releves, up, lo, hi, moisLo: f ? lo * f : null, moisHi: f ? hi * f : null };
+  }
+  const mo = v => U().F.num(v, v < 10 ? 1 : 0);
+  const openDet = new Set(); let detInit = false;               // détails ouverts (gardés quand la liste est redessinée)
+  function htmlDetail(d) {
+    const F = U().F, i = d.info || {}, m = machines().find(x => x.id === d.machine_id) || null;
+    const mode = Number(i.mode) === 1 ? t("bx_mode_test") : Number(i.mode) === 2 ? t("bx_mode_loop") : t("bx_mode_normal");
+    const lok = Number(i.lok) > 0 ? Number(i.lok) * 1000 : 0;
+    const est = estimate(d);
+    const temp = m && m.temp != null && m.temp !== "" && isFinite(m.temp) ? " · " + t("bx_det_temp", { t: F.num(m.temp, 1) }) : "";
+    const ecMin = Number(i.ec) >= 60 ? Math.round(Number(i.ec) / 60) : 2;
+    const rows = [
+      ["fw", t("bx_det_fw"), i.fw ? "v" + i.fw + (fwOk(d) ? "" : " — " + t("bx_det_fw_old")) : "—"],
+      ["mode", t("bx_det_mode"), mode],
+      ["up", t("bx_det_up"), Number(i.up) > 0 ? dur(Number(i.up) * 1000) : "—"],
+      ["seen", t("bx_det_seen"), ago(seenMs(d))],
+      ["sig", t("bx_det_signal"), signal(i.rssi) + (i.op ? " · " + reseau(i.op) : "")],
+      ["mach", t("machine"), (m ? nomM(m) : t("bx_unknown_machine", { id: d.machine_id })) + temp],
+      ["lok", t("bx_det_lok"), lok ? ago(lok) : i.stok === true ? "✅" : t("bx_never")],
+      ["reads", t("bx_det_reads"), i.lu != null ? t("bx_det_reads_v", { n: i.lu, k: i.ko || 0 }) : "—"],
+      ["rd", t("bx_det_rd"), Number(i.rd) > 0 ? every(i.rd) : "—"],
+      ["hb", t("bx_det_hb"), Number(i.hb) > 0 ? every(i.hb) : "—"],
+      ["ec", t("bx_det_ec"), every(ecMin)],
+      ["msg", t("bx_det_msg"), i.st || "—"],
+      ["door", t("bx_det_door"), i.porte ? (i.porte.ouverte ? t("bx_door_open", { d: i.porte.depuis ? F.dt(Date.parse(i.porte.depuis)) : "—" }) : t("bx_door_closed")) : "—"],
+      ["data", t("bx_det_data"), !est ? t("bx_det_data_na") : t("bx_det_data_v", { a: mo(est.lo), b: mo(est.hi), c: est.seq, p: est.polls })],
+      ["month", t("bx_det_month"), !est ? "—" : est.moisLo == null ? t("bx_det_data_soon") : t("bx_det_data_m", { a: mo(est.moisLo), b: mo(est.moisHi) })]
+    ];
+    return `<details class="bx-more" data-bxmore="${E(d.id)}" ${openDet.has(d.id) ? "open" : ""}>
+      <summary>🔎 ${E(t("bx_det_title", { n: d.name }))} <span class="petit">· ${E(etatTxt(d))}</span></summary>
+      <dl class="bx-dl">${rows.map(([k, l, v]) => `<div data-k="${k}"><dt>${E(l)}</dt><dd>${E(v)}</dd></div>`).join("")}</dl></details>`;
+  }
+  function htmlDetails() {
+    if (!devices.length) return "";
+    if (!detInit) { detInit = true; if (devices.length === 1) openDet.add(devices[0].id); }   // un seul boîtier : détail ouvert
+    const all = devices.map(estimate).filter(e => e && e.moisLo != null);
+    const total = all.length ? `<p class="note bx-data-total">📶 ${E(t("bx_data_total", { a: mo(all.reduce((x, e) => x + e.moisLo, 0)), b: mo(all.reduce((x, e) => x + e.moisHi, 0)), n: all.length }))}</p>` : "";
+    return `<h3>🔎 ${E(t("bx_det_head"))}</h3><div class="bx-details">${devices.map(htmlDetail).join("")}</div>
+      ${total}<p class="note">${E(t("bx_det_data_note"))}</p>`;
+  }
+
+  // ---------------- v5.12 : page « Connexion RS232 » — seulement les boîtiers et leur état ----------------
+  let _sum = null, sumT = null, sumAt = 0;
+  function sumRow(d, now) {
+    const i = d.info || {}, alive = isAlive(d, now);
+    const essai = Number(i.mode || 0) !== 0, lue = alive && !essai && lectureRecente(d, now);
+    const lok = Number(i.lok) > 0 ? Number(i.lok) * 1000 : 0;
+    let mtxt;
+    if (!alive) mtxt = "⚪ " + t("bxs_m_unknown");
+    else if (essai) mtxt = "🧪 " + t("bx_tag_test");
+    else if (lue) mtxt = "✅ " + t("bxs_m_read", { h: quand(lok || seenMs(d)) });
+    else mtxt = "⚠️ " + t("bxs_m_notread") + (i.st ? " — " + i.st : "");
+    return { d, m: machines().find(x => x.id === d.machine_id) || null, alive, lue, essai, mtxt };
+  }
+  function summaryHtml() {
+    const head = `<h2>🔌 ${E(t("nav_rs232"))}</h2><p class="note">${E(t("bxs_intro"))}</p>`;
+    const go = (tab, label) => `<div class="carte-actions"><button type="button" class="btn secondary" data-go-tech="${tab}">${(BA.UI && BA.UI.NAV_ICONS && BA.UI.NAV_ICONS.technique) || "🔧"} ${E(label)}</button></div>`;
+    if (!CLOUD()) return head + `<div class="alert info">${E(t("bx_local"))}</div>` + go("cable", t("bxs_open_tech"));
+    if (installed === null) return head + `<p class="note">⏳ ${E(t("loading"))}</p>`;
+    if (installed === false) return head + `<div class="alert warn">${E(t("bxs_not_installed"))}</div>` + go("boxes", t("bxs_open_tech"));
+    const err = lastError ? `<div class="alert err">${E(t("bx_error", { e: lastError }))}</div>` : "";
+    if (!devices.length) return head + err + `<div class="card bx-sum-empty"><p>${E(t("bx_none"))}</p><p class="note">${E(t("bxs_add_hint"))}</p>${go("boxes", t("bxs_add_btn"))}</div>`;
+    const now = Date.now(), rows = devices.map(d => sumRow(d, now));
+    const on = rows.filter(r => r.alive).length, off = rows.length - on, lues = rows.filter(r => r.lue).length;
+    const card = (cls, label, value) => `<div class="card stat ${cls}"><div class="label">${E(label)}</div><div class="value">${E(value)}</div></div>`;
+    return head + err + `<div class="cards summary-cards bx-sum-cards">
+        ${card("", t("bxs_boxes"), rows.length)}
+        ${card(on ? "c-ok" : "", "🟢 " + t("bxs_online"), on)}
+        ${card(off ? "c-empty" : "", "⚪ " + t("bxs_offline"), off)}
+        ${card(lues === rows.length ? "c-ok" : "c-remove", t("bxs_read"), lues + " / " + rows.length)}
+      </div>
+      <ul class="bx-sum-list">${rows.map(r => `<li class="bx-sum ${r.alive ? "on" : "off"}" data-bxsum="${E(r.d.id)}">
+        <div class="bx-sum-top"><b>📡 ${E(r.d.name)}</b>${r.alive ? `<span class="tag c-ok">🟢 ${E(t("bxs_online"))}</span>` : `<span class="tag">⚪ ${E(t("bxs_offline"))}</span>`}</div>
+        <div class="bx-sum-m">${E(r.m ? nomM(r.m) : t("bx_unknown_machine", { id: r.d.machine_id }))}</div>
+        <div class="bx-sum-st">${E(r.mtxt)}</div>
+        <div class="petit">${E(t("bxs_last", { d: ago(seenMs(r.d)) }))}</div></li>`).join("")}</ul>
+      ${go("boxes", t("bxs_open_tech"))}`;
+  }
+  function drawSummary() {
+    if (!_sum || !document.contains(_sum)) return;
+    if (BA.Shell && BA.Shell.clicking && BA.Shell.clicking()) { clearTimeout(sumT); sumT = setTimeout(drawSummary, 600); return; }
+    clearTimeout(sumT);
+    sumAt = Date.now();
+    _sum.innerHTML = summaryHtml();
+    _sum.querySelectorAll("[data-go-tech]").forEach(b => b.onclick = () => { if (BA.Technique) BA.Technique.tab(b.dataset.goTech); BA.Shell.go("technique"); });
+  }
+  function summary(el) {
+    _sum = el; drawSummary();
+    if (CLOUD() && (installed !== true || Date.now() - lastCheck > 20000)) refresh(true);
+  }
+
   function htmlSteps() {
     return `<ol class="bx-steps">
       <li>${E(t("bx_step1"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></li>
@@ -678,21 +805,22 @@ window.BA = window.BA || {};
   function htmlList() {
     if (!devices.length) return `<p class="note">— ${E(t("bx_none"))} —</p>`;
     const ms = machines();
-    return `<div class="table-scroll"><table class="compact bx-table">
+    return `<div class="table-scroll"><table class="compact bx-table tbl-tel">
       <thead><tr><th>${E(t("bx_col_box"))}</th><th>${E(t("machine"))}</th><th>${E(t("bx_col_seen"))}</th><th>${E(t("bx_col_signal"))}</th><th>${E(t("bx_col_state"))}</th><th></th></tr></thead>
       <tbody>${devices.map(d => {
         const i = d.info || {};
         const alive = isAlive(d);
         const st = Number(i.mode) === 1 ? t("bx_mode_test") : Number(i.mode) === 2 ? t("bx_mode_loop") : (i.st || "—");
+        const L = k => `data-label="${E(t(k))}"`;
         return `<tr data-bxid="${E(d.id)}">
-          <td><b>${E(d.name)}</b><div class="petit">${i.fw ? "v" + E(i.fw) : ""}${i.op ? " · " + E(i.op) : ""}${Number(i.ec) >= 60 ? " · ⏱ " + E(t("bx_ec_box", { d: duree(Math.round(Number(i.ec) / 60)) })) : ""}</div></td>
-          <td><select class="auto-w" data-bxm="${E(d.id)}">${ms.filter(m => m.id).map(m => `<option value="${E(m.id)}" ${m.id === d.machine_id ? "selected" : ""}>${E(nomM(m))}</option>`).join("")}
+          <td data-label=""><b>${E(d.name)}</b><div class="petit">${i.fw ? "v" + E(i.fw) : ""}${i.op ? " · " + E(reseau(i.op)) : ""}${Number(i.ec) >= 60 ? " · ⏱ " + E(t("bx_ec_box", { d: duree(Math.round(Number(i.ec) / 60)) })) : ""}</div></td>
+          <td ${L("machine")}><select class="auto-w" data-bxm="${E(d.id)}">${ms.filter(m => m.id).map(m => `<option value="${E(m.id)}" ${m.id === d.machine_id ? "selected" : ""}>${E(nomM(m))}</option>`).join("")}
             ${ms.some(m => m.id === d.machine_id) ? "" : `<option value="${E(d.machine_id)}" selected>${E(t("bx_unknown_machine", { id: d.machine_id }))}</option>`}</select></td>
-          <td>${alive ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${E(ago(seenMs(d)))}</div></td>
-          <td class="nowrap">${E(signal(i.rssi))}</td>
-          <td>${i.stok === true ? "✅ " : i.stok === false && Number(i.mode || 0) === 0 ? "⚠️ " : ""}${E(st)}${i.lu != null ? `<div class="petit">${E(t("bx_reads", { n: i.lu, k: i.ko || 0 }))}</div>` : ""}
+          <td ${L("bx_col_seen")}>${alive ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${E(ago(seenMs(d)))}</div></td>
+          <td class="nowrap" ${L("bx_col_signal")}>${E(signal(i.rssi))}</td>
+          <td ${L("bx_col_state")}>${i.stok === true ? "✅ " : i.stok === false && Number(i.mode || 0) === 0 ? "⚠️ " : ""}${E(st)}${i.lu != null ? `<div class="petit">${E(t("bx_reads", { n: i.lu, k: i.ko || 0 }))}</div>` : ""}
             ${demInstalled === true ? `<div class="bx-read">${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>` : ""}</td>
-          <td class="nowrap"><button class="btn petit secondary" data-bxkey="${E(d.id)}" title="${E(t("bx_newkey"))}">🔑</button><button class="btn petit secondary" data-bxdel="${E(d.id)}" title="${E(t("bx_del"))}">🗑</button></td>
+          <td class="nowrap bx-act" data-label=""><button class="btn petit secondary" data-bxkey="${E(d.id)}" title="${E(t("bx_newkey"))}">🔑</button><button class="btn petit secondary" data-bxdel="${E(d.id)}" title="${E(t("bx_del"))}">🗑</button></td>
         </tr>`;
       }).join("")}</tbody></table></div>`;
   }
@@ -712,6 +840,7 @@ window.BA = window.BA || {};
       <button class="btn" id="bx-add">➕ ${E(t("bx_add"))}</button>
     </div>`;
   }
+  // v5.12 (page Technique) : d'abord les boîtiers et leur détail ; l'installation (faite une fois) est repliée en bas
   function html() {
     if (!CLOUD()) return `<div class="alert info">${E(t("bx_local"))}</div>`;
     let body;
@@ -719,16 +848,20 @@ window.BA = window.BA || {};
     else if (installed === false) body = `<div class="alert warn">${E(t("bx_not_installed"))}</div>
       <div class="carte-actions wrap-actions"><button class="btn" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button><button class="btn secondary" data-bx="check">🔄 ${E(t("bx_check"))}</button></div>`;
     else body = `${demInstalled === false ? `<div class="alert info">📡 ${E(t("bx_read_install"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></div>` : ""}
-      ${demInstalled === true ? allCard() + htmlEcoute() : ""}
-      ${htmlList()}<h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
-    return `<p class="note">${E(t("bx_intro"))}</p>
-      ${htmlSteps()}
+      ${htmlList()}${htmlDetails()}
+      ${demInstalled === true ? htmlEcoute() + allCard() : ""}
+      <h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
+    const done = installed === true && devices.length > 0;
+    const install = `<p class="note">${E(t("bx_intro"))}</p>${htmlSteps()}`;
+    return `${done ? "" : install}
       ${lastError ? `<div class="alert err">${E(t("bx_error", { e: lastError }))}</div>` : ""}
-      <div class="card">${body}</div>`;
+      <div class="card">${body}</div>
+      ${done ? `<details class="rs-more bx-install"><summary>🛠 ${E(t("bx_install_title"))}</summary>${install}</details>` : ""}`;
   }
 
   function mount(el) { _el = el; redraw(true); if (installed !== true || Date.now() - lastCheck > 20000) refresh(true); }
   function redraw(force) {
+    drawSummary();                                            // v5.12 : page « Connexion RS232 » (si elle est affichée)
     if (!_el || !document.contains(_el)) return;
     // pas pendant une saisie (case, liste), une fenêtre ouverte ou un clic
     const a = document.activeElement;
@@ -869,6 +1002,10 @@ window.BA = window.BA || {};
 
   BA.Boitiers = {
     SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, readNow, readAll, allCard,
+    // v5.12 : page « Connexion RS232 » (boîtiers et leur état seulement), redessinée au plus toutes les 30 s
+    summary, tickSummary() { if (Date.now() - sumAt > 30000) drawSummary(); },
+    estimate, nom(id) { const d = devices.find(x => x.id === id); return d ? d.name : ""; },
+    lastError: () => lastError,
     demandes: () => new Map(demandes), demInstalled: () => demInstalled,
     lot: () => lot && { at: lot.at, n: lot.dem.size, fini: lot.fini, finiAt: lot.finiAt },
     alive(id, now) { return !!id && devices.some(d => d.machine_id === id && isAlive(d, now)); },

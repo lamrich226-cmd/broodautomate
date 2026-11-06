@@ -19,7 +19,7 @@ toute autre trame est bloquée avant l'envoi (même liste de sécurité que le l
 
 ## Mise à jour v1.1 → v1.2 : « Lire maintenant » réglable à distance
 
-- Nouveau : le délai de « Lire maintenant » se règle **dans Broodautomate** (admin → Connexion RS232 → Boîtiers 4G :
+- Nouveau : le délai de « Lire maintenant » se règle **dans Broodautomate** (admin → Technique → Boîtiers 4G :
   15 min, 30 min ou 1 h). Le boîtier le reçoit à son prochain passage chez Supabase : **plus besoin de brancher
   l'ordinateur** pour le changer. Tant que rien n'est réglé, il garde `DEMANDE_EVERY_SEC` (2 min).
 - À faire une seule fois : la commande SQL n° 23 de `supabase/notifications-sauvegarde.sql`, puis téléverser ce programme
@@ -30,13 +30,13 @@ toute autre trame est bloquée avant l'envoi (même liste de sécurité que le l
 
 ## Mise à jour v1.0 → v1.1 (boîtier déjà installé)
 
-1. **Supabase** : dans Broodautomate, onglet **🔌 Connexion RS232** → **📡 Boîtiers 4G** → **📋 Commandes SQL**.
+1. **Supabase** : dans Broodautomate, page **Technique** → **📡 Boîtiers 4G** → **📋 Commandes SQL** (replié sous **🛠 Installation** une fois un boîtier ajouté).
    Fais seulement les commandes **10 à 17** (marquées 🆕), une par une, comme la première fois. La fonction « ingest » ne change pas.
 2. **Programme** : télécharge le nouveau ZIP (lien plus bas), **Extraire tout**, ouvre `broodautomate_lilygo.ino`.
    Dans l'onglet **config.h**, remets **ta** ligne `DEVICE_KEY`, ton `APN` et `MODE 0`. Téléverse.
 3. **Moniteur série** : au démarrage, tu dois voir
    `Lecture chaque 60 min ; envois de la machine acceptés à tout moment ; « Lire maintenant » vérifié toutes les 120 s`.
-4. **Broodautomate** : le bouton **📡 Lire maintenant** apparaît (onglet Connexion RS232 → Boîtiers 4G, et page **Détails**
+4. **Broodautomate** : le bouton **📡 Lire maintenant** apparaît (page Technique → Boîtiers 4G, et page **Détails**
    de la machine). Clique : « ⏳ Demande envoyée », puis « 📥 Le boîtier lit la machine », puis « ✅ Lue à … ».
 
 ---
@@ -46,7 +46,7 @@ Installation complète, dans l'ordre : **1 Supabase → 2 Broodautomate → 3 Ar
 ## 1. Supabase (une seule fois)
 
 ### a) 17 commandes SQL
-Dans Broodautomate : onglet **🔌 Connexion RS232** → partie **📡 Boîtiers 4G** → bouton **📋 Commandes SQL**.
+Dans Broodautomate : page **Technique** → onglet **📡 Boîtiers 4G** → bouton **📋 Commandes SQL** (replié sous **🛠 Installation** une fois un boîtier ajouté).
 Les 17 commandes y sont, chacune avec un bouton **Copier** (elles sont aussi dans `supabase/4g-boitiers.sql`).
 Les commandes 1 à 9 servent aux boîtiers, les commandes 10 à 17 au bouton « Lire maintenant ».
 
@@ -63,7 +63,7 @@ Bouton **📋 Fonction « ingest »** dans la même partie (le code est aussi da
    Le boîtier se présente avec sa propre clé secrète, pas avec un compte.
 
 ## 2. Broodautomate : déclarer le boîtier
-Onglet **🔌 Connexion RS232** → **📡 Boîtiers 4G** → **Ajouter un boîtier** : un nom (par ex. « Boîtier Midi ») et la machine.
+Page **Technique** → onglet **📡 Boîtiers 4G** → **Ajouter un boîtier** : un nom (par ex. « Boîtier Midi ») et la machine.
 Une fenêtre montre la ligne à copier :
 
 ```

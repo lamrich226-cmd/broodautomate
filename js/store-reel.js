@@ -440,7 +440,7 @@ window.BA = window.BA || {};
 
   // ================= BA.Store (même usage que dans la version test) =================
   const Store = {
-    status() { return Object.assign({ pending: pending.length }, status); },
+    status() { return Object.assign({ pending: pending.length, version: base.version }, status); },   // v5.12 : version des données (page Technique)
     ready() { return !!state; },
 
     // Chargement au démarrage (après la connexion)

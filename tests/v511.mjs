@@ -129,17 +129,18 @@ const etat = {
   await p.click("#pc-auto"); await sleep(400);
   ok("↺ retour en automatique sur les 2 jours : plus de journée normale réglée à la main", await p.evaluate(() => !((BA.Store.get().profileBase || {})[1])));
 
-  console.log("== 4. Connexion RS232 en onglets");
-  await go("rs232");
-  ok("4 onglets : Câble, Boîtiers 4G, Mes machines, Outils", (await p.$$eval("[data-rs-tab]", b => b.map(x => x.dataset.rsTab).join())) === "cable,boxes,machines,tools");
+  console.log("== 4. Page Technique en onglets (v5.12 : avant, page Connexion RS232)");
+  await go("technique");
+  ok("5 onglets : Boîtiers 4G, Machines, Câble et clé USB, Journal, Système", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())) === "boxes,machines,cable,journal,system");
+  await p.click("[data-tq-tab=cable]"); await sleep(400);
   ok("onglet Câble : Connecter et Lire maintenant visibles, réglages et journal repliés", (await p.isVisible("#btn-rs-connecter")) && (await p.isVisible("#btn-rs-lire")) && !(await p.isVisible("#rs-vitesse")) && !(await p.isVisible("#rs-journal")));
-  await shot("v511-04-rs232-cable");
-  await p.click("[data-rs-tab=boxes]"); await sleep(400);
+  await shot("v511-04-technique-cable");
+  await p.click("[data-tq-tab=boxes]"); await sleep(400);
   ok("onglet Boîtiers 4G : la liste des boîtiers", (await p.isVisible("#rs-boitiers")) && !(await p.isVisible("#btn-rs-connecter")));
-  await p.click("[data-rs-tab=tools]"); await sleep(300);
-  ok("onglet Outils : clé USB et test EVA-DTS", (await p.isVisible("#eva-raw")) && (await p.isVisible("#usb-machine")));
-  await go("dashboard"); await go("rs232");
-  ok("l'onglet choisi reste ouvert quand on revient", (await p.isVisible("#eva-raw")));
+  await p.click("[data-tq-tab=cable]"); await sleep(300);
+  ok("onglet Câble : clé USB visible, test EVA-DTS replié", (await p.isVisible("#usb-machine")) && !(await p.isVisible("#eva-raw")));
+  await go("dashboard"); await go("technique");
+  ok("l'onglet choisi reste ouvert quand on revient", (await p.isVisible("#usb-machine")));
 
   console.log("== 5. Design : thèmes et téléphone");
   const th = await p.evaluate(() => {

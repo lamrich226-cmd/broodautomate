@@ -29,6 +29,7 @@ Police du système ; titres 1,45 rem en gras ; chiffres clés 1,9 rem en chiffre
 - **Cartes machine** : barre d'état colorée à gauche, numéro en grand, jauge de remplissage, puces.
 - **Boutons** : principal (bleu de nuit / noir en clair), secondaire, danger (rouge) seulement pour ce qui efface.
 - **Fenêtres** : apparition douce, fond flouté. **Tableaux** : défilent à l'horizontale sur téléphone (cartes pour l'opérateur).
+- **v5.12, page Technique** : onglets en pastilles qui passent à la ligne sur téléphone ; listes « mot : valeur » (`dl.bx-dl`) pour les détails ; les tableaux marqués `tbl-tel` deviennent des cartes sur téléphone (le titre de chaque case vient de `data-label`).
 
 ## Mouvement
 Très peu, et toujours utile ; tout est coupé si l'appareil demande « réduire les animations ».

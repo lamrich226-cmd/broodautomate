@@ -851,3 +851,78 @@ body.operateur #menu-btn { display: none; }
   #app-header h1 { min-width: 0; }
 }
 @media (max-width: 899px) { #status-bar #sync-status.on { display: none; } }   /* téléphone : la sauvegarde ne s'affiche que si elle a un souci */
+
+/* ============================================================
+   16. v5.12 — page Technique (diagnostic, installation) et page « Connexion RS232 » allégée
+   ============================================================ */
+.tq-intro { max-width: 72ch; }
+.tq-tabs { margin-top: 4px; }
+.tq-pane[hidden] { display: none !important; }
+.tq-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 6px; }
+.tq-bar .btn { margin: 0; }
+.tq-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(480px, 100%), 1fr)); align-items: start; margin-bottom: 12px; }
+.tq-card { margin: 0; }
+.tq-card h3 { margin: 0 0 8px; }
+table.tq-table td { vertical-align: top; }
+table.tq-reports td:nth-child(5) { min-width: 220px; }
+ul.tq-evs { margin: 4px 0 8px; padding-left: 20px; font-size: .9rem; max-height: 220px; overflow: auto; }
+ul.tq-evs li { margin: 3px 0; }
+.dlg-body .tq-dl { margin-bottom: 6px; }
+/* liste « mot : valeur » (détail d'un boîtier, système, fenêtre « Voir ») */
+dl.bx-dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); gap: 6px 18px; margin: 4px 0 0; }
+dl.bx-dl > div { display: grid; grid-template-columns: minmax(120px, 40%) 1fr; gap: 10px; align-items: baseline; padding: 5px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+dl.bx-dl dt { color: var(--text-dim); font-size: .8rem; font-weight: 650; }
+dl.bx-dl dd { margin: 0; font-size: .9rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.tq-card dl.bx-dl { grid-template-columns: 1fr; }
+details.bx-more { margin: 8px 0; background: var(--surface-2); }
+details.bx-more > summary { font-size: .92rem; }
+details.bx-more[open] > summary { margin-bottom: 6px; }
+.bx-data-total { font-weight: 650; color: var(--text); }
+details.bx-install { margin-top: 14px; }
+/* « Connexion RS232 » : combien de boîtiers, lesquels, en ligne ou non */
+.bx-sum-cards { margin-bottom: 14px; }
+ul.bx-sum-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); }
+li.bx-sum { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--c-off); border-radius: var(--radius-sm); padding: 12px 14px; box-shadow: var(--shadow); display: grid; gap: 4px; min-width: 0; }
+li.bx-sum.on { border-left-color: var(--c-ok); }
+.bx-sum-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.bx-sum-top b { font-size: 1rem; }
+.bx-sum-top .tag { margin: 0; }
+.bx-sum-m { font-size: .92rem; overflow-wrap: anywhere; }
+.bx-sum-st { font-size: .9rem; overflow-wrap: anywhere; }
+.bx-sum-empty p { margin: 0 0 6px; }
+@media (max-width: 720px) {
+  /* téléphone : les 5 onglets passent à la ligne (pastilles) au lieu de défiler */
+  .seg.tabs.tq-tabs { flex-wrap: wrap; gap: 6px; border: 0; background: transparent; overflow: visible; }
+  .seg.tabs.tq-tabs button { border: 1px solid var(--line-strong); border-radius: 999px; min-height: 40px; padding: 0 12px; }
+  .seg.tabs.tq-tabs button + button { border-left: 1px solid var(--line-strong); }
+  dl.bx-dl, .tq-grid { grid-template-columns: 1fr; }
+  dl.bx-dl > div { grid-template-columns: 1fr; gap: 2px; }
+  ul.bx-sum-list { grid-template-columns: 1fr; }
+}
+table.rs-machines .plaque-in { width: 130px; }
+/* v5.12 : téléphone — ces tableaux deviennent des cartes (titre de chaque case au-dessus de sa valeur) */
+@media (max-width: 720px) {
+  .table-scroll:has(table.tbl-tel) { overflow: visible; }
+  .table-scroll table.tbl-tel { min-width: 0; }
+  table.tbl-tel, table.tbl-tel tbody, table.tbl-tel tr, table.tbl-tel td { display: block; width: 100%; }
+  table.tbl-tel { border: 0; background: transparent; box-shadow: none; overflow: visible; }
+  table.tbl-tel thead { display: none; }
+  table.tbl-tel tr { border: 1px solid var(--line); border-radius: 12px; padding: 6px 12px; margin: 0 0 10px; background: var(--surface); }
+  table.tbl-tel td { padding: 6px 0; border: 0; white-space: normal; }
+  table.tbl-tel td + td { border-top: 1px solid var(--line); }
+  table.tbl-tel td::before { content: attr(data-label); display: block; color: var(--text-dim); font-size: .7rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; margin-bottom: 2px; }
+  table.tbl-tel td[data-label=""]::before { content: none; }
+  table.tbl-tel select, table.tbl-tel .txt-in, table.tbl-tel .plaque-in { width: 100%; max-width: 100%; }
+  table.tbl-tel td.bx-act, table.tbl-tel td[data-label=""]:last-child { display: flex; gap: 6px; flex-wrap: wrap; }
+  table.tq-reports td:nth-child(5) { min-width: 0; }
+  table.tbl-tel tbody tr:hover td { background: transparent; }
+}
+/* v5.12 : petit écran d'ordinateur (hauteur ≤ 820 px) — 10 pages dans le menu : un peu plus serré pour que le bas
+   (appli opérateur, langue, thème, déconnexion) reste visible sans faire défiler la barre */
+@media (min-width: 900px) and (max-height: 820px) {
+  #app-brand { padding-top: 12px; padding-bottom: 10px; }
+  #app-nav { gap: 2px; padding-top: 4px; padding-bottom: 4px; }
+  #app-nav button { min-height: 38px; }
+  #app-side-foot { gap: 6px; padding-top: 8px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
+  .side-link { min-height: 38px; }
+}

@@ -73,7 +73,8 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 | `js/store.js`, `js/forecast.js`, `js/actions.js` | lots, commande, prévisions et modifications (version test, inchangés) |
 | `js/store-reel.js` | données partagées dans Supabase (remplace le stockage de la version test) |
 | `js/reel.js` | ce qu'un relevé change (ventes, alertes) et l'heure réelle (remplace le simulateur) |
-| `js/rs232.js` | onglet Connexion RS232 |
+| `js/rs232.js` | câble RS232, clé USB, test EVA-DTS et « Mes machines » (dans la page Technique) |
+| `js/technique.js`, `js/i18n-v512.js` | page Technique : boîtiers en détail, machines, câble, journal des envois, système |
 | `js/boot.js` | connexion au compte, chargement, écran d'installation |
 | `js/ui.js`, `js/admin.js`, `js/admin-forecast.js`, `js/operateur.js`, `js/history.js`, `js/excel.js` | écrans |
 | `css/app.css`, `js/theme.js`, `DESIGN.md` | design (thèmes nuit / clair, barre latérale, icônes) |
@@ -129,3 +130,16 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Le prix d'ici ne change pas la machine : son prix de vente se règle toujours sur la machine elle-même. Le montant des ventes vient du relevé de la machine ; le prix d'ici ne sert que si le relevé ne donne pas le montant d'une sélection.
 - Correction : chez l'opérateur, le message « ✅ enregistré » (prix, capacité, sélection ajoutée…) n'apparaissait jamais dans les pages ouvertes depuis « Plus ». Il apparaît maintenant.
 - Point de retour : v5.11.0 = commit 0fee273.
+
+## v5.12 — page « Technique » (diagnostic et installation)
+- **Nouvelle page « Technique »** (admin seulement, dans le menu juste après « Connexion RS232 »), en 5 onglets :
+  - **📡 Boîtiers 4G** : la liste des boîtiers, puis le **détail de chacun** (programme, mode, allumé depuis, dernier contact, signal et réseau, machine et température, dernière lecture réussie, lectures, rythme, message, porte) et les **données 4G estimées** (depuis le démarrage du boîtier, et par mois au même rythme). Ensuite : réglage « Lire maintenant », « Lire toutes les machines », ajouter un boîtier. L'installation (commandes SQL, fonction « ingest », programme) est repliée en bas.
+  - **🏭 Machines** : ajouter, renuméroter, supprimer une machine (avant : « Mes machines »). Nouveau : le **n° de plaque** se corrige. Il sert à vérifier qu'un boîtier lit bien cette machine : s'il est faux (par exemple le n° générique FAS000000001), chaque relevé du boîtier est refusé (« relevé d'une autre machine »). L'identifiant interne de la machine ne change pas.
+  - **🔌 Câble et clé USB** : le câble entre le PC et une machine, les relevés reçus, le journal du câble ; l'import d'une clé USB ; le test d'un texte EVA-DTS (replié).
+  - **📜 Journal** : les 30 derniers envois des boîtiers (heure à la seconde, origine « envoyé par la machine » ou « lu par le boîtier », contenu décodé, taille, traité ou pas) ; « 🔍 Voir » montre tout l'envoi décodé (n° lu, horloge, ventes, températures, événements, coupures) puis le texte reçu, à copier. Aussi : les alertes de communication et les demandes « Lire maintenant ».
+  - **🖥 Système** : version, langue et thème, câble possible ou non dans ce navigateur, connexion et sauvegarde, taille et version des données, copies de nuit, dernière notification, état des boîtiers. Lecture seule.
+- **« Connexion RS232 »** ne montre plus que les boîtiers : combien, lesquels, en ligne ou hors ligne, et si la machine est vraiment lue (✅ lue, 🧪 mode essai, ⚠️ pas lue). Un bouton ouvre la page Technique.
+- Téléphone : les onglets passent à la ligne, les tableaux deviennent des cartes.
+- Données 4G : c'est une **estimation** (5 à 9 Ko par échange avec Supabase, d'après le nombre d'envois que le boîtier compte lui-même). La vraie consommation se lit sur l'appli de la carte SIM.
+- Point de retour : v5.11.1 = commit 886f3a0.
+

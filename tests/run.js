@@ -123,6 +123,8 @@ async function setLang(p, lang) {
   await p.mouse.move(900, 300); await sleep(300);
 }
 const synced = (p, ms) => p.waitForFunction(() => BA.Store.status().pending === 0 && BA.Store.status().sync === "ok", null, { timeout: ms || 20000 });
+// v5.12 : le câble, la clé USB et « Mes machines » sont dans la page Technique (onglets « cable », « machines »…)
+const tech = async (p, tab) => { await view(p, "technique"); await p.click(`[data-tq-tab=${tab}]`); await sleep(350); };
 const st = (p, fn, arg) => p.evaluate(fn, arg);
 const journal = (p, txt, ms) => p.waitForFunction(t => { const j = document.querySelector("#rs-journal"); return j && j.textContent.includes(t); }, txt, { timeout: ms || 30000 });   // v5.11 : journal replié (textContent)
 const qtyOf = (p, num, sel) => p.evaluate(([n, s]) => { const m = BA.Store.get().machines.find(x => x.num === n); const x = m && BA.Model.sel(m, s); return x ? BA.Model.qty(x) : null; }, [num, sel]);
@@ -224,7 +226,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.11.1, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.11.1") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.12.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.12.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
@@ -272,7 +274,7 @@ async function scenarioPrincipal() {
 
   // ---------------- 3. Câble RS232 ----------------
   console.log("\n== 3. Câble RS232 : relevés, ventes (lots les plus anciens d'abord), alertes");
-  await view(a, "rs232");
+  await tech(a, "cable");
   ok("onglet RS232 : réglages de la v3.2 (9600 bauds, liste 2)", (await a.inputValue("#rs-vitesse")) === "9600" && await a.isChecked("input[name=rs-liste][value='2']"));
   await a.selectOption("#rs-machine", "FAS-202164170");
   await a.click("#btn-rs-connecter");
@@ -341,7 +343,7 @@ async function scenarioPrincipal() {
   await shot(a, "04-alertes-machine");
 
   // la machine envoie elle-même des événements (porte ouverte + échec de distribution)
-  await view(a, "rs232");
+  await tech(a, "cable");
   ok("événements préparés (G85 ok)", await a.evaluate(new Function("return (" + PUSH_EVENTS + ")()")));
   await a.waitForFunction(() => BA.Store.get().events.some(e => e.code === "MACHINE_EVENT" && e.data.code === "ELA_19"), null, { timeout: 30000 });
   await synced(a);
@@ -360,7 +362,7 @@ async function scenarioPrincipal() {
 
   // ---------------- import par clé USB (machine #2) ----------------
   console.log("\n== 3b. Import d'un relevé par clé USB");
-  await view(a, "rs232"); await a.click("[data-rs-tab=tools]");
+  await tech(a, "cable");
   await a.selectOption("#usb-machine", "FAS-202166085");
   await a.setInputFiles("#usb-file", DAT);
   await a.waitForSelector("#dlg-ok", { timeout: 10000 });
@@ -376,8 +378,8 @@ async function scenarioPrincipal() {
   await sleep(800);
   ok("USB : même fichier une 2e fois → « identique », rien d'importé", !(await a.$("#dlg-ok")) && fake.t.audits.filter(x => x.machine_id === "FAS-202166085").length === 1);
 
-  // liste 1 : avertissement (v5.11 : onglet Câble, réglage replié sous « Quelle liste lire »)
-  await a.click("[data-rs-tab=cable]");
+  // liste 1 : avertissement (v5.12 : page Technique, onglet Câble, réglage replié sous « Quelle liste lire »)
+  await a.click("[data-tq-tab=cable]");
   await a.click("details.rs-more:has(input[name=rs-liste]) > summary");
   await a.click("input[name=rs-liste][value='1']");
   await a.waitForSelector("#dlg-ok");
@@ -480,7 +482,7 @@ function BA_qty(main, num, sel) {
 async function scenarioEcrans(ctx) {
   console.log("\n== 5. Tous les écrans (FR / NL / EN, PC et téléphone)");
   const { a, o, fake } = ctx;
-  const adminViews = ["dashboard", "details", "products", "order", "stats", "history", "alerts", "rs232", "settings"];
+  const adminViews = ["dashboard", "details", "products", "order", "stats", "history", "alerts", "rs232", "technique", "settings"];
   const opViews = ["todo", "fill", "alerts", "more", "details", "products", "history", "rs232", "dashboard", "missions"];
   for (const lang of ["fr", "nl", "en"]) {
     await setLang(a, lang); await sleep(300);
@@ -490,6 +492,14 @@ async function scenarioEcrans(ctx) {
       const keys = await rawKeys(a);
       ok(`admin ${lang} « ${v} » : pas de texte manquant`, keys.length === 0, keys);
       if (lang === "fr" || ["dashboard", "rs232", "alerts", "details"].includes(v)) await shot(a, `20-admin-${lang}-${v}`);
+      // v5.12 : chaque onglet de la page Technique
+      if (v === "technique") for (const tb of ["machines", "cable", "journal", "system", "boxes"]) {
+        await a.click(`[data-tq-tab=${tb}]`); await sleep(300);
+        await a.waitForFunction(() => !BA.Technique._journal().busy && !BA.Technique._system().busy, null, { timeout: 10000 }).catch(() => {});
+        const k2 = await rawKeys(a);
+        ok(`admin ${lang} « technique / ${tb} » : pas de texte manquant`, k2.length === 0, k2);
+        if (lang === "fr") await shot(a, `21-admin-technique-${tb}`);
+      }
     }
     for (const v of opViews) {
       await view(o, v);
@@ -525,7 +535,7 @@ async function scenarioEcrans(ctx) {
   ok("téléphone : missions reçues", (await o.$$("#view-missions .mission-card")).length >= 1);
   await shot(o, "15-op-missions");
   // Déconnexion
-  await view(a, "rs232");
+  await tech(a, "cable");
   await a.click("#btn-rs-deconnecter");
   await sleep(500);
   ok("câble déconnecté : badge et machine « hors ligne » (plus de lien)", /déconnecté/i.test(await a.innerText("#serial-status")) && (await st(a, () => BA.Store.get().machines.find(x => x.num === 1).link)) === false);
@@ -544,7 +554,7 @@ async function scenarioVide() {
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
   ok("parc vide : message sur le Dashboard", (await a.innerText("#view-dashboard")).includes("Aucune machine pour l'instant"));
-  for (const v of ["details", "products", "order", "stats", "history", "alerts", "rs232", "settings"]) {
+  for (const v of ["details", "products", "order", "stats", "history", "alerts", "rs232", "technique", "settings"]) {
     await view(a, v);
   }
   await view(a, "order"); await a.click("#view-order .seg.tabs [data-tab=fc]");
@@ -553,8 +563,10 @@ async function scenarioVide() {
   await a.click("#go-bk"); await a.waitForSelector("#bk-save", { timeout: 5000 }).catch(() => {});
   await view(a, "stats");
   for (const tb of ["returns", "acc", "money"]) { await a.click(`[data-sttab=${tb}]`); await sleep(250); }
+  await view(a, "technique");
+  for (const tb of ["boxes", "cable", "journal", "system", "machines"]) { await a.click(`[data-tq-tab=${tb}]`); await sleep(250); }
   ok("parc vide : tous les onglets s'ouvrent sans erreur", pc.errors.length === 0, pc.errors);
-  await view(a, "rs232");
+  await tech(a, "machines");
   await a.fill("#man-id", "202199999");
   await a.fill("#man-street", "Rue Neuve 1");
   await a.fill("#man-city", "Bruxelles");
@@ -983,7 +995,7 @@ async function scenarioLocal() {
   const a = await open(pc, "index.html");
   await ready(a);
   ok("mode local : pas d'écran de connexion, badge « Mode local »", (await a.innerText("#sync-status")).includes("Mode local") && !(await a.$("#btn-logout")));
-  await view(a, "rs232");
+  await tech(a, "machines");
   await a.fill("#man-id", "202100001"); await a.fill("#man-street", "Kerkstraat 5"); await a.fill("#man-city", "Gent");
   await a.click("[data-add=man]");
   await a.waitForFunction(() => BA.Store.get().machines.length === 1);
@@ -1020,7 +1032,7 @@ async function scenarioV3() {
       if (run("ecrans") || !ONLY.length) await scenarioEcrans(ctx);
       if (run("opsimple") || !ONLY.length) await scenarioOpSimple(ctx);
       const http = (ctx.pc.http || []).concat(ctx.tel.http || []);
-      ok("réponses d'erreur Supabase : seulement celles attendues (mot de passe, table absente)", http.filter(x => !/\/devices|\/ba_notifications/.test(x)).length <= 3 && http.every(x => /token\?grant_type=password|ba_state|\/devices|\/ba_notifications/.test(x)), http);
+      ok("réponses d'erreur Supabase : seulement celles attendues (mot de passe, table absente)", http.filter(x => !/\/devices|\/ba_notifications|\/ba_state_backup|\/device_reports|\/ba_demandes/.test(x)).length <= 3 && http.every(x => /token\?grant_type=password|ba_state|\/devices|\/ba_notifications|\/device_reports|\/ba_demandes/.test(x)), http);
       ok("aucune erreur JavaScript (PC + téléphone)", ctx.pc.errors.length === 0 && ctx.tel.errors.length === 0, ctx.pc.errors.concat(ctx.tel.errors).slice(0, 8));
       fs.writeFileSync(path.join(OUT, "requetes.json"), JSON.stringify(ctx.fake.requests.slice(-400), null, 1));
       await ctx.pc.ctx.close(); await ctx.tel.ctx.close();

@@ -63,6 +63,8 @@ window.BA = window.BA || {};
     history: SVG('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
     alerts: SVG('<path d="M12 3l10 18H2L12 3z"/><path d="M12 10v5M12 18h.01"/>'),
     rs232: SVG('<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0V8zM12 18v4"/>'),
+    // v5.12 : page Technique (écran de diagnostic : un tracé de mesure sur un moniteur)
+    technique: SVG('<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M6.5 11H9l1.5-3 2.5 6 1.5-3h3"/><path d="M9 21h6M12 17v4"/>'),
     settings: SVG('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
     missions: SVG('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 14l2 2 4-4"/>'),
     todo: SVG('<rect x="6" y="4" width="12" height="17" rx="2"/><path d="M9 4h6v3H9zM9 14l2 2 4-4"/>'),
@@ -906,7 +908,7 @@ window.BA = window.BA || {};
   BA.UI = {
     F, E, t, prod, pill, ICON, NAV_ICONS,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
-    machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, interventionsTable, prodText,
+    machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, evTitle, interventionsTable, prodText,
     confirmDialog, dateInput, afterClick, removeDialog, toast, openWindow,
     chartTheme, chartCrosshair, chartEndLabel, chartSignColor
   };

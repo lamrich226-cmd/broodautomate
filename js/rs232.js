@@ -310,16 +310,16 @@ window.BA = window.BA || {};
   function htmlMachines() {
     const s = BA.Store.get(), ms = s.machines;
     if (!ms.length) return `<div class="alert info">${E(t("rs_no_machine"))}</div>`;
-    return `<div class="table-scroll"><table class="compact rs-machines">
+    return `<div class="table-scroll"><table class="compact rs-machines tbl-tel">
       <thead><tr><th>${E(t("rs_num"))}</th><th>${E(t("rs_street"))}</th><th>${E(t("rs_city"))}</th><th>${E(t("rs_region"))}</th><th>${E(t("rs_plate"))}</th><th>${E(t("col_link"))}</th><th></th></tr></thead>
       <tbody>${ms.map(m => `<tr data-mnum="${m.num}">
-        <td><input id="mm-num-${m.num}" class="num-in" type="number" min="1" max="99999" value="${m.num}" data-f="num"></td>
-        <td><input id="mm-street-${m.num}" class="txt-in" value="${E(m.street)}" data-f="street"></td>
-        <td><input id="mm-city-${m.num}" class="txt-in" value="${E(m.city)}" data-f="city"></td>
-        <td><select id="mm-region-${m.num}" class="auto-w" data-f="region"><option value="vl" ${m.region !== "bxl" ? "selected" : ""}>${E(t("rs_region_vl"))}</option><option value="bxl" ${m.region === "bxl" ? "selected" : ""}>${E(t("rs_region_bxl"))}</option></select></td>
-        <td class="nowrap">${E(m.serial || "—")}</td>
-        <td>${m.online ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${m.lastSeen ? U().F.date(m.lastSeen) + " " + U().F.time(m.lastSeen) : "—"}${BA.Boitiers && BA.Boitiers.has(m.id) ? E(BA.Boitiers.tag(m)) : ""}</div></td>
-        <td><button class="btn petit secondary" data-mdel="${m.num}" title="${E(t("rs_del_machine"))}">🗑</button></td></tr>`).join("")}</tbody></table></div>`;
+        <td data-label="${E(t("rs_num"))}"><input id="mm-num-${m.num}" class="num-in" type="number" min="1" max="99999" value="${m.num}" data-f="num"></td>
+        <td data-label="${E(t("rs_street"))}"><input id="mm-street-${m.num}" class="txt-in" value="${E(m.street)}" data-f="street"></td>
+        <td data-label="${E(t("rs_city"))}"><input id="mm-city-${m.num}" class="txt-in" value="${E(m.city)}" data-f="city"></td>
+        <td data-label="${E(t("rs_region"))}"><select id="mm-region-${m.num}" class="auto-w" data-f="region"><option value="vl" ${m.region !== "bxl" ? "selected" : ""}>${E(t("rs_region_vl"))}</option><option value="bxl" ${m.region === "bxl" ? "selected" : ""}>${E(t("rs_region_bxl"))}</option></select></td>
+        <td data-label="${E(t("rs_plate"))}"><input id="mm-serial-${m.num}" class="txt-in plaque-in" value="${E(m.serial || "")}" data-f="serial" placeholder="202164170" title="${E(t("rs_plate_tip"))}"></td>
+        <td data-label="${E(t("col_link"))}">${m.online ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${m.lastSeen ? U().F.date(m.lastSeen) + " " + U().F.time(m.lastSeen) : "—"}${BA.Boitiers && BA.Boitiers.has(m.id) ? E(BA.Boitiers.tag(m)) : ""}</div></td>
+        <td data-label=""><button class="btn petit secondary" data-mdel="${m.num}" title="${E(t("rs_del_machine"))}">🗑</button></td></tr>`).join("")}</tbody></table></div>`;
   }
 
   function majProchaine() {
@@ -341,27 +341,28 @@ window.BA = window.BA || {};
     if (BA.Boitiers) BA.Boitiers.redraw();
   }
 
-  // v5.11 : la page est rangée en 4 onglets (Câble, Boîtiers 4G, Mes machines, Outils) ; tout reste dans la page
+  // v5.12 : le câble, la clé USB, le test EVA-DTS et « Mes machines » sont dans la page Technique (BA.Technique,
+  // onglets « Câble et clé USB » et « Machines »). Ce module remplit ces deux onglets ; root = la page Technique.
   // (les onglets cachés ne sont pas effacés : la lecture du câble et le journal continuent derrière)
-  let _tab = "cable", _tabChoisi = false;
-  const TABS = [["cable", "🔌", "rs_tab_cable"], ["boxes", "📡", "rs_tab_boxes"], ["machines", "🏭", "rs_tab_machines"], ["tools", "🧰", "rs_tab_tools"]];
-  function montrer(tab, auto) {
-    _tab = TABS.some(x => x[0] === tab) ? tab : "cable";
-    if (!auto) _tabChoisi = true;
-    if (!_el) return;
-    _el.querySelectorAll("[data-rs-tab]").forEach(b => { const on = b.dataset.rsTab === _tab; b.classList.toggle("active", on); b.setAttribute("aria-selected", on ? "true" : "false"); });
-    _el.querySelectorAll(".rs-pane").forEach(p => { p.hidden = p.dataset.pane !== _tab; });
+  function renderPanes(root) {
+    _el = root;
+    const pc = root.querySelector('[data-pane="cable"]'), pm = root.querySelector('[data-pane="machines"]');
+    if (pc) pc.innerHTML = htmlCable();
+    if (pm) pm.innerHTML = htmlMachinesPane();
+    bind();
+    majProchaine();
   }
-  function render(el) {
-    _el = el;
-    if (!_tabChoisi && !machines().length) _tab = "machines";      // parc vide : on commence par ajouter une machine
+  function htmlMachinesPane() {
+    return `<p class="note">${E(t("rs_my_machines_note"))}</p>
+      <div id="rs-machines">${htmlMachines()}</div>
+      <div class="card add-sel"><h3>➕ ${E(t("rs_add_manual"))}</h3>
+        <p class="note">${E(t("rs_add_manual_note"))}</p>
+        ${formMachine("man", "")}</div>`;
+  }
+  function htmlCable() {
     const vitesses = [2400, 4800, 9600, 19200, 38400, 57600, 115200];
     const ok = BA.Serial.supported();
-    el.innerHTML = `
-      <h2>🔌 ${E(t("nav_rs232"))}</h2>
-      <div class="seg tabs rs-tabs" role="tablist">${TABS.map(([id, ic, k]) => `<button type="button" role="tab" data-rs-tab="${id}" class="${id === _tab ? "active" : ""}" aria-selected="${id === _tab}">${ic} ${E(t(k))}</button>`).join("")}</div>
-
-      <section class="rs-pane" data-pane="cable">
+    return `
       <p class="note">${E(t("rs_tab_cable_note"))}</p>
       ${ok ? "" : `<div class="alert err">❌ ${E(t("rs_ws_no"))}</div>`}
       <div class="rs-main">
@@ -409,22 +410,8 @@ window.BA = window.BA || {};
           <pre id="serial-brut">${E(_brut.join("\n")) || "— " + E(t("rs_nothing")) + " —"}</pre></details>
       </details>
       <p class="note">🔒 ${E(t("rs_security"))}</p>
-      </section>
 
-      <section class="rs-pane" data-pane="boxes">
-      <div id="rs-boitiers"></div>
-      </section>
-
-      <section class="rs-pane" data-pane="machines">
-      <p class="note">${E(t("rs_my_machines_note"))}</p>
-      <div id="rs-machines">${htmlMachines()}</div>
-      <div class="card add-sel"><h3>➕ ${E(t("rs_add_manual"))}</h3>
-        <p class="note">${E(t("rs_add_manual_note"))}</p>
-        ${formMachine("man", "")}</div>
-      </section>
-
-      <section class="rs-pane" data-pane="tools">
-      <h3>📂 ${E(t("usb_import_title"))}</h3>
+      <h3 class="rs-h2">📂 ${E(t("usb_import_title"))}</h3>
       <div class="card">
         <p class="note">${E(t("usb_import_note"))}</p>
         <div class="add-sel-row">
@@ -432,17 +419,12 @@ window.BA = window.BA || {};
           <label class="btn secondary file-btn">📂 ${E(t("usb_choose"))}<input type="file" id="usb-file" accept=".dat,.txt,*/*" hidden></label>
         </div>
       </div>
-      <h3>🧪 ${E(t("eva_test_title"))}</h3>
-      <p class="note">${E(t("eva_test_note"))}</p>
-      <textarea id="eva-raw" rows="8" class="zone-texte" placeholder="— ${E(t("eva_paste"))} —">${E(_texte || "")}</textarea>
-      <div class="carte-actions"><button class="btn secondary" id="btn-eva-parse">🔍 ${E(t("eva_parse"))}</button></div>
-      <pre id="eva-parsed">— ${E(t("eva_parse_hint"))} —</pre>
-      </section>`;
-    el.querySelectorAll("[data-rs-tab]").forEach(b => b.onclick = () => montrer(b.dataset.rsTab));
-    montrer(_tab, true);
-    bind();
-    majProchaine();
-    if (BA.Boitiers) BA.Boitiers.mount(el.querySelector("#rs-boitiers"));
+      <details class="rs-more rs-eva"><summary>🧪 ${E(t("eva_test_title"))}</summary>
+        <p class="note">${E(t("eva_test_note"))}</p>
+        <textarea id="eva-raw" rows="8" class="zone-texte" placeholder="— ${E(t("eva_paste"))} —">${E(_texte || "")}</textarea>
+        <div class="carte-actions"><button class="btn secondary" id="btn-eva-parse">🔍 ${E(t("eva_parse"))}</button></div>
+        <pre id="eva-parsed">— ${E(t("eva_parse_hint"))} —</pre>
+      </details>`;
   }
 
   function bindChoix() {
@@ -474,6 +456,7 @@ window.BA = window.BA || {};
         U().toast("✅ " + t("saved"));
         const m = M.machine(BA.Store.get(), f === "num" ? Number(inp.value) : num);
         if (m && CLOUD() && m.id && (f === "street" || f === "city")) BA.DB.updateMachine(m.id, { name: m.street || m.id, city: m.city || "" }).catch(e => console.warn(e.message));
+        if (m && CLOUD() && m.id && f === "serial") BA.DB.updateMachine(m.id, { serial: m.serial }).catch(e => console.warn(e.message));
       }
       U().afterClick(majDyn);
     });
@@ -546,7 +529,7 @@ window.BA = window.BA || {};
       const v = Number(r.value);
       if (v === 1 && _rs.liste !== 1) {
         U().confirmDialog({ title: t("rs_list1_title"), html: `<p>${E(t("rs_list1_warn"))}</p>`, ok: t("rs_list1_ok"),
-          onOk: () => { _rs.liste = 1; sauverRs(); render(el); } });
+          onOk: () => { _rs.liste = 1; sauverRs(); renderPanes(el); } });
         el.querySelector("input[name=rs-liste][value='2']").checked = true;
         return;
       }
@@ -637,9 +620,9 @@ window.BA = window.BA || {};
   }
 
   BA.Rs232 = {
-    render, renderOp, init, badge,
-    // v5.11 : ouvrir un onglet de la page (« cable », « boxes », « machines », « tools »)
-    tab(name) { montrer(name); },
+    renderPanes, renderOp, init, badge,
+    // v5.12 : ouvrir un onglet de la page Technique (« cable », « boxes », « machines » ; « tools » = « cable »)
+    tab(name) { if (BA.Technique) BA.Technique.tab(name === "tools" ? "cable" : name); },
     tick: () => majDyn(),
     // relevé gardé dans la table « audits » (point de départ du relevé suivant) : utilisé aussi par les boîtiers 4G
     saveAudit: sauverAudit,

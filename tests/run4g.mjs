@@ -112,9 +112,9 @@ async function device(name, opts = {}) {
 async function open(d, file) { const p = await d.ctx.newPage(); await p.goto(URL0 + file); return p; }
 async function login(p) { await p.waitForSelector("#login-email", { timeout: 20000 }); await p.fill("#login-email", "amor@test.be"); await p.fill("#login-pass", "Secret-123"); await p.click("#login-go"); }
 const ready = p => p.waitForSelector("#app-nav button", { timeout: 40000, state: "attached" });
-// v5.11 : barre latérale (PC) ou onglets du bas (téléphone) ; la page RS232 s'ouvre sur l'onglet « Boîtiers 4G »
+// v5.11 : barre latérale (PC) ou onglets du bas (téléphone) ; v5.12 : la gestion des boîtiers est dans la page Technique (onglet « Boîtiers 4G »)
 const view = async (p, v) => {
-  if (v === "rs232") await p.evaluate(() => BA.Rs232 && BA.Rs232.tab && BA.Rs232.tab("boxes"));
+  if (v === "technique") await p.evaluate(() => BA.Technique && BA.Technique.tab("boxes"));
   const b = [`#app-nav button[data-view='${v}']`, `#app-tabbar button[data-view='${v}']`];
   if (await p.isVisible(b[0])) await p.click(b[0]); else if (await p.isVisible(b[1])) await p.click(b[1]); else await p.evaluate(x => BA.Shell.go(x), v);
   await p.mouse.move(900, 300); await p.waitForSelector(`#view-${v}.active`); await sleep(450);
@@ -146,8 +146,8 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.11.1", (await a.innerText("#app-footer")).includes("5.11.1"));
-  await view(a, "rs232");
+  ok("pied de page : version 5.12.0", (await a.innerText("#app-footer")).includes("5.12.0"));
+  await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));
   await a.click("#rs-boitiers [data-bx=sql]");
@@ -186,6 +186,8 @@ try {
   await shot(a, "4g-02-cle-du-boitier");
   await (await a.$(".dlg-modal")).screenshot({ path: path.join(OUT, "z-cle.png") });
   await a.click("#dlg-ok");
+  // v5.12 : une fois un boîtier ajouté, l'installation (commandes, fonction) est repliée en bas
+  await a.click("#rs-boitiers details.bx-install > summary");
   await a.click("#rs-boitiers [data-bx=fn]");
   await a.waitForSelector("#bx-fn-code");
   ok("fenêtre « fonction ingest » : code complet + étapes (Verify JWT désactivé)", (await a.inputValue("#bx-fn-code")).includes("Deno.serve") && (await a.innerText(".dlg-modal")).includes("Verify JWT"));
@@ -302,19 +304,25 @@ try {
   const dash = await a.innerText("#view-dashboard");
   ok("Dashboard : « 📡 4G hh:mm » sur la carte de la machine", /📡 4G \d\d:\d\d/.test(dash), dash.slice(0, 400));
   await (await a.$("#view-dashboard .carte-machine")).screenshot({ path: path.join(OUT, "z-carte.png") });
-  await view(a, "rs232");
+  await view(a, "technique");
   await a.waitForSelector(".bx-table");
   const tab = await a.innerText("#rs-boitiers");
   ok("liste des boîtiers : nom, en ligne, signal, état, version", tab.includes("Boîtier Midi") && tab.includes("En ligne") && /excellent \(21\/31\)/.test(tab) && tab.includes("v1.0"), tab.slice(0, 400));
   await shot(a, "4g-04-onglet-boitiers");
   await (await a.$("#rs-boitiers")).screenshot({ path: path.join(OUT, "z-section.png") });
+  // v5.12 : la page « Connexion RS232 » ne montre plus que les boîtiers et leur état
+  await view(a, "rs232");
+  await a.waitForSelector("#view-rs232 .bx-sum-list", { timeout: 15000 });
+  const sumTxt = await a.innerText("#view-rs232");
+  ok("page Connexion RS232 : le boîtier, « En ligne : 1 », machine lue, sans câble ni commandes", sumTxt.includes("Boîtier Midi") && /En ligne\s*1/i.test(sumTxt) && /Machine lue/.test(sumTxt) && !(await a.$("#view-rs232 #btn-rs-connecter")) && !(await a.$("#view-rs232 [data-bx=sql]")), sumTxt.slice(0, 500));
+  await shot(a, "4g-04b-connexion-rs232");
   await o.evaluate(() => BA.Boitiers.refresh(true));
   await view(o, "rs232");
   ok("téléphone (onglet Connexion) : 📡 4G sur la machine", /📡|4G/.test(await o.innerText("#view-rs232")));
   await shot(o, "4g-05-telephone");
   for (const lang of ["nl", "en"]) {
     await a.evaluate(l => { BA.I18n.set(l, "admin"); BA.Shell.build ? BA.Shell.build() : null; }, lang);
-    await view(a, "rs232"); await sleep(300);
+    await view(a, "technique"); await sleep(300);
     const raw = await a.evaluate(() => { const k = new Set(Object.keys(BA.I18n.dicts.fr)); return (document.body.innerText.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi) || []).filter(w => k.has(w) || /^bx_/.test(w)); });
     ok("langue " + lang + " : section boîtiers sans texte manquant", raw.length === 0, raw);
   }
@@ -322,7 +330,7 @@ try {
 
   console.log("\n== 7b. Bouton « Lire maintenant » (commandes SQL 10 à 17, programme v1.1)");
   const rpc = (k, fait, okv, msg) => fake.boitierRpc(k, fait || 0, okv !== false, msg || "").body;
-  await view(a, "rs232"); await a.waitForSelector(".bx-table");
+  await view(a, "technique"); await a.waitForSelector(".bx-table");
   let sec = await a.innerText("#rs-boitiers");
   ok("avant les commandes 10 à 17 : pas de bouton, message pour les installer", sec.includes("10 à 17") && !(await a.$("button[data-bxread]")), sec.slice(0, 300));
   ok("boîtier sans la fonction : réponse 404 (le boîtier l'écrit dans le Moniteur série)", fake.boitierRpc(key).status === 404);
@@ -446,7 +454,7 @@ try {
   ok("envoi COMPLET de la machine (toutes les sélections) : +1 vente comptée tout de suite", (await salesToday(a)) === avant2 + 2, [await salesToday(a), avant2]);
   for (const lang of ["nl", "en"]) {
     await a.evaluate(l => { BA.I18n.set(l, "admin"); BA.Shell.build ? BA.Shell.build() : null; }, lang);
-    for (const v of ["rs232", "details"]) {
+    for (const v of ["technique", "details"]) {
       await view(a, v); await sleep(300);
       const raw = await a.evaluate(() => { const k = new Set(Object.keys(BA.I18n.dicts.fr)); return (document.body.innerText.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi) || []).filter(w => k.has(w) || /^bx_/.test(w)); });
       ok("langue " + lang + ", " + v + " : « Lire maintenant » sans texte manquant", raw.length === 0 && !!(await a.$("button[data-bxread]")), raw);
@@ -458,7 +466,7 @@ try {
   const toasts = async p => p.evaluate(() => (window.__toasts || []).slice());
   const spyToasts = p => p.evaluate(() => { window.__toasts = []; if (!BA.UI.__spy) { const f = BA.UI.toast; BA.UI.toast = (x, ms) => { window.__toasts.push(x); return f(x, ms); }; BA.UI.__spy = true; } });
   // 2e boîtier, sur la machine #2, encore avec l'ancien programme (v1.0)
-  await view(a, "rs232"); await a.waitForSelector("#bx-add");
+  await view(a, "technique"); await a.waitForSelector("#bx-add");
   await a.fill("#bx-name", "Boîtier Anvers");
   await a.selectOption("#bx-machine", "FAS-202166085");
   await a.click("#bx-add");
@@ -566,7 +574,7 @@ try {
   ok("téléphone de l'opérateur : pas de bouton « Lire toutes les machines »", !(await o.$("[data-bxreadall]")));
   for (const lang of ["nl", "en"]) {
     await a.evaluate(l => { BA.I18n.set(l, "admin"); BA.Shell.build ? BA.Shell.build() : null; }, lang);
-    for (const v of ["order", "dashboard", "rs232"]) {
+    for (const v of ["order", "dashboard", "technique"]) {
       await view(a, v); await sleep(300);
       const raw = await a.evaluate(() => { const k = new Set(Object.keys(BA.I18n.dicts.fr)); return (document.body.innerText.match(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gi) || []).filter(w => k.has(w) || /^bx_/.test(w)); });
       ok("langue " + lang + ", " + v + " : « Lire toutes les machines » sans texte manquant", raw.length === 0 && !!(await a.$(`#view-${v} [data-bxreadall]`)), raw);
@@ -583,7 +591,7 @@ try {
   await view(a, "dashboard"); await a.mouse.move(700, 450); await sleep(500);
   const R = () => a.evaluate(() => { const n = document.getElementById("app-side"), m = document.querySelector("#app-main"), l = n.querySelector("button[data-view=alerts] span"); const r = n.getBoundingClientRect(); return { w: Math.round(r.width), left: Math.round(r.left), mainLeft: Math.round(m.getBoundingClientRect().left), lab: +getComputedStyle(l).opacity, items: n.querySelectorAll("#app-nav button[data-view]").length, pinned: document.documentElement.classList.contains("side-pinned") }; });
   let rr = await R();
-  ok("barre latérale : repliée sur les icônes (76 px), à gauche, 9 menus", rr.w === 76 && rr.left === 0 && rr.items === 9 && rr.lab === 0 && rr.mainLeft >= 76, rr);
+  ok("barre latérale : repliée sur les icônes (76 px), à gauche, 10 menus (v5.12 : + Technique)", rr.w === 76 && rr.left === 0 && rr.items === 10 && rr.lab === 0 && rr.mainLeft >= 76, rr);
   await shot(a, "4g-09-menu-replie");
   await a.mouse.move(40, 450); await sleep(800);
   const rr2 = await R();
@@ -649,7 +657,7 @@ try {
   await a.mouse.move(900, 450);
 
   console.log("\n== 8. Nouvelle clé, changer de machine, supprimer");
-  await view(a, "rs232"); await a.waitForSelector(".bx-table");
+  await view(a, "technique"); await a.waitForSelector(".bx-table");
   await a.click("[data-bxkey]"); await a.click("#dlg-ok");
   await a.waitForSelector("#bx-key-line");
   const key2 = (/"([0-9a-f]{32})"/.exec(await a.innerText("#bx-key-line")) || [])[1];

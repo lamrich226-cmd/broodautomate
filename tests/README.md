@@ -10,7 +10,8 @@ un **faux câble RS232** et un **faux Firebase**. Rien n'est envoyé sur Interne
 | `ingest/flux.test.mts` | « ingest » de bout en bout : notifications, porte restée ouverte, boîtier muet, téléphones |
 | `run.js` | tout le logiciel : PC + téléphone, hors ligne, câble, commandes, prévisions, opérateur, cloche… |
 | `run4g.mjs` | boîtiers 4G : relevés, « Lire maintenant », clés, fonction « ingest » |
-| `v511.mjs` | v5.11 : machine « en ligne » seulement si elle est lue, alertes regroupées / archivées, profils sans historique, page RS232 en onglets, thèmes nuit / clair |
+| `v511.mjs` | v5.11 : machine « en ligne » seulement si elle est lue, alertes regroupées / archivées, profils sans historique, page Technique en onglets, thèmes nuit / clair |
+| `v512.mjs` | v5.12 : page « Technique » (boîtiers en détail, données 4G estimées, machines et n° de plaque, câble et clé USB, journal des envois, système), page « Connexion RS232 » allégée, téléphone, opérateur |
 
 ## Lancer les tests (sur un ordinateur avec Node 22 ou plus)
 
