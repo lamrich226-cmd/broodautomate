@@ -222,6 +222,9 @@ window.BA = window.BA || {};
       html: `<dl class="bx-dl tq-dl">${lignes.map(([k, v]) => `<div><dt>${E(k)}</dt><dd>${E(v)}</dd></div>`).join("")}</dl>
         <h3>${E(t("tq_j_dlg_events"))} (${evs.length})</h3>
         ${evs.length ? `<ul class="tq-evs">${evs.slice(0, 60).map(e => `<li><b>${E(e.k)}</b> ${E(e.txt)} <span class="petit">· ${E(e.when)}${e.extra ? " · " + E(e.extra) : ""}</span></li>`).join("")}</ul>` : `<p class="note">—</p>`}
+        ${BA.EvaTrad && R.raw ? `<h3>${E(t("tq_j_dlg_lines"))}</h3><p class="note">${E(t("tq_j_dlg_lines_note"))}</p>
+          <div class="table-scroll tq-trad"><table class="compact tq-table"><thead><tr><th>${E(t("tq_j_dlg_l_raw"))}</th><th>${E(t("tq_j_dlg_l_txt"))}</th></tr></thead>
+          <tbody>${BA.EvaTrad.lignes(R.raw).map(l => `<tr><td><code>${E(l.raw)}</code></td><td>${E(l.txt)}</td></tr>`).join("")}</tbody></table></div>` : ""}
         <h3>${E(t("tq_j_dlg_raw"))}</h3>
         <textarea class="zone-texte" rows="10" readonly id="tq-raw">${E(R.raw || "")}</textarea>
         <div class="carte-actions"><button type="button" class="btn secondary" id="tq-raw-copy">📋 ${E(t("tq_j_copy"))}</button></div>`,

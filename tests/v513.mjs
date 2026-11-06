@@ -161,6 +161,28 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   await shot("v513-03-consommation");
   ok("pas d'erreur dans la console", errs.length === 0, errs);
 
+  console.log("\n== 6. Journal → Voir : chaque ligne reçue avec sa traduction");
+  const RAW3 = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FASTER     *0091* *+120*", "ID4*2*39", "ID5*261106*1138",
+    "VA1*10000*40*0*0*0**0", "DA2*8000*30*0*0", "PA1*11*250*1100*0**1**0*99", "PA2*40*10000*40", "EA1*ECF_38*261106*1113***+120", "EA2*ECF_38****1",
+    "EA1*EGS*261106*1137***+120", "EA2*EGS****0", "MA5*ERROR*261106*1113*16*38", "MA5*POW ON*261106*0949", "MA5*TEMPER*261106*1004*+164", "G85*1CF3", "DXE*1*1"].join("\r\n") + "\r\n";
+  fake.t.device_reports.push({ id: 9001, device_id: DEV.A, machine_id: "FAS-FAS000000001", raw: RAW3, role: "boitier", received_at: new Date().toISOString() });
+  await p.evaluate(() => BA.Shell.go("technique")); await sleep(800);
+  await p.click("[data-tq-tab=journal]"); await sleep(1200);
+  await p.click("#tq-j-refresh"); await sleep(2000);
+  await p.click("#tq-journal [data-tqview='9001']"); await sleep(800);
+  const dlg = (await p.innerText(".modal, dialog, [role=dialog], .dialog")).replace(/\s+/g, " ");
+  ok("tableau « Ligne reçue / Ce que ça veut dire »", /Ligne reçue/i.test(dlg) && /Ce que ça veut dire/i.test(dlg), dlg.slice(0, 300));
+  ok("VA1 : ventes totales 100,00 € pour 40 ventes", /VENTES TOTALES[^.]*100,00 € pour 40 ventes/.test(dlg), dlg);
+  ok("DA2 : paiements par carte 80,00 € pour 30 ventes", /PAIEMENTS PAR CARTE[^.]*80,00 € pour 30 ventes/.test(dlg), dlg);
+  ok("PA1 : sélection 11 prix 2,50 €", /SÉLECTION 11 : prix actuel 2,50 €/.test(dlg), dlg);
+  ok("EA1 ECF_38 : événement traduit avec date", /ÉVÉNEMENT « ECF_38 »[^.]*06\/11\/2026 à 11:13/.test(dlg), dlg);
+  ok("EA2 : encore actif / terminé", /ENCORE ACTIF/.test(dlg) && /terminé \/ revenu à la normale/.test(dlg), dlg);
+  ok("MA5 : erreur 16/38, allumée, température 16,4 °C", /ERREUR de la machine n° 16\/38/.test(dlg) && /ALLUMÉE le 06\/11\/2026 à 09:49/.test(dlg) && /16,4 °C/.test(dlg), dlg);
+  ok("le texte brut reste affiché (zone copiable)", (await p.inputValue("#tq-raw")).includes("DXS*FAS202164170"));
+  ok("aucune ligne « pas utilisée » pour les lignes courantes", !/Ligne « (VA1|DA2|PA1|EA1|MA5|ID5) »/.test(dlg));
+  await p.screenshot({ path: path.join(OUT, "v514-01-journal-traduit.png") });
+  ok("pas d'erreur dans la console", errs.length === 0, errs);
+
   await browser.close(); srv.close();
   console.log(ko ? "\n" + ko + " ÉCHEC(S)" : "\nTout est OK"); process.exit(ko ? 1 : 0);
 })();

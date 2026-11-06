@@ -932,3 +932,10 @@ table.rs-machines .plaque-in { width: 130px; }
 .pay-rows { display: grid; gap: 4px; font-weight: 700; margin: 4px 0 6px; }
 .pay-rows > div { font-size: .95rem; }
 .tot-card .value { color: var(--text); font-size: 1.55rem; white-space: nowrap; }
+.tq-trad { max-height: 50vh; overflow: auto; }
+.tq-trad code { white-space: pre-wrap; word-break: break-all; font-size: .8rem; }
+.tq-trad table { width: 100%; table-layout: fixed; }
+.tq-trad th:first-child, .tq-trad td:first-child { width: 36%; }
+.tq-trad td, .tq-trad th { white-space: normal; overflow-wrap: anywhere; vertical-align: top; }
+.tq-trad { overflow-x: hidden; }
+.tq-trad table, .table-scroll.tq-trad table { min-width: 0; }
