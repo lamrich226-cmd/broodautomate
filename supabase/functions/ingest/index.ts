@@ -148,6 +148,12 @@ async function jwtGoogle(sa: { client_email: string; private_key: string }, main
 
 // ---------- Notifications : table ba_notifications + téléphones (Firebase) ----------
 const MUET_MS = 2 * 3600 * 1000;          // boîtier sans nouvelles depuis 2 h
+async function porteNotifActive(): Promise<boolean> {
+  try {
+    const { data } = await admin.from("ba_state").select("data").eq("id", "main").maybeSingle();
+    return !!(data && data.data && data.data.settings && data.data.settings.porteNotif === true);
+  } catch (_e) { return false; }
+}
 const PORTE_MS = 15 * 60 * 1000;          // porte encore ouverte après 15 min
 const RETRY_MS = 6 * 3600 * 1000;         // on réessaie d'envoyer pendant 6 h
 
@@ -303,6 +309,10 @@ Deno.serve(async (req: Request) => {
   // Notifications : jamais une raison de refuser l'envoi du boîtier (si la table n'existe pas encore, on continue)
   try {
     await notifierReleve(boitier, lecture.evs);
+    // v5.13 : notification tout de suite à l'ouverture de la porte, seulement si l'admin l'a activée (réglage « porteNotif », éteint par défaut)
+    if (lecture.porte === true && !(avant && avant.ouverte) && await porteNotifActive())
+      await ajouter([{ cle: "porte-ouverte|" + boitier.id + "|" + (porte ? porte.depuis : ""), device_id: boitier.id, machine_id: boitier.machine_id, type: "porte",
+        titre: nomDe(boitier) + " : porte ouverte", texte: "Ouverte à " + quand(porte ? porte.depuis : new Date().toISOString()) }]);
     if (avant && avant.ouverte && avant.alerte && porte && !porte.ouverte)
       await ajouter([{ cle: "porte-fermee|" + boitier.id + "|" + avant.depuis, device_id: boitier.id, machine_id: boitier.machine_id, type: "info",
         titre: nomDe(boitier) + " : porte refermée", texte: "Elle était ouverte depuis le " + quand(avant.depuis) }]);

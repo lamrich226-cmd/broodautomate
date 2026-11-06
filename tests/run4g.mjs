@@ -146,7 +146,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.12.0", (await a.innerText("#app-footer")).includes("5.12.0"));
+  ok("pied de page : version 5.13.0", (await a.innerText("#app-footer")).includes("5.13.0"));
   await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));
@@ -674,7 +674,7 @@ try {
   ok("les ventes déjà comptées restent", ventes === 14, ventes);
 
   const http404 = pc.http.concat(tel.http);
-  ok("réponses d'erreur de Supabase : seulement « table absente » avant les commandes SQL (devices, puis ba_demandes)", http404.every(u => /\/(devices|ba_demandes|ba_notifications)/.test(u)) && http404.filter(u => /devices/.test(u)).length <= 2 && http404.filter(u => /ba_demandes/.test(u)).length <= 3, http404.map(u => u.replace(/\?.*/, "")));
+  ok("réponses d'erreur de Supabase : seulement « table absente » avant les commandes SQL (devices, puis ba_demandes)", http404.every(u => /\/(devices|ba_demandes|ba_notifications)|\/rpc\/ba_(portes|conso)/.test(u)) && http404.filter(u => /devices/.test(u)).length <= 2 && http404.filter(u => /ba_demandes/.test(u)).length <= 3, http404.map(u => u.replace(/\?.*/, "")));
   ok("aucune erreur JavaScript (PC + téléphone)", errors.length === 0, errors.slice(0, 5));
 } catch (e) {
   console.log("ARRÊT : " + (e.stack || e));

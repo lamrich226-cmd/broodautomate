@@ -116,8 +116,22 @@ window.BA = window.BA || {};
     const e = (events || []).filter(x => x.code === DOOR_OPEN_CODE && x.active != null).pop();
     if (!e) return;
     const busy = s.interventions.some(x => x.num === m.num && x.status === "open");
-    if (e.active && !m.door) { m.door = true; M.addEvent(s, m.num, "DOOR_OPEN", {}); }
-    else if (!e.active && m.door && !busy) { m.door = false; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
+    if (e.active && !m.door) { m.door = true; m.doorAt = s.now; M.addEvent(s, m.num, "DOOR_OPEN", {}); }
+    else if (!e.active && m.door && !busy) { m.door = false; delete m.doorAt; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
+  }
+  // v5.13 : porte vue par le serveur (fonction ba_portes) : ce qui change pour chaque machine (sans rien modifier)
+  // list : [{ m: n° de la machine (id), o: ouverte ?, d: heure du changement (ISO) }]
+  function portesPlan(s, list) {
+    const out = [];
+    (list || []).forEach(p => {
+      const m = s.machines.find(x => x.id === p.m); if (!m) return;
+      const at = Date.parse(p.d) || 0;
+      const busy = s.interventions.some(x => x.num === m.num && x.status === "open");
+      if (p.o && !m.door) out.push({ num: m.num, open: true, at });
+      else if (p.o && m.door && at && Math.abs((m.doorAt || 0) - at) > 1000) out.push({ num: m.num, open: true, at });     // même porte, heure exacte
+      else if (!p.o && m.door && !busy && at >= (m.doorAt || 0)) out.push({ num: m.num, open: false, at });
+    });
+    return out;
   }
   // Événements terminés d'après la machine
   function closeFinished(s, m, events) {
@@ -136,12 +150,33 @@ window.BA = window.BA || {};
   const Reel = {
     machineMs, addSpan,
 
+    portesPlan,
+    portes(s, list) {
+      const plan = portesPlan(s, list);
+      plan.forEach(c => {
+        const m = M.machine(s, c.num); if (!m) return;
+        if (c.open) { if (!m.door) M.addEvent(s, m.num, "DOOR_OPEN", {}); m.door = true; m.doorAt = c.at || s.now; }
+        else { m.door = false; delete m.doorAt; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
+      });
+      return plan.length;
+    },
+
+    // v5.13 : totaux de la machine depuis sa mise en service (chiffre d'affaires, nombre de ventes, part payée par carte)
+    // gardés dans la machine avec la date du relevé ; un relevé plus ancien (clé USB) ne remplace pas un plus récent
+    setTotals(s, num, audit, t) {
+      const m = M.machine(s, num); if (!m || !audit || audit.total_count == null) return;
+      if (m.tot && m.tot.t > t) return;
+      m.tot = { t, n: Number(audit.total_count), v: Number(audit.total_value) || 0,
+        cn: audit.cashless_count == null ? null : Number(audit.cashless_count), cv: audit.cashless_value == null ? null : Number(audit.cashless_value) };
+    },
+
     // ---------- Relevé avec compteurs (VA1…) ----------
     // x = { t, analyse (sans le texte brut), audit, ancien, diff, nv } : données figées → refaites à l'identique si besoin
     // Renvoie { message, ventes }
     applyAudit(s, num, x) {
       const m = M.machine(s, num); if (!m) return { message: "machine introuvable", ventes: 0 };
       const { diff, nv, audit, analyse } = x;
+      const prevTot = m.tot ? Object.assign({}, m.tot) : null;        // v5.13 : totaux du relevé d'avant (carte / espèces par jour)
       seen(s, m, x.t, x.src);
       // température : la plus récente
       const temps = (audit.errors || []).filter(e => e.type === "temp")
@@ -202,6 +237,12 @@ window.BA = window.BA || {};
         nv.pow.forEach(p => powerEvent(s, m, p));
         nv.temp.forEach(tt => tempEvent(s, m, Number(tt.c), when(tt.date, tt.time)));
       }
+      // v5.13 : part payée par carte depuis le relevé d'avant, rangée dans la journée (rc = montant, sc = nombre)
+      if (appliquer && prevTot && prevTot.cv != null && audit.cashless_value != null) {
+        const dv = Math.round((audit.cashless_value - prevTot.cv) * 100) / 100, dn = audit.cashless_count - prevTot.cn;
+        if (dv >= 0 && dn >= 0 && (dv || dn)) M.addDaily(s, x.t, m.num, { rc: dv, sc: dn });
+      }
+      Reel.setTotals(s, m.num, audit, x.t);
       const nouveaux = diff.baseline ? 0 : nv.eva.length + nv.fas.length + nv.pow.length + nv.activations.length;
       let message;
       if (diff.baseline) message = BA.I18n.t("rs_msg_first");
@@ -307,7 +348,7 @@ window.BA = window.BA || {};
     const st = s.settings;
     // La porte n'est connue que par les relevés : sans données récentes (câble débranché, machine hors ligne),
     // elle n'est plus affichée ouverte — sauf pendant « Remplir » (porte ouverte par l'opérateur)
-    if (m.door && !onlineNow(s, m) && !s.interventions.some(x => x.num === m.num && x.status === "open")) m.door = false;
+    if (m.door && !onlineNow(s, m) && !s.interventions.some(x => x.num === m.num && x.status === "open") && !(BA.Portes && BA.Portes.isOpen(m.id))) { m.door = false; delete m.doorAt; }
     if (!m.door) M.resolveEvents(s, m.num, "DOOR_OPEN");
     if (m.temp != null && isFinite(m.temp)) {
       if (m.temp <= st.tempMax) M.resolveEvents(s, m.num, "TEMP_HIGH");

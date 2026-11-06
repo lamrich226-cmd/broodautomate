@@ -167,14 +167,14 @@ window.BA = window.BA || {};
     const rev = Object.values(today).reduce((a, r) => a + r.r, 0);
     const cards = [
       [!list.length ? "" : online === list.length ? "ok" : online ? "remove" : "empty", t("sum_online"), online + "/" + list.length],   // v5.11 : couleur selon le nombre en ligne
-      ["door", t("sum_door"), doors],
+      ["door", t("sum_door"), doors, doors ? list.filter(o => o.m.door).map(o => "#" + o.m.num).join(" ") : ""],
       ["empty", t("sum_empty"), empties],
       ["remove", t("sum_remove"), remove],
       ["", t("sum_stock"), stock]
     ];
     if (admin) cards.push(["", t("sum_sales_today"), sold], ["", t("sum_rev_today"), F.eur(rev)]);
-    return `<div class="cards summary-cards">${cards.map(([c, l, v]) =>
-      `<div class="card stat ${c ? "c-" + c : ""}"><div class="label">${l}</div><div class="value">${v}</div></div>`).join("")}</div>`;
+    return `<div class="cards summary-cards">${cards.map(([c, l, v, x]) =>
+      `<div class="card stat ${c ? "c-" + c : ""}"><div class="label">${l}</div><div class="value">${v}</div>${x ? `<div class="petit door-nums">${E(x)}</div>` : ""}</div>`).join("")}</div>`;
   }
 
   function machineCard(s, m, x, admin) {
@@ -194,7 +194,7 @@ window.BA = window.BA || {};
     const today = (s.daily[M.dayKey(s.now)] || {})[m.num];
     const right = admin ? `🧾 ${today ? today.s : 0} · ${F.eur(today ? today.r : 0)}` : (m.online ? "🟢 " + t("online") : "⚪ " + t("offline"));   // v5 : état réel
     return `<div class="card carte-machine st-${x.st}" tabindex="0" role="button" data-machine="${m.num}">
-      ${m.door ? `<div class="door-banner">🚪 ${t("door_banner")}</div>` : ""}
+      ${m.door ? `<div class="door-banner">🚪 ${t("door_banner")}${m.doorAt ? " · " + t("door_since", { d: F.age(Math.max(0, s.now - m.doorAt)) }) : ""}</div>` : ""}
       <div class="cm-top"><span class="cm-num">#${m.num}</span>${pill(x.st)}</div>
       <div class="cm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></div>
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
@@ -237,6 +237,20 @@ window.BA = window.BA || {};
       ? `<div class="cards machines-grid">${shown.map(o => machineCard(s, o.m, o.x, ctx.admin)).join("")}</div>`
       : `<div class="alert info">${!all.length ? t(ctx.admin ? "no_machine_admin" : "no_machine_op") : t("no_match")}</div>`;
     if (focused) { const f = body.querySelector(`[data-machine="${focused}"]`); if (f) f.focus({ preventScroll: true }); }
+  }
+
+  // v5.13 : total de la machine depuis sa mise en service, et part carte / espèces (admin)
+  function totalCards(m, today) {
+    const tot = m.tot;
+    if (!tot) return `<div class="card"><div class="label">${t("tot_title")}</div><div class="value v-small">—</div><div class="petit">${t("tot_wait")}</div></div>`;
+    const card = tot.cv != null ? tot.cv : null, cash = card != null ? Math.max(0, Math.round((tot.v - card) * 100) / 100) : null;
+    const cashN = tot.cn != null ? Math.max(0, tot.n - tot.cn) : null;
+    const rc = today && today.rc ? today.rc : 0, re = Math.max(0, Math.round(((today && today.r) || 0) * 100) / 100 - rc);
+    return `<div class="card tot-card"><div class="label">${t("tot_title")}</div><div class="value">${F.eur(tot.v)}</div><div class="petit">${t("tot_sub", { n: F.num(tot.n), d: F.dt(tot.t) })}</div></div>
+        <div class="card pay-card"><div class="label">${t("pay_title")}</div>${card == null
+          ? `<div class="value v-small">—</div><div class="petit">${t("pay_none")}</div>`
+          : `<div class="pay-rows"><div>${t("pay_line", { k: t("pay_card"), v: F.eur(card), n: F.num(tot.cn) })}</div><div>${t("pay_line", { k: t("pay_cash"), v: F.eur(cash), n: F.num(cashN) })}</div></div>
+          <div class="petit">${t("pay_today", { c: F.eur(rc), e: F.eur(re) })}</div><div class="petit">${t("pay_calc")}</div>`}</div>`;
   }
 
   // ---------- Choix de la machine (vues Détails / Produits) ----------
@@ -574,7 +588,7 @@ window.BA = window.BA || {};
       <h2>📊 ${t("nav_details")}</h2>
       ${machinePicker(s, m.num, "det-machine")}
       ${ctx.admin && BA.Boitiers && BA.Boitiers.detail ? BA.Boitiers.detail(m) : ""}
-      ${m.door ? `<div class="alert door">🚪 <b>${t("door_banner")}</b> — ${t("door_explain")}</div>` : ""}
+      ${m.door ? `<div class="alert door">🚪 <b>${t("door_banner")}</b>${m.doorAt ? " (" + t("door_since", { d: F.age(Math.max(0, s.now - m.doorAt)) }) + ")" : ""} — ${t("door_explain")}</div>` : ""}
       ${mission ? `<div class="alert info">🧾 ${t("mission_banner", { n: mission.load })}${mission.removeBefore ? " " + t("mission_remove_before", { d: F.dt(mission.removeBefore) }) : ""}${mission.mandatory ? " " + t("mission_must", { n: mission.mandatory }) : ""}</div>` : ""}
       <div class="cards">
         <div class="card"><div class="label">${t("lbl_status")}</div><div class="value v-small">${pill(x.st)}</div><div class="petit">${E(m.street)}, ${E(m.city)} · S/N ${E(m.serial)}</div></div>
@@ -582,6 +596,7 @@ window.BA = window.BA || {};
         <div class="card"><div class="label">${t("lbl_temp")}</div><div class="value ${tempBad ? "c-error-t" : ""}">${tempTxt(m)}</div><div class="petit">${t("temp_range", { a: s.settings.tempMin, b: s.settings.tempMax })}</div></div>
         <div class="card"><div class="label">${t("lbl_last_sale")}</div><div class="value v-small">${m.lastSale ? F.date(m.lastSale) + " " + F.clock(m.lastSale) : "—"}</div><div class="petit">${m.door || m.power ? t("sales_blocked") : seenTxt(s, m)}</div></div>
         ${ctx.admin ? `<div class="card"><div class="label">${t("lbl_sales_today")}</div><div class="value">${today.s}</div><div class="petit">${F.eur(today.r)}</div></div>` : ""}
+        ${ctx.admin ? totalCards(m, today) : ""}
         <div class="card"><div class="label">${t("lbl_last_intervention")}</div><div class="value v-small">${lastIt ? F.dt(lastIt.end) : "—"}</div></div>
       </div>
       <h3>🍞 ${t("lots_title")}</h3>

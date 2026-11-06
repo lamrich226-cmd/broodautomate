@@ -229,7 +229,7 @@ window.BA = window.BA || {};
     let fait = false;
     BA.Store.update(s => {
       const x = pick(s); if (!x || !free(x)) return;
-      if (same) BA.Reel.touch(s, x.num, tm, "4g");
+      if (same) { BA.Reel.touch(s, x.num, tm, "4g"); BA.Reel.setTotals(s, x.num, audit, tm); }      // v5.13 : le total est mis à jour même sans vente
       else BA.Reel.applyAudit(s, x.num, x0);
       BA.Model.resolveEvents(s, x.num, "BOX_WRONG");
       x.g4 = { rid: R.id, base: "r" + R.id, at: tm };
@@ -721,6 +721,7 @@ window.BA = window.BA || {};
       ["seen", t("bx_det_seen"), ago(seenMs(d))],
       ["sig", t("bx_det_signal"), signal(i.rssi) + (i.op ? " · " + reseau(i.op) : "")],
       ["mach", t("machine"), (m ? nomM(m) : t("bx_unknown_machine", { id: d.machine_id })) + temp],
+      ["tot", t("bx_det_tot"), m && m.tot ? t("bx_det_tot_v", { v: F.eur(m.tot.v), n: F.num(m.tot.n), d: F.dt(m.tot.t) }) + (m.tot.cv != null ? " · " + t("bx_det_tot_card", { c: F.eur(m.tot.cv) }) : "") : "—"],
       ["lok", t("bx_det_lok"), lok ? ago(lok) : i.stok === true ? "✅" : t("bx_never")],
       ["reads", t("bx_det_reads"), i.lu != null ? t("bx_det_reads_v", { n: i.lu, k: i.ko || 0 }) : "—"],
       ["rd", t("bx_det_rd"), Number(i.rd) > 0 ? every(i.rd) : "—"],
@@ -829,7 +830,9 @@ window.BA = window.BA || {};
     return `<div class="bx-ecoute"><label>⏱ ${E(t("bx_ec_label"))}
       <select id="bx-ec" class="auto-w">${cur ? "" : `<option value="" selected disabled>${E(t("bx_ec_unset"))}</option>`}
         ${ECOUTE.map(m => `<option value="${m}" ${m === cur ? "selected" : ""}>${E(duree(m))}</option>`).join("")}</select></label>
-      <p class="note">${E(t("bx_ec_note"))}</p></div>`;
+      <p class="note">${E(t("bx_ec_note"))}</p>
+      <label class="check-row"><input type="checkbox" id="bx-porte-notif" ${((BA.Store.get() || {}).settings || {}).porteNotif === true ? "checked" : ""}> 🚪 ${E(t("bx_porte_notif"))}</label>
+      <p class="note">${E(t("bx_porte_notif_note"))}</p></div>`;
   }
   function htmlAdd() {
     const ms = machines().filter(m => m.id);
@@ -990,6 +993,8 @@ window.BA = window.BA || {};
     el.querySelectorAll("[data-bxdel]").forEach(b => b.onclick = () => delBox(b.dataset.bxdel));
     el.querySelectorAll("[data-bxkey]").forEach(b => b.onclick = () => renewKey(b.dataset.bxkey));
     el.querySelectorAll("[data-bxm]").forEach(s => s.onchange = () => moveBox(s.dataset.bxm, s.value));
+    const pn = el.querySelector("#bx-porte-notif");
+    if (pn) pn.onchange = () => { BA.Actions.saveSettings({ porteNotif: pn.checked }); U().toast("🚪 " + t(pn.checked ? "bx_porte_notif_on" : "bx_porte_notif_off"), 6000); };
     const ec = el.querySelector("#bx-ec");
     if (ec) ec.onchange = () => {
       const v = Number(ec.value);

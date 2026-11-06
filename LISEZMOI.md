@@ -131,6 +131,14 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Correction : chez l'opérateur, le message « ✅ enregistré » (prix, capacité, sélection ajoutée…) n'apparaissait jamais dans les pages ouvertes depuis « Plus ». Il apparaît maintenant.
 - Point de retour : v5.11.0 = commit 0fee273.
 
+## v5.13 — porte en direct, total cumulé, carte / espèces, consommation
+
+- **Porte ouverte en direct** : l'appli demande la fonction `ba_portes` toutes les 15 s (écran visible) ; la porte apparaît sur tous les appareils en ~15 s, avec « depuis X min » sur la machine et les n° des machines ouvertes sur la carte « Portes ouvertes ». Sans la commande SQL `supabase/v513.sql`, rien ne change.
+- **Total depuis la mise en service** et **carte / espèces** (Détails machine) : lus dans le relevé (`VA1` = total, `DA2` = carte ; espèces = total − carte). Le détail du jour carte / espèces apparaît à partir du 2e relevé.
+- **Technique → Système → Consommation** : ce que l'appareil télécharge ce mois (plafond 5 Go/mois pour tous), taille de la base (500 Mo), data de chaque boîtier par mois (`ba_conso`), copie des données (fichier à garder dans Google Drive) et effacement des relevés bruts de plus de 30 jours.
+- **Notification immédiate de porte** (réglage dans Technique → Boîtiers 4G, éteint par défaut) : fonction `ingest` mise à jour.
+- Tests : `tests/v513.mjs`, `tests/ingest/flux.test.mts`.
+
 ## v5.12 — page « Technique » (diagnostic et installation)
 - **Nouvelle page « Technique »** (admin seulement, dans le menu juste après « Connexion RS232 »), en 5 onglets :
   - **📡 Boîtiers 4G** : la liste des boîtiers, puis le **détail de chacun** (programme, mode, allumé depuis, dernier contact, signal et réseau, machine et température, dernière lecture réussie, lectures, rythme, message, porte) et les **données 4G estimées** (depuis le démarrage du boîtier, et par mois au même rythme). Ensuite : réglage « Lire maintenant », « Lire toutes les machines », ajouter un boîtier. L'installation (commandes SQL, fonction « ingest », programme) est repliée en bas.

@@ -926,3 +926,9 @@ table.rs-machines .plaque-in { width: 130px; }
   #app-side-foot { gap: 6px; padding-top: 8px; padding-bottom: calc(10px + env(safe-area-inset-bottom)); }
   .side-link { min-height: 38px; }
 }
+
+/* v5.13 : total de la machine, carte / espèces, numéros des portes ouvertes */
+.door-nums { font-weight: 800; color: var(--c-door); font-size: .9rem; word-break: break-word; }
+.pay-rows { display: grid; gap: 4px; font-weight: 700; margin: 4px 0 6px; }
+.pay-rows > div { font-size: .95rem; }
+.tot-card .value { color: var(--text); font-size: 1.55rem; white-space: nowrap; }

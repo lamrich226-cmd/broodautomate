@@ -59,6 +59,18 @@ delete env.FCM_SERVICE_ACCOUNT;
 r = await post({ k: KEY, role: "machine", raw: "DXS\nEA7*5*1\nDXE" });
 const c = DB.ba_notifications.find(n => n.type === "coupure");
 ok("sans Firebase : notification gardée pour la cloche, pas envoyée", c && !c.envoye_at && pushes.length === 5, c);
+// v5.13 : notification immédiate à l'ouverture de la porte (réglage « porteNotif », éteint par défaut)
+DB.ba_state = [{ id: "main", data: { settings: {} } }];
+const instant = () => DB.ba_notifications.filter(n => /: porte ouverte$/.test(n.titre)).length;
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGT*251105*0600\nEA2*EGT****0\nDXE" });
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*251105*0610\nEA2*EGS****1\nDXE" });
+ok("réglage éteint : pas de notification à l'ouverture de la porte", instant() === 0, instant());
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGT*251105*0620\nEA2*EGT****0\nDXE" });
+DB.ba_state[0].data.settings.porteNotif = true;
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*251105*0630\nEA2*EGS****1\nDXE" });
+ok("réglage allumé : une notification « porte ouverte » tout de suite", instant() === 1, instant());
+await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*251105*0635\nEA2*EGS****1\nDXE" });
+ok("porte déjà ouverte : pas de doublon", instant() === 1, instant());
 ok("relevé incomplet refusé", (await post({ k: KEY, raw: "bonjour" })).s === 400);
 ok("clé inconnue refusée", (await post({ k: "x".repeat(20) })).s === 401);
 ok("jeton Google demandé une seule fois (gardé 1 h)", tokenCalls === 1, tokenCalls);

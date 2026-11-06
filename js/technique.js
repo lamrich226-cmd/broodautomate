@@ -251,6 +251,10 @@ window.BA = window.BA || {};
         const n = await sb().from("ba_notifications").select("id, type, titre, cree_at, envoye_at").order("id", { ascending: false }).limit(5);
         S.notifs = n.error ? (absente(n.error, "ba_notifications") ? false : { err: n.error.message }) : (n.data || []);
       }
+      if (force || S.conso === undefined || (S.conso && S.conso.ok)) {
+        const r = await sb().rpc("ba_conso");
+        S.conso = r.error ? (absente(r.error, "ba_conso") ? false : { err: r.error.message }) : { ok: true, d: r.data || {} };
+      }
       S.err = "";
     } catch (e) { S.err = e.message || String(e); }
     finally { S.busy = false; S.at = Date.now(); drawSystem(); }
@@ -272,6 +276,58 @@ window.BA = window.BA || {};
     if (!n.length) return t("tq_s_notif_none");
     const x = n[0];
     return t("tq_s_notif_last", { d: F.dt(Date.parse(x.cree_at)), t: x.titre }) + " · " + (x.envoye_at ? t("tq_s_notif_sent") : t("tq_s_notif_notsent"));
+  }
+  // ---- v5.13 : consommation (plafonds de l'offre gratuite Supabase : 5 Go de téléchargement / mois, 500 Mo de base) ----
+  const GO = 1024 * 1024 * 1024, MO = 1024 * 1024;
+  const fmtO = o => o >= GO ? (o / GO).toFixed(2).replace(".", ",") + " Go" : o >= MO ? (o / MO).toFixed(1).replace(".", ",") + " Mo" : Math.round(o / 1024) + " Ko";
+  function consoRows() {
+    const c = S.conso, a = BA.Conso ? BA.Conso.courant() : { o: 0, n: 0 };
+    const j = Math.max(1, new Date().getDate()), mois = BA.Conso ? BA.Conso.mois() : "";
+    const rows = [[t("tq_c_dl"), t("tq_c_dl_v", { v: fmtO(a.o), n: a.n, p: fmtO(a.o / j * 30) }), "dl"]];
+    if (c === undefined) rows.push([t("tq_c_db"), S.busy ? "⏳" : "—", "db"]);
+    else if (c === false) rows.push([t("tq_c_db"), t("tq_c_missing"), "db"]);
+    else if (c.err) rows.push([t("tq_c_db"), "⚠️ " + c.err, "db"]);
+    else {
+      const d = c.d, pc = Math.round(d.db / (500 * MO) * 100);
+      rows.push([t("tq_c_db"), t("tq_c_db_v", { v: fmtO(d.db), p: pc }) + (pc >= 80 ? " ⚠️ " + t("tq_c_warn") : ""), "db"]);
+      rows.push([t("tq_c_rel"), t("tq_c_rel_v", { n: F0().num(d.rel_n), v: fmtO(d.rel_o) }), "rel"]);
+      const par = {}; (d.mois || []).forEach(x => { (par[x.mo] = par[x.mo] || []).push(x); });
+      Object.keys(par).sort().reverse().slice(0, 4).forEach(mo => {
+        const tot = par[mo].reduce((q, x) => q + Number(x.o), 0);
+        rows.push([mo, par[mo].map(x => x.m + " : " + fmtO(Number(x.o))).join(" · ") + (par[mo].length > 1 ? " — " + t("tq_c_total", { v: fmtO(tot) }) : ""), "mo-" + mo]);
+      });
+    }
+    return rows;
+  }
+  const F0 = () => U().F;
+  function dl(nom, texte) {
+    const b = new Blob([texte], { type: "application/json" }), a = document.createElement("a");
+    a.href = URL.createObjectURL(b); a.download = nom; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
+  }
+  async function copieDonnees(btn) {
+    btn.disabled = true; const old = btn.textContent; btn.textContent = "⏳";
+    try {
+      const out = { app: C.app.name + " v" + C.app.version, date: new Date().toISOString(), etat: BA.Store.get() };
+      let rows = [], from = 0;
+      for (;;) {                                                   // les relevés des machines (historique des totaux), par paquets de 1000
+        const r = await sb().from("audits").select("*").order("id", { ascending: true }).range(from, from + 999);
+        if (r.error) { if (!absente(r.error, "audits")) throw new Error(r.error.message); break; }
+        rows = rows.concat(r.data || []); if (!r.data || r.data.length < 1000) break; from += 1000;
+      }
+      out.audits = rows;
+      dl("broodautomate-copie-" + new Date().toISOString().slice(0, 10) + ".json", JSON.stringify(out));
+      btn.textContent = "✅ " + t("tq_c_copied");
+    } catch (e) { btn.textContent = "⚠️ " + (e.message || e); }
+    setTimeout(() => { btn.textContent = old; btn.disabled = false; }, 4000);
+  }
+  async function purge(btn) {
+    if (!confirm(t("tq_c_purge_ask"))) return;
+    btn.disabled = true;
+    const lim = new Date(Date.now() - 30 * 24 * 3600000).toISOString();
+    const r = await sb().from("device_reports").delete().lt("received_at", lim);
+    btn.textContent = r.error ? "⚠️ " + r.error.message : "✅ " + t("tq_c_purged");
+    setTimeout(() => loadSystem(true), 1500);
   }
   function txtNavigateur() {
     if (BA.IN_APP) return t("tq_s_browser_app");
@@ -305,6 +361,10 @@ window.BA = window.BA || {};
         [t("tq_s_size"), t("tq_s_size_v", { k: F.num(taille / 1024), m: s.machines.length, e: s.events.length, j: (s.journal || []).length }), "size"],
         [t("tq_s_ver"), q.version ? "n° " + q.version : "—"]
       ])}
+      ${carte("📊 " + E(t("tq_c_title")), cloud ? consoRows() : [[t("tq_c_dl"), t("tq_s_local_na")]])}
+      ${cloud ? `<div class="card tq-card"><h3>💾 ${E(t("tq_c_copy_title"))}</h3><p class="petit">${E(t("tq_c_copy_txt"))}</p>
+        <div class="carte-actions"><button type="button" class="btn secondary" id="tq-c-copy">⬇️ ${E(t("tq_c_copy"))}</button>
+        <button type="button" class="btn secondary" id="tq-c-purge">🧹 ${E(t("tq_c_purge"))}</button></div></div>` : ""}
       ${carte("🌙 " + E(t("tq_s_copies")), [[t("tq_s_copies_l"), cloud ? txtCopies() : t("tq_s_local_na"), "copies"]])}
       ${carte("🔔 " + E(t("tq_s_notif")), [
         [t("tq_s_notif_l"), cloud ? txtNotifs() : t("tq_s_local_na"), "notifs"],
@@ -318,6 +378,8 @@ window.BA = window.BA || {};
       ])}
       </div>
       <p class="note">${E(t("tq_s_note"))}</p>`;
+    const bc = z.querySelector("#tq-c-copy"); if (bc) bc.onclick = () => copieDonnees(bc);
+    const bp = z.querySelector("#tq-c-purge"); if (bp) bp.onclick = () => purge(bp);
     const b = z.querySelector("#tq-s-check");
     if (b) b.onclick = () => { if (BA.Boitiers) BA.Boitiers.refresh(true); loadSystem(true); };
   }

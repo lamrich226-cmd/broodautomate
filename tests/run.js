@@ -226,7 +226,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.12.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.12.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.13.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.13.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
@@ -1032,7 +1032,7 @@ async function scenarioV3() {
       if (run("ecrans") || !ONLY.length) await scenarioEcrans(ctx);
       if (run("opsimple") || !ONLY.length) await scenarioOpSimple(ctx);
       const http = (ctx.pc.http || []).concat(ctx.tel.http || []);
-      ok("réponses d'erreur Supabase : seulement celles attendues (mot de passe, table absente)", http.filter(x => !/\/devices|\/ba_notifications|\/ba_state_backup|\/device_reports|\/ba_demandes/.test(x)).length <= 3 && http.every(x => /token\?grant_type=password|ba_state|\/devices|\/ba_notifications|\/device_reports|\/ba_demandes/.test(x)), http);
+      ok("réponses d'erreur Supabase : seulement celles attendues (mot de passe, table absente)", http.filter(x => !/\/devices|\/ba_notifications|\/ba_state_backup|\/device_reports|\/ba_demandes|\/rpc\/ba_portes|\/rpc\/ba_conso/.test(x)).length <= 3 && http.every(x => /token\?grant_type=password|ba_state|\/devices|\/ba_notifications|\/device_reports|\/ba_demandes|\/rpc\/ba_portes|\/rpc\/ba_conso/.test(x)), http);
       ok("aucune erreur JavaScript (PC + téléphone)", ctx.pc.errors.length === 0 && ctx.tel.errors.length === 0, ctx.pc.errors.concat(ctx.tel.errors).slice(0, 8));
       fs.writeFileSync(path.join(OUT, "requetes.json"), JSON.stringify(ctx.fake.requests.slice(-400), null, 1));
       await ctx.pc.ctx.close(); await ctx.tel.ctx.close();

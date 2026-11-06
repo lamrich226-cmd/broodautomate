@@ -195,7 +195,7 @@ window.BA = window.BA || {};
       const k = dayKey(at);
       const day = s.daily[k] || (s.daily[k] = {});
       const r = day[num] || (day[num] = { s: 0, r: 0, l: 0, x: 0, c: 0 });
-      for (const f in add) r[f] = Math.round((r[f] + add[f]) * 100) / 100;
+      for (const f in add) r[f] = Math.round(((r[f] || 0) + add[f]) * 100) / 100;      // v5.13 : champs nouveaux (rc, sc) acceptés
     },
 
     // Ventes par type de pain (pour les profils par type) : r.y = { blanc: 7, gris: 2, ... }

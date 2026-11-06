@@ -186,6 +186,14 @@ class FakeSupabase {
 
   rest(method, u, headers, body) {
     const name = u.pathname.replace("/rest/v1/", "");
+    if (name === "rpc/ba_portes") return this.portesRpc(method, headers, body);
+    if (name === "rpc/ba_conso") {
+      if (!this.portesSql) return { status: 404, body: { code: "PGRST202", message: "Could not find the function public.ba_conso" } };
+      const rep = this.t.device_reports || [];
+      return { status: 200, body: { db: 12 * 1024 * 1024, rel_n: rep.length, rel_o: rep.reduce((q, r) => q + String(r.raw || "").length, 0),
+        mois: [{ mo: "2026-11", m: "FAS-FAS000000001", n: 40, o: 250000 }, { mo: "2026-10", m: "FAS-FAS000000001", n: 120, o: 700000 }] } };
+    }
+    if (name.startsWith("rpc/")) return { status: 404, body: { code: "PGRST202", message: "Could not find the function public." + name.slice(4) } };
     const tab = this.table(name);
     if (!tab) return { status: 404, body: { code: "PGRST205", details: null, hint: null, message: `Could not find the table 'public.${name}' in the schema cache` } };
     const user = this.userFromAuth(headers);
@@ -278,6 +286,17 @@ class FakeSupabase {
     if (p) { p.statut = "prise"; p.prise_at = new Date().toISOString(); }
     const main = this.ba("main"), m = main && main.data && main.data.settings ? String(main.data.settings.ecouteMin) : "";
     return { status: 200, body: { ok: true, t, dem: p ? p.id : 0, fait: n, ec: ["15", "30", "60"].includes(m) ? Number(m) * 60 : 0 } };
+  }
+  // v5.13 : fonction ba_portes (réservée aux comptes connectés) ; this.portesSql = true une fois la commande SQL v5.13 « collée »
+  runV513Sql() { this.portesSql = true; this.nPortes = 0; }
+  portesRpc(method, headers, body) {
+    if (!this.portesSql) return { status: 404, body: { code: "PGRST202", message: "Could not find the function public.ba_portes" } };
+    if (!this.userFromAuth(headers)) return { status: 401, body: { code: "42501", message: "permission denied for function ba_portes" } };
+    this.nPortes++;
+    let vu = 0; try { vu = Number((typeof body === "string" ? JSON.parse(body || "{}") : body || {}).vu) || 0; } catch (e) { /* */ }
+    const p = (this.t.devices || []).filter(d => d.info && d.info.porte).map(d => ({ m: d.machine_id, o: !!d.info.porte.ouverte, d: d.info.porte.depuis }));
+    const v = p.reduce((a, x) => Math.max(a, Date.parse(x.d) || 0), 0);
+    return { status: 200, body: v === vu ? { v } : { v, l: p } };
   }
   ba(id) { return (this.baState || []).find(r => r.id === id) || null; }
 }

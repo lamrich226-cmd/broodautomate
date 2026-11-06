@@ -110,6 +110,7 @@ BA.EvaDts = {
       machineDate:  null,   // date/heure lue dans le fichier (horloge machine, peu fiable)
       header:       null,
       va1:          null,
+      da2:          null,   // v5.13 : ventes payées par carte (cashless 1) : DA201/DA202 depuis la mise en service
       selections:   [],
       events:       [],     // EA1 / EA2 regroupés (même code + même date + même heure)
       fasErrors:    [],     // MA5*ERROR (codes du manuel FAS)
@@ -196,6 +197,18 @@ BA.EvaDts = {
             valueSinceReset: (num(f[3]) || 0) / 100,
             countSinceReset: num(f[4]) || 0
           };
+          break;
+
+        case "DA2":
+          // v5.13 : DA2*valeur*nombre*valeur depuis RAZ*nombre depuis RAZ = ventes payées par carte (cashless 1) ; le premier DA2 seulement
+          if (!result.da2) {
+            result.da2 = {
+              valueTotal:      (num(f[1]) || 0) / 100,
+              countTotal:      num(f[2]) || 0,
+              valueSinceReset: (num(f[3]) || 0) / 100,
+              countSinceReset: num(f[4]) || 0
+            };
+          }
           break;
 
         case "PA1": {
@@ -406,6 +419,9 @@ BA.EvaDts = {
       machine_date: analyse.machineDate || "",
       total_count:  va.countTotal,
       total_value:  Math.round(va.valueTotal * 100) / 100,
+      // v5.13 : part payée par carte (null si la machine n'envoie pas de DA2) ; pas enregistrée dans la table « audits »
+      cashless_count: analyse.da2 ? analyse.da2.countTotal : null,
+      cashless_value: analyse.da2 ? Math.round(analyse.da2.valueTotal * 100) / 100 : null,
       selections:   (analyse.selections || []).map(s => ({
         selection: s.selection,
         sold:      s.sold,

@@ -149,7 +149,7 @@ window.BA = window.BA || {};
       if (!go) return { message: t("rs_cancelled"), annule: true };
     }
     if (diff.identique && !nouveaux && !nouvellesTemps.length) {
-      BA.Store.update(s => { const x = pick(s, r); if (x) BA.Reel.touch(s, x.num, tm, source); });
+      BA.Store.update(s => { const x = pick(s, r); if (x) { BA.Reel.touch(s, x.num, tm, source); BA.Reel.setTotals(s, x.num, audit, tm); } });
       return { message: t("rs_msg_same"), identique: true };
     }
     audit.source = source;
