@@ -29,6 +29,9 @@ toute autre trame est bloquée avant l'envoi (même liste de sécurité que le l
   Résultat sur un vrai relevé : 3 159 → environ 1 900 octets (−40 %), environ 1 900 → 1 000 sans les anciennes températures.
 - **Machine dans son menu** : si la machine ne répond pas (tu règles un prix), le boîtier ne donne l'alerte qu'au 3ᵉ essai raté
   de suite, puis espace ses essais (2 min, puis 5 min). Le message dit maintenant que la machine est peut-être dans son menu.
+- **Flux brut** (Broodautomate → Technique → onglet « Flux brut ») : un bouton, jamais automatique. Il demande au boîtier UN relevé complet,
+  **sans filtre**, affiché ligne par ligne avec sa traduction. Le boîtier le prend comme « Lire maintenant » (au plus tard au délai réglé dans
+  Boîtiers 4G). Nécessite la commande SQL de `supabase/v515.sql` (colonne `brut`). Un ancien boîtier (v1.1/v1.2) envoie déjà tout : ça marche aussi.
 - **Un envoi de la machine identique au précédent** n'est pas renvoyé (pas de rafale d'envois).
 - À téléverser comme d'habitude (Arduino IDE). **Ton `config.h` actuel peut rester tel quel** (clé, mode, APN) : la nouvelle ligne
   `SURVEILLE_VENTES_SEC` y a une valeur par défaut. Copie seulement les NOUVEAUX fichiers du dossier (surtout `filtre.h`).

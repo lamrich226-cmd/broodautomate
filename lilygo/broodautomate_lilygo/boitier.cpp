@@ -69,6 +69,7 @@ static uint32_t utcDerniereLectureOk = 0;
 // Bouton « Lire maintenant » de Broodautomate
 static uint32_t demandeId = 0;            // demande reçue, lecture pas encore lancée ou en cours
 static uint32_t lectureDem = 0;           // demande à laquelle répond la lecture en cours
+static bool demandeBrutOn = false, lectureBrut = false;   // v1.3 : onglet « Flux brut » : relevé complet, sans filtre
 static uint32_t demandeFaite = 0;         // demande terminée, résultat pas encore annoncé à Supabase
 // v1.2 : délai réglé à distance dans Broodautomate (admin → Boîtiers 4G : 15 min, 30 min ou 1 h),
 // reçu à chaque passage chez ba_boitier (« ec » en secondes). Tant que rien n'est réglé : DEMANDE_EVERY_SEC.
@@ -91,7 +92,7 @@ struct MachineIo : MoteurDdcmp::Io {
   uint32_t ms() override { return millis(); }
   void wait(uint32_t m) override { delay(m); }
 };
-static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem);
+static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem, bool brut = false);
 static void demandeTerminee(uint32_t d, bool ok, const String& msg);
 static bool demandeEnFile(uint32_t d) { for (auto& r : file) if (r.dem == d) return true; return false; }
 
@@ -106,7 +107,7 @@ struct Ecoute : MoteurDdcmp::Ecouteur {
 #endif
   }
   void rapport(const std::string& texte, bool machineMaitre, int liste, const std::string& serie) override {
-    ajouterReleve(texte, machineMaitre, liste, machineMaitre ? 0 : lectureDem);
+    ajouterReleve(texte, machineMaitre, liste, machineMaitre ? 0 : lectureDem, !machineMaitre && lectureDem && lectureBrut);
     // La machine a envoyé d'elle-même (vente, porte, erreur…) : relire ses compteurs juste après,
     // sauf si cet envoi suit de près notre propre lecture (il en est sans doute la conséquence)
     if (machineMaitre && LIRE_APRES_ENVOI_MACHINE && MODE == 0) {
@@ -154,7 +155,7 @@ static void pompe() { moteur.poll(); }
 
 // Relevé reçu : gardé pour l'envoi (les relevés de contrôle identiques au précédent ne sont pas renvoyés,
 // sauf celui d'une lecture demandée avec « Lire maintenant » : Broodautomate attend sa réponse)
-static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem) {
+static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem, bool brut) {
   if (!envoi::releveComplet(texte)) { Serial.println(F("[Relevé] Texte reçu incomplet (sans DXS … DXE) : ignoré.")); return; }
   std::string aEnvoyer = texte;
   if (machineMaitre) {
@@ -173,7 +174,8 @@ static void ajouterReleve(const std::string& texte, bool machineMaitre, int list
     if (pareil && !dem && !recap) { if (SURVEILLE_VENTES_SEC <= 0) Serial.println(F("[Relevé] Aucun changement depuis le relevé précédent : rien à envoyer.")); return; }
     dernierReleveEnFile = millis(); if (!dernierReleveEnFile) dernierReleveEnFile = 1;
     // v1.3 : on n'envoie que les lignes utiles (la data 4G se paie à l'octet)
-    aEnvoyer = filtre::alleger(texte, temperatureVue);
+    // (demande « Flux brut » de Broodautomate : le relevé part complet, tel que la machine l'a donné)
+    if (!brut) aEnvoyer = filtre::alleger(texte, temperatureVue);
     if (aEnvoyer.size() < texte.size()) Serial.printf("[Relevé] Allégé : %u → %u octets.\n", (unsigned)texte.size(), (unsigned)aEnvoyer.size());
   }
   // place limitée : on enlève d'abord les anciens relevés de contrôle (le suivant contient les mêmes compteurs)
@@ -200,11 +202,11 @@ static void demandeTerminee(uint32_t d, bool ok, const String& msg) {
   if (ok) Serial.printf("[Demande] ✔ Lecture n°%u faite et envoyée.\n", (unsigned)d);
   else Serial.printf("[Demande] ✖ Lecture n°%u impossible : %s\n", (unsigned)d, demandeMsg.c_str());
 }
-static void nouvelleDemande(uint32_t d) {
+static void nouvelleDemande(uint32_t d, bool brut) {
   if (d == demandeId || d == lectureDem) return;            // déjà en cours
-  Serial.printf("[Demande] Broodautomate demande une lecture maintenant (n°%u).\n", (unsigned)d);
+  Serial.printf("[Demande] Broodautomate demande une lecture maintenant (n°%u%s).\n", (unsigned)d, brut ? ", flux brut complet" : "");
   if (MODE != 0) { demandeTerminee(d, false, "boîtier en mode essai : il ne lit pas la machine"); return; }
-  demandeId = d;
+  demandeId = d; demandeBrutOn = brut;
   lectureDemandee = true;
 }
 // Passage chez Supabase (fonction ba_boitier de la base) : annonce le résultat de la demande terminée,
@@ -234,7 +236,9 @@ static bool demander() {
       Serial.printf("[Demande] Réglage reçu de Broodautomate : « Lire maintenant » vérifié toutes les %u min.\n", (unsigned)(ec / 60));
     }
     uint32_t d = 0;
-    if (envoi::lireNombre(rep, "dem", d) && d) nouvelleDemande(d);
+    bool brut = false;
+    envoi::lireBool(rep, "brut", brut);
+    if (envoi::lireNombre(rep, "dem", d) && d) nouvelleDemande(d, brut);
     return true;
   }
   demandesRatees++;
@@ -401,7 +405,7 @@ void loop() {
     bool due = pas > 0 && now - derniereLecture >= pas;
     if ((lectureDemandee || due) && horlogeOk && !moteur.occupe() && !moteur.lectureEnAttente()) {
       lectureDemandee = false; derniereLecture = now; nbLectures++;
-      lectureDem = demandeId; demandeId = 0;
+      lectureDem = demandeId; demandeId = 0; lectureBrut = lectureDem && demandeBrutOn; demandeBrutOn = false;
       if (lectureDem) Serial.printf("[RS232] Lecture demandée par Broodautomate (n°%u, liste 2)…\n", (unsigned)lectureDem);
       else if (SURVEILLE_VENTES_SEC <= 0 || nbLectures % 20 == 1) Serial.println(F("[RS232] Lecture de contrôle (liste 2)…"));
       moteur.lire(2);

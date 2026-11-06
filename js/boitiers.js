@@ -382,16 +382,20 @@ window.BA = window.BA || {};
     if (d.statut === "faite") U().toast("✅ " + t("bx_read_done", { b: n }), 6000);
     else U().toast("⚠️ " + t("bx_read_failed", { b: n, e: d.message || "—" }), 9000);
   }
-  async function readNow(id) {
-    const d = devices.find(x => x.id === id); if (!d) return;
-    if (pending(demandes.get(id))) { U().toast("⏳ " + t("bx_read_wait")); return; }
-    const res = await sb().from("ba_demandes").insert({ device_id: d.id, machine_id: d.machine_id }).select(DEM_COLS);
-    if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return; }
+  // opts.brut (v5.15, onglet Technique → Flux brut) : le boîtier envoie le relevé COMPLET, sans le filtre de la v1.3.
+  // Renvoie la demande créée (ou null si elle n'a pas pu l'être).
+  async function readNow(id, opts) {
+    const d = devices.find(x => x.id === id); if (!d) return null;
+    if (pending(demandes.get(id))) { U().toast("⏳ " + t("bx_read_wait")); return null; }
+    const brut = !!(opts && opts.brut);
+    const res = await sb().from("ba_demandes").insert(brut ? { device_id: d.id, machine_id: d.machine_id, brut: true } : { device_id: d.id, machine_id: d.machine_id }).select(DEM_COLS);
+    if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return null; }
     const row = (res.data || [])[0] || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
     demandes.set(d.id, row);
     U().toast("📡 " + t("bx_read_sent", { d: delai() }), 6000);
     showDem();
     watch();
+    return row;
   }
   // Texte d'état de la dernière demande d'un boîtier
   function demText(d) {
@@ -1009,6 +1013,9 @@ window.BA = window.BA || {};
     SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, readNow, readAll, allCard,
     // v5.12 : page « Connexion RS232 » (boîtiers et leur état seulement), redessinée au plus toutes les 30 s
     summary, tickSummary() { if (Date.now() - sumAt > 30000) drawSummary(); },
+    // v5.15 (onglet Flux brut) : liste des boîtiers, en ligne ?, dernière demande d'un boîtier, délai affiché
+    liste: () => devices.slice(), enLigne(id) { const d = devices.find(x => x.id === id); return !!d && isAlive(d); },
+    demandeDe: id => demandes.get(id) || null, delai,
     estimate, nom(id) { const d = devices.find(x => x.id === id); return d ? d.name : ""; },
     lastError: () => lastError,
     demandes: () => new Map(demandes), demInstalled: () => demInstalled,
