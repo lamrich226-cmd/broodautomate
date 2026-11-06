@@ -27,14 +27,14 @@ inline void json(std::string& o, const std::string& s) {
 }
 
 // Empreinte des compteurs d'un relevé : les lignes qui changent à chaque lecture
-// (ID5 heure du relevé, EA3 nombre de lectures, G85 contrôle, SE fin) sont ignorées.
+// (ID5 heure du relevé, EA3 nombre de lectures, G85 contrôle, SE fin, températures MA5*TEMPER) sont ignorées.
 inline uint32_t empreinte(const std::string& s) {
   uint32_t h = 2166136261u;
   size_t i = 0;
   while (i < s.size()) {
     size_t e = s.find('\n', i); if (e == std::string::npos) e = s.size();
     size_t f = e; if (f > i && s[f - 1] == '\r') f--;
-    bool ignore = s.compare(i, 3, "ID5") == 0 || s.compare(i, 3, "EA3") == 0 || s.compare(i, 3, "G85") == 0 || s.compare(i, 3, "SE*") == 0;
+    bool ignore = s.compare(i, 3, "ID5") == 0 || s.compare(i, 3, "EA3") == 0 || s.compare(i, 3, "G85") == 0 || s.compare(i, 3, "SE*") == 0 || s.compare(i, 10, "MA5*TEMPER") == 0;
     if (!ignore) { for (size_t k = i; k < f; k++) { h ^= (unsigned char)s[k]; h *= 16777619u; } h ^= 0x0A; h *= 16777619u; }
     i = e + 1;
   }

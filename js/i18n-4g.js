@@ -7,7 +7,7 @@
 
   Object.assign(D.fr, {
     rs_boxes: "Boîtiers 4G (lecture à distance)",
-    bx_intro: "Le boîtier 4G (LILYGO + module MAX3232) reste branché sur la prise RS232 de la machine : il la lit tout seul chaque heure (liste 2, comme le câble, rien n'est remis à zéro), reçoit ce que la machine envoie d'elle-même (télémétrie), et lit la machine quand tu cliques sur « 📡 Lire maintenant ». Les relevés sont traités ici exactement comme un relevé par câble : ventes, stock, alertes.",
+    bx_intro: "Le boîtier 4G (LILYGO + module MAX3232) reste branché sur la prise RS232 de la machine : il la lit tout seul toutes les 30 secondes sur le câble (liste 2, comme le câble, rien n'est remis à zéro, aucune data 4G) et envoie dès qu'une vente, une porte ou une erreur apparaît, reçoit ce que la machine envoie d'elle-même (télémétrie), et lit la machine quand tu cliques sur « 📡 Lire maintenant ». Les relevés sont traités ici exactement comme un relevé par câble : ventes, stock, alertes.",
     bx_step1: "Supabase : 17 commandes SQL, une par une (une seule fois ; déjà fait 1 à 9 ? fais 10 à 17).",
     bx_step2: "Supabase : la fonction « ingest » qui reçoit les envois (une seule fois).",
     bx_step3: "Ici : « Ajouter un boîtier » → copie sa clé dans config.h du programme du LILYGO.",
@@ -110,7 +110,7 @@
 
   Object.assign(D.nl, {
     rs_boxes: "4G-modules (uitlezen op afstand)",
-    bx_intro: "De 4G-module (LILYGO + MAX3232-module) blijft op de RS232-aansluiting van de automaat: hij leest hem elk uur zelf uit (lijst 2, zoals de kabel, er wordt niets gewist), ontvangt wat de automaat zelf verstuurt (telemetrie) en leest de automaat uit wanneer je op « 📡 Nu uitlezen » klikt. De uitlezingen worden hier verwerkt precies zoals een kabeluitlezing: verkoop, voorraad, meldingen.",
+    bx_intro: "De 4G-module (LILYGO + MAX3232-module) blijft op de RS232-aansluiting van de automaat: hij leest hem elke 30 seconden zelf uit via de kabel (lijst 2, zoals de kabel, er wordt niets gewist, geen 4G-data) en verstuurt zodra er een verkoop, deur of fout is, ontvangt wat de automaat zelf verstuurt (telemetrie) en leest de automaat uit wanneer je op « 📡 Nu uitlezen » klikt. De uitlezingen worden hier verwerkt precies zoals een kabeluitlezing: verkoop, voorraad, meldingen.",
     bx_step1: "Supabase: 17 SQL-opdrachten, één voor één (één keer; 1 tot 9 al gedaan? doe 10 tot 17).",
     bx_step2: "Supabase: de functie « ingest » die de berichten ontvangt (één keer).",
     bx_step3: "Hier: « Module toevoegen » → kopieer de sleutel in config.h van het LILYGO-programma.",
@@ -213,7 +213,7 @@
 
   Object.assign(D.en, {
     rs_boxes: "4G boxes (remote reading)",
-    bx_intro: "The 4G box (LILYGO + MAX3232 module) stays plugged into the machine's RS232 socket: it reads the machine by itself every hour (list 2, like the cable, nothing is reset), receives what the machine sends on its own (telemetry), and reads the machine when you click « 📡 Read now ». The readings are processed here exactly like a cable reading: sales, stock, alerts.",
+    bx_intro: "The 4G box (LILYGO + MAX3232 module) stays plugged into the machine's RS232 socket: it reads the machine by itself every 30 seconds over the cable (list 2, like the cable, nothing is reset, no 4G data) and sends as soon as a sale, door or error shows up, receives what the machine sends on its own (telemetry), and reads the machine when you click « 📡 Read now ». The readings are processed here exactly like a cable reading: sales, stock, alerts.",
     bx_step1: "Supabase: 17 SQL commands, one by one (once; already did 1 to 9? do 10 to 17).",
     bx_step2: "Supabase: the « ingest » function that receives the messages (once).",
     bx_step3: "Here: « Add a box » → copy its key into config.h of the LILYGO program.",
