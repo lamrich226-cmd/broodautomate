@@ -185,7 +185,7 @@
 
     x_next_passage: "Prochain passage", x_full_load: "Remplir à fond", x_fc_used: "Utilisé", x_fc_expected: "Ventes prévues (journée)", x_sheet_fc: "Prévision par jour",
 
-    op_reduced_load: "Quantités proposées selon les ventes prévues jusqu'au prochain passage (pas forcément à fond). Vous pouvez les changer.",
+    op_reduced_load: "Les quantités conseillées selon les ventes prévues jusqu'au prochain passage sont indiquées sous chaque ligne. Saisissez ce que vous chargez (0 par défaut).",
     op_advised: "conseillé"
   });
 
@@ -366,7 +366,7 @@
 
     x_next_passage: "Volgend bezoek", x_full_load: "Volledig vullen", x_fc_used: "Gebruikt", x_fc_expected: "Verwachte verkoop (dag)", x_sheet_fc: "Prognose per dag",
 
-    op_reduced_load: "Voorgestelde aantallen volgens de verwachte verkoop tot het volgende bezoek (niet per se volledig). U kunt ze wijzigen.",
+    op_reduced_load: "De aangeraden aantallen volgens de verwachte verkoop tot het volgende bezoek staan onder elke regel. Vul in wat u laadt (standaard 0).",
     op_advised: "aangeraden"
   });
 
@@ -547,7 +547,7 @@
 
     x_next_passage: "Next visit", x_full_load: "Fill up", x_fc_used: "Used", x_fc_expected: "Expected sales (day)", x_sheet_fc: "Forecast per day",
 
-    op_reduced_load: "Proposed quantities follow the sales expected until the next visit (not necessarily full). You can change them.",
+    op_reduced_load: "Quantities advised from the sales expected until the next visit are shown under each line. Enter what you load (0 by default).",
     op_advised: "advised"
   });
 

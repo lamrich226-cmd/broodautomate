@@ -305,7 +305,7 @@
       // lignes de chargement : une ou plusieurs dates de livraison par sélection
       // (une sélection ajoutée pendant l'intervention reçoit aussi sa ligne)
       if (!this.w.lines) this.w.lines = {};
-      m.sels.forEach(sel => { if (!this.w.lines[sel.n]) this.w.lines[sel.n] = [{ qty: advised(sel), date: this.w.delivery }]; });
+      m.sels.forEach(sel => { if (!this.w.lines[sel.n]) this.w.lines[sel.n] = [{ qty: 0, date: this.w.delivery }]; });
       const L = this.w.lines;
       return `
         <h3>${t("step3_title")}</h3>
@@ -325,7 +325,7 @@
                   <input type="datetime-local" id="ldd-${sel.n}-${i}" data-sel="${sel.n}" data-i="${i}" value="${F.toInput(x.date)}">
                   ${lines.length > 1 ? `<button class="btn petit secondary ld-del" data-sel="${sel.n}" data-i="${i}" title="${t("ld_remove_line")}">✖</button>` : ""}
                 </div>`).join("")}
-                <div class="petit">${t("max_n", { n: need })}${sum < need ? " · " + t("op_advised") : ""}
+                <div class="petit">${t("max_n", { n: need })}${advised(sel) > 0 ? " · " + t("op_advised") + " : " + advised(sel) : ""}
                   ${need > 0 ? `<button class="btn petit secondary ld-add" data-sel="${sel.n}">${t("ld_add_date")}</button>` : ""}</div></td></tr>`;
           }).join("")}</tbody></table></div>
         <p class="petit">${t("step3_total", { n: m.sels.reduce((a, sel) => a + (L[sel.n] || []).reduce((b, x) => b + (Number(x.qty) || 0), 0), 0) })}</p>

@@ -256,7 +256,8 @@ async function scenarioPrincipal() {
   await o.waitForSelector("#rm-next, #rm-yes");
   if (await o.$("#rm-next")) await o.click("#rm-next"); else await o.click("#rm-no");
   await o.waitForSelector("#ld-validate");
-  ok("Remplir : chargement proposé 2 (sél. 11) et 10 (sél. 19)", (await o.inputValue("#ld-11-0")) === "2" && (await o.inputValue("#ld-19-0")) === "10", [await o.inputValue("#ld-11-0"), await o.inputValue("#ld-19-0")]);
+  ok("Remplir : chargement à 0 par défaut (sél. 11 et 19), le conseillé est affiché dessous", (await o.inputValue("#ld-11-0")) === "0" && (await o.inputValue("#ld-19-0")) === "0" && /conseillé : 2/.test(await o.innerText(".wz")) && /conseillé : 10/.test(await o.innerText(".wz")), [await o.inputValue("#ld-11-0"), await o.inputValue("#ld-19-0")]);
+  await o.fill("#ld-11-0", "2"); await o.fill("#ld-19-0", "10");
   await shot(o, "12-op-remplir-chargement", false);
   await o.click("#ld-validate");
   await o.waitForSelector("#wz-close");
