@@ -27,7 +27,10 @@
 
 // ---------- 5. Machine (mêmes réglages que le câble RS232 de Broodautomate) ----------
 #define MACHINE_BAUD     9600     // vitesse de la commande 90 de la machine
-#define READ_EVERY_MIN   60       // lecture de contrôle (liste 2) toutes les N minutes : erreurs, alertes, ventes ; 0 = jamais
+#define SURVEILLE_VENTES_SEC 30   // v1.3 : le boîtier lit la machine toutes les N secondes sur le câble RS232 (gratuit : aucune data 4G) ;
+                                  //        dès qu'une vente, une porte ou une erreur apparaît, le relevé part tout de suite. 0 = pas de surveillance
+#define READ_EVERY_MIN   60       // relevé de contrôle envoyé au moins toutes les N minutes même si rien n'a changé (températures) ; 0 = jamais.
+                                  // Sans surveillance (SURVEILLE_VENTES_SEC 0) : lecture de la machine toutes les N minutes
 #define HEARTBEAT_MIN    30       // « je suis vivant » au moins toutes les N minutes, même sans changement
 #define DEMANDE_EVERY_SEC 120     // bouton « Lire maintenant » de Broodautomate : le boîtier regarde toutes les N secondes
                                   // s'il y a une demande (120 = réponse en 2 à 3 min) ; 0 = bouton désactivé

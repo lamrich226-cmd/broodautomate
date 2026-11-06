@@ -12,7 +12,7 @@ const dat = fs.readFileSync(process.argv[2] || process.env.BA_AUDIT || path.join
 const r1 = lireReleve(dat);
 ok("vrai relevé : 3 pannes (ECF_38, E45, EOA)", r1.evs.length === 3 && r1.evs.every(e => e.type === "panne"), r1.evs);
 ok("vrai relevé : textes en français", /carte/i.test(r1.evs[0].titre) && /ascenseur/i.test(r1.evs[1].titre), r1.evs.map(e => e.titre));
-ok("vrai relevé : porte fermée (EA2 EGS = 0)", r1.porte === false, r1.porte);
+ok("vrai relevé : porte OUVERTE (dernier EGS 02:01 daté, jamais refermée ; EA2 EGS actif = 1)", r1.porte === true, r1.porte);
 const tel = "DXS*FAS000000001*VA*V1/6*1\nEA1*EGS*251105*0412***+120\nEA2*EGS****1\nDXE*1*1";
 const r2 = lireReleve(tel);
 ok("porte ouverte : état ouvert, pas de notification immédiate", r2.porte === true && r2.evs.length === 0, r2);

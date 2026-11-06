@@ -75,7 +75,8 @@ class HardwareSerial {
     if (port->sortie.empty() || port->sortie.front().first > g_millis) return -1;
     int c = port->sortie.front().second; port->sortie.pop_front(); return c;
   }
-  size_t write(const uint8_t* b, size_t n) { if (port) port->recu(b, n); else fwrite(b, 1, n, stdout); return n; }
+  size_t write(const uint8_t* b, size_t n) { if (port) port->recu(b, n); else { for (size_t i = 0; i < n; i++) { if (debutLigne) { printf_("[%02u:%02u] ", (unsigned)(g_millis / 60000), (unsigned)(g_millis / 1000 % 60)); debutLigne = false; } fputc(b[i], stdout); if (b[i] == '\n') debutLigne = true; } } return n; }
+  bool debutLigne = true; static void printf_(const char* f, unsigned m, unsigned s) { ::printf(f, m, s); }
   size_t write(uint8_t c) { return write(&c, 1); }
   void flush() {}
   size_t print(const char* t) { return write((const uint8_t*)t, strlen(t)); }

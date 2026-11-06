@@ -285,7 +285,7 @@ class FakeSupabase {
     const p = this.t.ba_demandes.filter(x => x.device_id === d.id && x.statut === "attente" && Date.now() - Date.parse(x.cree_at) < 3600000 && x.id !== fait).sort((a, b) => a.id - b.id)[0];
     if (p) { p.statut = "prise"; p.prise_at = new Date().toISOString(); }
     const main = this.ba("main"), m = main && main.data && main.data.settings ? String(main.data.settings.ecouteMin) : "";
-    return { status: 200, body: { ok: true, t, dem: p ? p.id : 0, fait: n, ec: ["15", "30", "60"].includes(m) ? Number(m) * 60 : 0 } };
+    return { status: 200, body: { ok: true, t, dem: p ? p.id : 0, brut: !!(p && p.brut), fait: n, ec: ["15", "30", "60"].includes(m) ? Number(m) * 60 : 0 } };
   }
   // v5.13 : fonction ba_portes (réservée aux comptes connectés) ; this.portesSql = true une fois la commande SQL v5.13 « collée »
   runV513Sql() { this.portesSql = true; this.nPortes = 0; }

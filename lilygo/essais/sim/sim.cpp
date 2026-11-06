@@ -21,7 +21,7 @@ struct FauxModem : Port {
   std::vector<std::string> envois; int httpOuverts = 0; int actions = 0;
   std::string reponse, url, entete;
   // fonction ba_boitier (bouton « Lire maintenant ») : demandes en attente, appels reçus
-  std::deque<uint32_t> demandes; std::vector<std::string> appelsRpc; bool rpcAbsente = false; int rpcSansCle = 0;
+  bool brutImpair = false; std::deque<uint32_t> demandes; std::vector<std::string> appelsRpc; bool rpcAbsente = false; int rpcSansCle = 0;
   uint32_t ecoute = 0;   // réglage « Lire maintenant » envoyé par ba_boitier (« ec », secondes ; 0 = pas réglé)
   void rep(const std::string& t, uint32_t apres = 2) { envoyer(t, apres); }
   static std::string deux(int v) { char b[4]; snprintf(b, sizeof b, "%02d", v); return b; }
@@ -71,7 +71,7 @@ struct FauxModem : Port {
         else {
           uint32_t d = 0; if (!demandes.empty() && demandes.front() <= g_millis / 60000) { demandes.pop_front(); d = demandeSuivante++; }
           // comme json_build_object : des espaces autour des deux-points
-          reponse = "{\"ok\" : " + std::string(code == 200 ? "true" : "false") + ", \"t\" : " + std::to_string(EPOCH0 + g_millis / 1000) + ", \"dem\" : " + std::to_string(d) + ", \"fait\" : 0" + (ecoute ? ", \"ec\" : " + std::to_string(ecoute) : std::string("")) + "}";
+          reponse = "{\"ok\" : " + std::string(code == 200 ? "true" : "false") + ", \"t\" : " + std::to_string(EPOCH0 + g_millis / 1000) + ", \"dem\" : " + std::to_string(d) + ", \"brut\" : " + std::string(brutImpair && d && (d % 2) ? "true" : "false") + ", \"fait\" : 0" + (ecoute ? ", \"ec\" : " + std::to_string(ecoute) : std::string("")) + "}";
         }
         rep("\r\n+HTTPACTION: 1," + std::to_string(cr) + "," + std::to_string(reponse.size()) + "\r\n", 1500);
         return;
@@ -117,6 +117,16 @@ struct FausseMachine : Port {
   bool finBlocs = false; uint32_t envoiPrevu = 0;
 };
 
+// Après avoir changé un chiffre du relevé simulé, la machine recalcule son contrôle G85 (sinon le boîtier le jugerait abîmé)
+static void refaireG85(std::string& r) {
+  std::vector<std::string> l; std::string cur;
+  for (char c : r) { if (c == '\n') { if (!cur.empty() && cur.back() == '\r') cur.pop_back(); l.push_back(cur); cur.clear(); } else cur += c; }
+  size_t iSt = l.size(), iG = l.size();
+  for (size_t i = 0; i < l.size(); i++) { if (iSt == l.size() && l[i].compare(0, 3, "ST*") == 0) iSt = i; else if (iSt != l.size() && l[i].compare(0, 4, "G85*") == 0) { iG = i; break; } }
+  if (iG == l.size()) return;
+  l[iG] = "G85*" + ba::filtre::g85De(l, iSt, iG);
+  r.clear(); for (auto& x : l) { r += x; r += "\r\n"; }
+}
 static FauxModem modemSim; static FausseMachine machineSim;
 static std::map<uint32_t, int> evenements;           // ms → action
 static void simMachineTick();
@@ -126,7 +136,10 @@ void simTick() {
   if (it == evenements.end()) return;
   int a = it->second;
   if (a == 1) machineSim.ouvrirSession();
-  if (a == 2) { size_t p = machineSim.rapport.find("VA1*637720*2236"); if (p != std::string::npos) { machineSim.rapport.replace(p, 15, "VA1*637970*2237"); std::string t = machineSim.rapport; } }
+  if (a == 2) { size_t p = machineSim.rapport.find("VA1*637720*2236"); if (p != std::string::npos) { machineSim.rapport.replace(p, 15, "VA1*637970*2237"); refaireG85(machineSim.rapport); } }
+  if (a == 8) machineSim.active = false;                       // la machine ne répond plus (menu de réglage)
+  if (a == 9) machineSim.active = true;
+  if (a == 10) { size_t p = machineSim.rapport.find("VA1*637970*2237"); if (p != std::string::npos) { machineSim.rapport.replace(p, 15, "VA1*638220*2238"); refaireG85(machineSim.rapport); } }
   if (a == 3) modemSim.reseau = false;
   if (a == 4) modemSim.reseau = true;
   if (a == 5) Serial.console += "etat\n";
@@ -145,10 +158,14 @@ int main(int argc, char** argv) {
   if (scen == "sans_heure") { modemSim.nitz = false; modemSim.ntp = false; }
   if (scen == "normal") { evenements[20UL * 60000UL] = 2; evenements[21UL * 60000UL + 10] = 1; evenements[40UL * 60000UL] = 5; evenements[41UL * 60000UL] = 6; }
   if (scen == "coupure") { evenements[3UL * 60000UL] = 3; evenements[25UL * 60000UL] = 4; evenements[10UL * 60000UL] = 2; }
+  // v1.3 : surveillance des ventes : vente à 5 min 07 s, autre vente à 12 min 30 s ; la machine reste muette de 15 à 28 min (menu)
+  if (scen == "vente") { evenements[5UL * 60000UL + 7000] = 2; evenements[12UL * 60000UL + 30000] = 10; evenements[15UL * 60000UL] = 8; evenements[28UL * 60000UL] = 9; duree = 40UL * 60000UL; }
   if (scen == "cle") modemSim.code = 401;
   if (scen == "boucle") { machineSim.echo = true; duree = 10000; }
   // bouton « Lire maintenant » : demande n°7 à 10 min, n°8 à 30 min (relevé identique : envoyé quand même)
   if (scen == "demande") { modemSim.demandes = {10, 30}; evenements[45UL * 60000UL] = 7; }
+  // v1.3 : onglet « Flux brut » : la 1re demande (n°impair) réclame le relevé complet, la 2e est une lecture normale (allégée)
+  if (scen == "brut") { modemSim.brutImpair = true; modemSim.demandes = {10, 30}; duree = 45UL * 60000UL; }
   if (scen == "demande_essai") { modemSim.demandes = {4}; duree = 15UL * 60000UL; }
   if (scen == "sql_absente") { modemSim.rpcAbsente = true; duree = 40UL * 60000UL; }
   // v1.2 : l'admin règle « Lire maintenant » sur 15 min ; une demande à 50 min est prise au passage suivant

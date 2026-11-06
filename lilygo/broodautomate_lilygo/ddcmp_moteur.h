@@ -730,7 +730,7 @@ class MoteurDdcmp {
   void envoyerStart_() {
     if (mode_ != MAITRE || phase_ != P_START) return;
     if (essaisStart_ >= r_.startMax) {
-      abandon_("La machine ne répond pas (" + num_(r_.startMax) + " START sans réponse). Vérifier le module MAX3232 et ses fils, la vitesse et la commande 90 (EVA-DTS DDCMP, sortie RS232, adresse 1).");
+      abandon_("La machine ne répond pas (" + num_(r_.startMax) + " START sans réponse). La machine est peut-être dans son menu de réglage (elle ne répond plus pendant qu'on y change un prix) : ressors du menu et attends un peu. Sinon vérifier le module MAX3232 et ses fils, la vitesse et la commande 90 (EVA-DTS DDCMP, sortie RS232, adresse 1).");
       return;
     }
     essaisStart_++;

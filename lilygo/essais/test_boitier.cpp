@@ -234,6 +234,8 @@ int main(int argc, char** argv) {
     VERIF(envoi::empreinte(a) == envoi::empreinte(b), "empreinte : heure du relevé et nombre de lectures ignorés");
     string c = rel; p = c.find("VA1*637720"); c.replace(p, 10, "VA1*637970");
     VERIF(envoi::empreinte(a) != envoi::empreinte(c), "empreinte : une vente change l'empreinte");
+    string tt = rel; p = tt.find("MA5*TEMPER"); if (p != string::npos) { size_t q = tt.find('\n', p); tt.insert(q + 1, "MA5*TEMPER*261030*1500*+190\r\n"); }
+    VERIF(p != string::npos && envoi::empreinte(a) == envoi::empreinte(tt), "empreinte : une nouvelle température seule ne change pas l'empreinte (v1.3)");
     VERIF(envoi::releveComplet(rel) && !envoi::releveComplet("ST*001") && !envoi::releveComplet(rel.substr(0, 300)), "relevé complet = DXS … DXE");
     uint32_t t = 0;
     VERIF(envoi::lireNombre("{\"ok\":true,\"t\":1793330340}", "t", t) && t == 1793330340u && envoi::reponseOk("{\"ok\":true,\"t\":1}"), "lecture de l'heure du serveur dans la réponse");

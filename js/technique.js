@@ -31,7 +31,7 @@ window.BA = window.BA || {};
   const quand = ms => { const F = U().F; return ms ? (BA.Model.dayKey(ms) === BA.Model.dayKey(Date.now()) ? F.clock(ms) : F.dt(ms) + F.clock(ms).slice(5)) : "—"; };
 
   // ---------------- Onglets ----------------
-  const TABS = [["boxes", "📡", "tq_tab_boxes"], ["machines", "🏭", "tq_tab_machines"], ["cable", "🔌", "tq_tab_cable"], ["journal", "📜", "tq_tab_journal"], ["system", "🖥", "tq_tab_system"]];
+  const TABS = [["boxes", "📡", "tq_tab_boxes"], ["machines", "🏭", "tq_tab_machines"], ["cable", "🔌", "tq_tab_cable"], ["journal", "📜", "tq_tab_journal"], ["system", "🖥", "tq_tab_system"], ["raw", "🧾", "tq_tab_raw"]];
   let _el = null, _tab = null;                              // _tab : null tant que rien n'est choisi
   const defaut = () => !machines().length ? "machines" : CLOUD() ? "boxes" : "cable";
 
@@ -44,7 +44,7 @@ window.BA = window.BA || {};
       <div class="seg tabs tq-tabs" role="tablist" aria-label="${E(t("nav_technique"))}">${TABS.map(([id, ic, k]) =>
         `<button type="button" role="tab" id="tq-tab-${id}" data-tq-tab="${id}" aria-controls="tq-pane-${id}" class="${id === tab ? "active" : ""}" aria-selected="${id === tab}" tabindex="${id === tab ? 0 : -1}">${ic} ${E(t(k))}</button>`).join("")}</div>
       ${TABS.map(([id]) => `<section class="tq-pane" id="tq-pane-${id}" data-pane="${id}" role="tabpanel" aria-labelledby="tq-tab-${id}">${
-        id === "boxes" ? `<div id="rs-boitiers"></div>` : id === "journal" ? `<div id="tq-journal"></div>` : id === "system" ? `<div id="tq-system"></div>` : ""}</section>`).join("")}`;
+        id === "boxes" ? `<div id="rs-boitiers"></div>` : id === "journal" ? `<div id="tq-journal"></div>` : id === "system" ? `<div id="tq-system"></div>` : id === "raw" ? `<div id="tq-raw-pane"></div>` : ""}</section>`).join("")}`;
     const bar = el.querySelector(".tq-tabs");
     bar.querySelectorAll("[data-tq-tab]").forEach(b => b.onclick = () => show(b.dataset.tqTab));
     // clavier : flèches gauche / droite, début / fin (comme des onglets)
@@ -66,6 +66,7 @@ window.BA = window.BA || {};
     _el.querySelectorAll(".tq-pane").forEach(p => { p.hidden = p.dataset.pane !== _tab; });
     if (_tab === "journal") loadJournal(false);
     if (_tab === "system") loadSystem(false);
+    if (_tab === "raw") drawRaw();
   }
   const visible = tab => !!_el && document.contains(_el) && _tab === tab && BA.Shell && BA.Shell.state.view === "technique";
 
@@ -238,6 +239,77 @@ window.BA = window.BA || {};
     };
   }
 
+  // ---------------- 🧾 Flux brut (v5.15) ----------------
+  // Les envois automatiques du boîtier sont allégés (seulement ce que Broodautomate utilise). Ici, à la demande :
+  // un relevé COMPLET, tel que la machine l'a donné, affiché ligne par ligne avec sa traduction. Jamais automatique.
+  // La demande passe par ba_demandes (comme « Lire maintenant », avec brut = vrai) ; le boîtier la prend au passage suivant.
+  const FB = { dev: "", dem: null, rep: null, err: "", busy: false, lastCheck: 0 };
+  const fbBoxes = () => (BA.Boitiers && BA.Boitiers.liste ? BA.Boitiers.liste() : []);
+  function drawRaw() {
+    const z = _el && _el.querySelector("#tq-raw-pane"); if (!z) return;
+    // pas pendant un clic ni pendant qu'on lit le tableau : on ne redessine que si l'état a changé
+    if (!CLOUD()) { z.innerHTML = `<p class="note">${E(t("tq_raw_local"))}</p>`; return; }
+    const boxes = fbBoxes();
+    if (!FB.dev || !boxes.some(b => b.id === FB.dev)) FB.dev = boxes[0] ? boxes[0].id : "";
+    const dem = FB.dem && BA.Boitiers.demandeDe(FB.dev);
+    const cur = dem && FB.dem && dem.id === FB.dem.id ? dem : FB.dem;
+    const pend = !!cur && !FB.rep && !FB.err && (cur.statut === "attente" || cur.statut === "prise");
+    const F = U().F, at = v => F.time(Date.parse(v) || Date.now());
+    let etat = "";
+    if (FB.err) etat = "⚠️ " + t("tq_raw_fail", { e: FB.err });
+    else if (FB.rep) etat = "✅ " + t("tq_raw_done", { h: at(FB.rep.received_at), n: ko((FB.rep.raw || "").length), l: BA.EvaTrad ? BA.EvaTrad.lignes(FB.rep.raw).length : 0 });
+    else if (pend) etat = cur.statut === "prise" ? "📥 " + t("tq_raw_taken") : "⏳ " + t("tq_raw_wait", { h: at(cur.cree_at), d: BA.Boitiers.delai() });
+    else etat = t("tq_raw_none");
+    const inst = BA.Boitiers.demInstalled();
+    const vivant = !!FB.dev && BA.Boitiers.enLigne(FB.dev);
+    const off = !boxes.length ? t("tq_raw_nobox") : inst !== true ? t("tq_raw_nosql") : !vivant ? t("tq_raw_offline") : "";
+    const html = `
+      <p class="note">${E(t("tq_raw_intro"))}</p>
+      <div class="carte-actions tq-raw-bar">
+        ${boxes.length > 1 ? `<label>${E(t("tq_raw_box"))} <select id="tq-raw-box">${boxes.map(b => `<option value="${E(b.id)}" ${b.id === FB.dev ? "selected" : ""}>${E(b.name)}</option>`).join("")}</select></label>` : boxes.length ? `<span class="petit">📡 ${E(boxes[0].name)}</span>` : ""}
+        <button type="button" class="btn" id="tq-raw-go" ${pend || off || FB.busy ? "disabled" : ""} title="${E(off || t("tq_raw_title"))}">🧾 ${E(t("tq_raw_btn"))}</button>
+        <span class="petit" id="tq-raw-state">${E(off && !FB.rep ? off : etat)}</span>
+      </div>
+      ${FB.rep ? `<div class="table-scroll tq-trad"><table class="compact tq-table"><thead><tr><th>${E(t("tq_j_dlg_l_raw"))}</th><th>${E(t("tq_j_dlg_l_txt"))}</th></tr></thead>
+        <tbody>${BA.EvaTrad ? BA.EvaTrad.lignes(FB.rep.raw).map(l => `<tr><td><code>${E(l.raw)}</code></td><td>${E(l.txt)}</td></tr>`).join("") : ""}</tbody></table></div>
+        <div class="carte-actions"><button type="button" class="btn secondary" id="tq-raw-copy">📋 ${E(t("tq_j_copy"))}</button></div>` : ""}`;
+    if (z.dataset.sig === html) return;                       // rien de changé : pas de redessin (le tableau reste où on le lit)
+    z.dataset.sig = html; z.innerHTML = html;
+    const go = z.querySelector("#tq-raw-go"); if (go) go.onclick = askRaw;
+    const sel = z.querySelector("#tq-raw-box"); if (sel) sel.onchange = () => { FB.dev = sel.value; FB.dem = null; FB.rep = null; FB.err = ""; drawRaw(); };
+    const cp = z.querySelector("#tq-raw-copy");
+    if (cp) cp.onclick = async () => {
+      try { await navigator.clipboard.writeText(FB.rep.raw || ""); }
+      catch (e) { const ta = document.createElement("textarea"); ta.value = FB.rep.raw || ""; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); } catch (e2) { /* rien */ } ta.remove(); }
+      cp.textContent = "✅ " + t("bx_copied");
+    };
+  }
+  async function askRaw() {
+    if (FB.busy || !FB.dev) return;
+    FB.busy = true; FB.rep = null; FB.err = ""; drawRaw();
+    try { FB.dem = await BA.Boitiers.readNow(FB.dev, { brut: true }); if (!FB.dem) FB.err = t("tq_raw_notsent"); }
+    catch (e) { FB.err = e.message || String(e); }
+    finally { FB.busy = false; drawRaw(); }
+  }
+  // Toutes les 4 s tant qu'une demande de flux brut est en cours : la demande est-elle finie ? Si oui, on lit le relevé reçu.
+  async function pollRaw() {
+    if (!FB.dem || FB.rep || FB.err || FB.busy || !FB.dev || Date.now() - FB.lastCheck < 4000) return;
+    FB.lastCheck = Date.now();
+    const d = BA.Boitiers.demandeDe(FB.dev);
+    if (!d || d.id !== FB.dem.id) return;
+    if (d.statut === "echec") { FB.err = d.message || "—"; drawRaw(); return; }
+    if (d.statut !== "faite") { drawRaw(); return; }
+    FB.busy = true;
+    try {
+      // le relevé complet est le plus long envoi du boîtier depuis la demande (les envois automatiques sont allégés)
+      const r = await sb().from("device_reports").select("id, raw, received_at, role").eq("device_id", FB.dev).gte("received_at", FB.dem.cree_at).order("id", { ascending: false }).limit(10);
+      if (r.error) throw new Error(r.error.message);
+      const best = (r.data || []).filter(x => x.role !== "machine").sort((a, b) => (b.raw || "").length - (a.raw || "").length)[0];
+      if (best) FB.rep = best; else FB.err = t("tq_raw_notfound");
+    } catch (e) { FB.err = e.message || String(e); }
+    finally { FB.busy = false; drawRaw(); }
+  }
+
   // ---------------- 🖥 Système ----------------
   const S = { at: 0, busy: false, copies: undefined, notifs: undefined, err: "" };
   async function loadSystem(force) {
@@ -391,15 +463,16 @@ window.BA = window.BA || {};
   function tick() {
     if (BA.Rs232 && BA.Rs232.tick) BA.Rs232.tick();          // câble : état, relevés, prochaine lecture
     if (visible("journal") && !J.busy && Date.now() - J.at > MIN) loadJournal(true);
+    if (visible("raw")) { pollRaw(); drawRaw(); }
     if (visible("system") && !S.busy && Date.now() - (S.drawn || 0) > 15000) { S.drawn = Date.now(); drawSystem(); }
   }
 
   BA.Technique = {
     render, tick,
-    // ouvrir un onglet : « boxes », « machines », « cable », « journal », « system »
+    // ouvrir un onglet : « boxes », « machines », « cable », « journal », « system », « raw »
     tab(name) { if (TABS.some(x => x[0] === name)) { _tab = name; show(name); } },
     current: () => _tab,
     // pour les essais
-    _journal: () => J, _system: () => S
+    _journal: () => J, _system: () => S, _raw: () => FB
   };
 })();

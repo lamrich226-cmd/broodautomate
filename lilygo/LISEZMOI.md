@@ -1,9 +1,11 @@
-# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.2)
+# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.3)
 
 Le boîtier reste branché sur la prise RS232 de la machine FAS. Il fait trois choses :
 
-1. **Chaque heure**, il lit la machine (liste 2, comme le câble : rien n'est remis à zéro) : ventes, erreurs, alertes.
-   Il n'envoie par la 4G **que ce qui a changé**, plus son état toutes les 30 minutes.
+1. **Toutes les 30 secondes** (v1.3), il lit la machine sur le câble RS232 (liste 2, comme le câble : rien n'est remis à zéro).
+   Cette lecture ne coûte **aucune data 4G**. Dès qu'une vente, une porte ou une erreur apparaît, le relevé part
+   **tout de suite** (environ 30 à 40 secondes après la vente). Sans nouveauté, rien n'est envoyé, sauf un relevé de contrôle
+   chaque heure (températures) et le signal de vie toutes les 30 minutes.
 2. **Quand la machine envoie d'elle-même** (télémétrie = 1 : vente, porte…), son envoi part **tout de suite**,
    puis le boîtier relit la machine pour mettre les ventes à jour.
 3. **Bouton « 📡 Lire maintenant »** dans Broodautomate : toutes les 2 minutes, le boîtier demande à Supabase
@@ -14,6 +16,29 @@ les plus anciens, stock, porte, température, coupures, erreurs de la machine da
 
 **Sécurité** : le boîtier ne fait que lire. Il n'envoie jamais de commande d'écriture ni d'effacement :
 toute autre trame est bloquée avant l'envoi (même liste de sécurité que le logiciel).
+
+---
+
+## Mise à jour v1.2 → v1.3 : ventes en direct et relevés allégés
+
+- **Surveillance des ventes** : `SURVEILLE_VENTES_SEC` (30 par défaut, `0` = comme avant : une lecture par heure). Le boîtier lit
+  la machine toutes les 30 s ; la lecture passe par le câble, pas par la 4G. Un relevé n'est envoyé que s'il y a du nouveau.
+- **Filtre** (`filtre.h`) : avant l'envoi, le boîtier retire les lignes que Broodautomate n'utilise pas (caisse CA*, jetons,
+  lecteur de carte, réglages…) et ne garde que les **nouvelles** températures. Le nombre de lignes (SE) et le contrôle G85 sont
+  recalculés : c'est un vrai relevé EVA-DTS. Un relevé abîmé (G85 faux) part tel quel et Broodautomate le refuse comme avant.
+  Résultat sur un vrai relevé : 3 159 → environ 1 900 octets (−40 %), environ 1 900 → 1 000 sans les anciennes températures.
+- **Machine dans son menu** : si la machine ne répond pas (tu règles un prix), le boîtier ne donne l'alerte qu'au 3ᵉ essai raté
+  de suite, puis espace ses essais (2 min, puis 5 min). Le message dit maintenant que la machine est peut-être dans son menu.
+- **Flux brut** (Broodautomate → Technique → onglet « Flux brut ») : un bouton, jamais automatique. Il demande au boîtier UN relevé complet,
+  **sans filtre**, affiché ligne par ligne avec sa traduction. Le boîtier le prend comme « Lire maintenant » (au plus tard au délai réglé dans
+  Boîtiers 4G). Nécessite la commande SQL de `supabase/v515.sql` (colonne `brut`). Un ancien boîtier (v1.1/v1.2) envoie déjà tout : ça marche aussi.
+- **Un envoi de la machine identique au précédent** n'est pas renvoyé (pas de rafale d'envois).
+- À téléverser comme d'habitude (Arduino IDE). **Ton `config.h` actuel peut rester tel quel** (clé, mode, APN) : la nouvelle ligne
+  `SURVEILLE_VENTES_SEC` y a une valeur par défaut. Copie seulement les NOUVEAUX fichiers du dossier (surtout `filtre.h`).
+- À surveiller les premiers jours : si la machine se comporte mal pendant les lectures (affichage, bruit du pavé…), mets
+  `SURVEILLE_VENTES_SEC 120` ou `0` dans `config.h`. Vérifié sur ordinateur seulement (faux boîtier + fausse machine).
+- Vérifié : `essais/test_filtre.mjs` (le relevé allégé est lu par Broodautomate exactement comme l'original), `essais/test_boitier.cpp`
+  (62 essais), simulateur `sim/lancer.sh vente 0` (vente envoyée en 4 à 30 s, machine muette de 15 à 28 min sans fausse alerte).
 
 ---
 
