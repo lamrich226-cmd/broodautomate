@@ -3,7 +3,7 @@
   "private": true,
   "description": "Tests automatiques de Broodautomate (navigateur simulé, faux Supabase, faux câble RS232, fonction ingest)",
   "scripts": {
-    "tout": "node cles-traduction.js && node sql/supabase.test.mjs && node sql/v515.test.mjs && node ../lilygo/essais/test_filtre.mjs && node --experimental-strip-types --no-warnings ingest/logique.test.mts && node --experimental-strip-types --no-warnings ingest/flux.test.mts && node run.js .. captures && node run4g.mjs .. captures-4g && node v511.mjs .. captures-v511 && node v512.mjs .. captures-v512 && node v513.mjs .. captures-v513"
+    "tout": "node cles-traduction.js && node sql/supabase.test.mjs && node sql/v515.test.mjs && node ../lilygo/essais/test_filtre.mjs && node --experimental-strip-types --no-warnings ingest/logique.test.mts && node --experimental-strip-types --no-warnings ingest/flux.test.mts && node run.js .. captures && node run4g.mjs .. captures-4g && node v511.mjs .. captures-v511 && node v512.mjs .. captures-v512 && node v513.mjs .. captures-v513 && node v518.mjs .. captures-v518"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
