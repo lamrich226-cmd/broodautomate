@@ -285,6 +285,12 @@ BA.EvaDts = {
           } else if (etiquette === "POW ON" || etiquette === "POW OFF") {
             result.powerEvents.push({ type: etiquette === "POW ON" ? "ON" : "OFF",
                                       date: champ(f[2]) || "", time: champ(f[3]) || "" });
+          } else if (etiquette === "TEMP") {
+            // FAS 480 (DEX) : MA5*TEMP*hhmm*valeur, en degrés entiers, sans date
+            const v = champ(f[3]) || "";
+            if (/^[+-]?\d+$/.test(v)) {
+              result.temperatures.push({ date: "", time: champ(f[2]) || "", celsius: Number(v) });
+            }
           } else if (etiquette === "TEMPER") {
             const v = champ(f[4]) || "";
             if (/^[+-]?\d+$/.test(v)) {
@@ -307,8 +313,9 @@ BA.EvaDts = {
     result.selections = Object.values(parSel).map(e => {
       if (!e._la) {
         // Pas de LA1 pour cette sélection : PA201 (cumul) si présent
-        e.sold = e._pa201 !== undefined && e._pa201 !== null ? e._pa201 : 0;
         e.soldSinceReset = e._pa203 !== undefined ? e._pa203 : null;
+        // FAS 480 : seul PA203 (depuis la remise à zéro) est fourni → on l'utilise faute de cumul
+        e.sold = e._pa201 !== undefined && e._pa201 !== null ? e._pa201 : (e.soldSinceReset || 0);
       }
       if (e._laSansCumul) result.avertissements.push("Sélection " + e.selection + " : LA105 absent, LA104 utilisé.");
       if (e.value !== null && e.sold > 0) e.avgPrice = Math.round((e.value / e.sold) * 100) / 100;
