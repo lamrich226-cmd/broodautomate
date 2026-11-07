@@ -1,7 +1,11 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.1)
-// Lit la machine FAS en RS232 (EVA-DTS DDCMP, lecture seule, comme le câble
-// de Broodautomate) et envoie les relevés à Supabase par la 4G (HTTPS).
+// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.4)
+// Lit la machine FAS en RS232 (lecture seule, comme le câble de Broodautomate) et envoie
+// les relevés à Supabase par la 4G (HTTPS).
+//   • v1.4 : UN SEUL programme pour deux familles de machines, reconnues toutes seules au branchement :
+//     Power Lift (EVA-DTS DDCMP) et FAS 480/5 (DEX-UCS, commande 90 = 6 sortie RS232). Rien à choisir.
+//     Une 480 ne prévient pas quand elle vend : le boîtier la lit toutes les DEX_LECTURE_SEC secondes sur le
+//     câble (gratuit) et n'envoie en 4G que ce qui a changé (vente, erreur nouvelle), en relevé allégé.
 //   • v1.3 : surveillance des ventes : lecture de la machine toutes les SURVEILLE_VENTES_SEC secondes sur le câble
 //     (gratuit) ; un relevé n'est envoyé que s'il y a du nouveau (vente, porte, erreur), sinon au moins
 //     toutes les READ_EVERY_MIN minutes (températures) ;
@@ -20,13 +24,25 @@
 #include "horloge.h"
 #include "envoi.h"
 #include "filtre.h"
+#include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.3"
+#define FW_VERSION "1.4"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
 #define SURVEILLE_VENTES_SEC 30
+#endif
+
+// v1.4 : réglages ajoutés (si ton config.h date d'avant la v1.4, ces valeurs par défaut sont prises)
+#ifndef PROTOCOLE
+#define PROTOCOLE 0              // 0 = reconnaissance automatique (conseillé), 1 = Power Lift, 2 = FAS 480 (DEX)
+#endif
+#ifndef DEX_LECTURE_SEC
+#define DEX_LECTURE_SEC 300      // FAS 480 : lecture de la machine toutes les N secondes sur le câble (gratuit)
+#endif
+#ifndef DEX_RECAP_MIN
+#define DEX_RECAP_MIN 120        // FAS 480 : relevé de contrôle envoyé au moins toutes les N minutes même sans changement
 #endif
 
 using namespace ba;
@@ -83,6 +99,11 @@ static uint32_t lireApres = 0, envoiMachineA = 0, finDerniereLecture = 0;
 static uint32_t echecsSurveillance = 0;   // lectures de surveillance ratées de suite (machine dans son menu, éteinte…)
 static uint32_t dernierReleveEnFile = 0;  // moment du dernier relevé de contrôle mis dans la file
 static std::string temperatureVue;        // clé « AAMMJJhhmm » de la dernière température envoyée
+// v1.4 : protocole de la machine branchée
+enum { PROTO_INCONNU = 0, PROTO_DDCMP = 1, PROTO_DEX = 2 };
+static int proto = PROTO_DDCMP;
+static filtre::ContexteDex ctxDex;        // FAS 480 : erreurs déjà vues
+static uint32_t derniereSonde = 0;
 
 // ---------------- Liaison avec la machine (UART 2 → module MAX3232) ----------------
 struct MachineIo : MoteurDdcmp::Io {
@@ -93,6 +114,7 @@ struct MachineIo : MoteurDdcmp::Io {
   void wait(uint32_t m) override { delay(m); }
 };
 static void ajouterReleve(const std::string& texte, bool machineMaitre, int liste, uint32_t dem, bool brut = false);
+static void empiler(const std::string& aEnvoyer, bool machineMaitre, int liste, uint32_t dem);
 static void demandeTerminee(uint32_t d, bool ok, const String& msg);
 static bool demandeEnFile(uint32_t d) { for (auto& r : file) if (r.dem == d) return true; return false; }
 
@@ -151,7 +173,8 @@ static MachineIo machineIo;
 static Ecoute ecoute;
 static MoteurDdcmp::Reglages reglagesDdcmp() { MoteurDdcmp::Reglages r; r.identifiantPc = "00000001"; r.utilisateur = "BA"; return r; }
 static MoteurDdcmp moteur(machineIo, ecoute, reglagesDdcmp());
-static void pompe() { moteur.poll(); }
+// En DEX, c'est le boîtier qui interroge la machine : le moteur DDCMP ne doit pas lire les octets à sa place
+static void pompe() { if (proto != PROTO_DEX) moteur.poll(); }
 
 // Relevé reçu : gardé pour l'envoi (les relevés de contrôle identiques au précédent ne sont pas renvoyés,
 // sauf celui d'une lecture demandée avec « Lire maintenant » : Broodautomate attend sa réponse)
@@ -178,6 +201,9 @@ static void ajouterReleve(const std::string& texte, bool machineMaitre, int list
     if (!brut) aEnvoyer = filtre::alleger(texte, temperatureVue);
     if (aEnvoyer.size() < texte.size()) Serial.printf("[Relevé] Allégé : %u → %u octets.\n", (unsigned)texte.size(), (unsigned)aEnvoyer.size());
   }
+  empiler(aEnvoyer, machineMaitre, liste, dem);
+}
+static void empiler(const std::string& aEnvoyer, bool machineMaitre, int liste, uint32_t dem) {
   // place limitée : on enlève d'abord les anciens relevés de contrôle (le suivant contient les mêmes compteurs)
   while (file.size() >= 8 || octetsEnFile + aEnvoyer.size() > 65000) {
     auto it = file.begin();
@@ -190,6 +216,40 @@ static void ajouterReleve(const std::string& texte, bool machineMaitre, int list
   file.push_back({aEnvoyer, machineMaitre, (uint8_t)liste, dem, ++numeroReleve});
   octetsEnFile += aEnvoyer.size();
   Serial.printf("[Relevé] %u octets %s → à envoyer (%u en attente).\n", (unsigned)aEnvoyer.size(), machineMaitre ? "envoyés par la machine" : dem ? "lus à la demande de Broodautomate" : "lus (liste 2)", (unsigned)file.size());
+}
+
+// ---------------- v1.4 : FAS 480 (DEX) ----------------
+// Relevé DEX lu : ne part en 4G que s'il y a du nouveau (vente, erreur), sinon au moins toutes les DEX_RECAP_MIN minutes.
+// Le relevé de la 480 fait ~3 Ko : il est allégé (filtre.h) avant l'envoi.
+static void ajouterReleveDex(const std::string& texte, uint32_t dem, bool brut) {
+  uint32_t e = filtre::empreinteDex(texte);
+  bool pareil = empreinteConnue && e == derniereEmpreinte;
+  bool recap = DEX_RECAP_MIN > 0 && (!dernierReleveEnFile || millis() - dernierReleveEnFile >= (uint32_t)DEX_RECAP_MIN * 60000UL);
+  derniereEmpreinte = e; empreinteConnue = true;
+  if (pareil && !dem && !recap) return;                       // rien de nouveau : rien à envoyer
+  dernierReleveEnFile = millis(); if (!dernierReleveEnFile) dernierReleveEnFile = 1;
+  std::string a = brut ? texte : filtre::allegerDex(texte, ctxDex);
+  if (a.size() < texte.size()) Serial.printf("[Relevé] Allégé : %u → %u octets.\n", (unsigned)texte.size(), (unsigned)a.size());
+  empiler(a, false, 2, dem);
+}
+// Lecture complète de la machine en DEX (quelques secondes, le boîtier ne fait rien d'autre pendant ce temps)
+static void lireDex() {
+  dex::Lecteur<MachineIo> lecteur(machineIo);
+  std::string texte;
+  bool ok = lecteur.lire(texte);
+  if (ok) ajouterReleveDex(texte, lectureDem, lectureDem && lectureBrut);
+  ecoute.lectureFinie(ok, false, lecteur.erreur);
+}
+// Reconnaissance automatique : une machine DEX répond DLE 0 (10 30) à un ENQ (05) ; une Power Lift ne répond pas.
+static void choisirProtocole(const char* quand) {
+  derniereSonde = millis(); if (!derniereSonde) derniereSonde = 1;
+  if (PROTOCOLE == 1) { proto = PROTO_DDCMP; return; }
+  if (PROTOCOLE == 2) { proto = PROTO_DEX; return; }
+  dex::Lecteur<MachineIo> lecteur(machineIo);
+  int avant = proto;
+  proto = lecteur.sonde() ? PROTO_DEX : PROTO_DDCMP;
+  if (proto != avant || !strcmp(quand, "démarrage"))
+    Serial.printf("[RS232] Reconnaissance (%s) : machine %s.\n", quand, proto == PROTO_DEX ? "FAS 480 (DEX-UCS)" : "Power Lift (EVA-DTS DDCMP)");
 }
 
 // ---------------- Bouton « Lire maintenant » ----------------
@@ -256,7 +316,7 @@ static bool envoyer(const Releve* r) {
   std::string b;
   b.reserve(512 + (r ? r->texte.size() * 11 / 10 : 0));
   b += "{\"k\":"; envoi::json(b, DEVICE_KEY);
-  b += ",\"fw\":\"" FW_VERSION "\",\"mode\":" + std::to_string(MODE);
+  b += std::string(",\"fw\":\"" FW_VERSION) + (proto == PROTO_DEX ? " DEX" : "") + "\",\"mode\":" + std::to_string(MODE);
   b += ",\"seq\":" + std::to_string(++seq);
   b += ",\"ec\":" + std::to_string(ecouteSec);
   b += ",\"up\":" + std::to_string(millis() / 1000);
@@ -321,9 +381,11 @@ static void afficherEtat() {
   Serial.printf("Modem : %s ; réseau : %s ; signal %d/31 ; opérateur %s\n", modem.pret ? "prêt" : "non", modem.reseau ? "oui" : "non", modem.csq, modem.operateur.c_str());
   if (horlogeOk) { HeureLocale h = horloge::bruxelles(utcMaintenant()); Serial.printf("Heure belge : %02u/%02u/20%02u %02u:%02u:%02u\n", h.jour, h.mois, h.annee2, h.heure, h.minute, h.seconde); }
   else Serial.println(F("Heure : pas encore connue"));
+  if (MODE == 0) Serial.printf("Protocole : %s\n", proto == PROTO_DEX ? "FAS 480 (DEX-UCS)" : "Power Lift (EVA-DTS DDCMP)");
   Serial.printf("Machine : %s ; lectures %u, échecs %u ; relevés en attente : %u\n", statut.c_str(), (unsigned)nbLectures, (unsigned)nbEchecs, (unsigned)file.size());
   Serial.printf("Envois réussis %u, ratés %u ; dernier envoi réussi il y a %lu s\n", (unsigned)nbEnvois, (unsigned)nbEnvoisRates, dernierEnvoiOk ? (unsigned long)((millis() - dernierEnvoiOk) / 1000) : 0UL);
-  Serial.printf("Surveillance chaque %d s ; relevé de contrôle au moins chaque %d min ; bouton « Lire maintenant » vérifié toutes les %u s", SURVEILLE_VENTES_SEC, READ_EVERY_MIN, (unsigned)ecouteSec);
+  if (proto == PROTO_DEX) Serial.printf("Lecture de la 480 chaque %d s ; relevé de contrôle au moins chaque %d min ; bouton « Lire maintenant » vérifié toutes les %u s", DEX_LECTURE_SEC, DEX_RECAP_MIN, (unsigned)ecouteSec);
+  else Serial.printf("Surveillance chaque %d s ; relevé de contrôle au moins chaque %d min ; bouton « Lire maintenant » vérifié toutes les %u s", SURVEILLE_VENTES_SEC, READ_EVERY_MIN, (unsigned)ecouteSec);
   if (demandeId || lectureDem) Serial.printf(" ; demande en cours n°%u", (unsigned)(lectureDem ? lectureDem : demandeId));
   if (demandesRatees) Serial.printf(" ; %u vérifications ratées", (unsigned)demandesRatees);
   Serial.println();
@@ -368,6 +430,7 @@ void setup() {
   }
   if (strstr(DEVICE_KEY, "COLLE_ICI") || strlen(DEVICE_KEY) < 16)
     Serial.println(F("[Config] ⚠ DEVICE_KEY n'est pas remplie dans config.h : Supabase refusera les envois."));
+  if (MODE == 0) choisirProtocole("démarrage");      // avant le modem : la machine est tranquille
   modem.idle = pompe;
   if (modem.demarrer() && modem.connecter()) synchroHeure();
   dernierEssaiReseau = millis();
@@ -397,8 +460,24 @@ void loop() {
     else { lireApres = 0; lectureDemandee = true; Serial.println(F("[RS232] Envoi de la machine reçu : lecture de contrôle pour mettre les ventes à jour.")); }
   }
 
+  // v1.4 : la machine ne répond plus du tout depuis longtemps → on refait la reconnaissance (menu, autre machine branchée…), au plus toutes les 15 min
+  if (MODE == 0 && PROTOCOLE == 0 && echecsSurveillance >= 6 && !moteur.occupe() && now - derniereSonde > 900000UL) choisirProtocole("après échecs");
+
+  // v1.4 : FAS 480 (DEX) : lecture toute les DEX_LECTURE_SEC secondes, à la demande, ou au démarrage
+  if (MODE == 0 && proto == PROTO_DEX) {
+    uint32_t pas = DEX_LECTURE_SEC > 0 ? (uint32_t)DEX_LECTURE_SEC * 1000UL * (echecsSurveillance < 3 ? 1UL : echecsSurveillance < 6 ? 2UL : 6UL) : 0UL;
+    bool due = pas > 0 && now - derniereLecture >= pas;
+    if ((lectureDemandee || due) && horlogeOk) {
+      lectureDemandee = false; derniereLecture = now; nbLectures++;
+      lectureDem = demandeId; demandeId = 0; lectureBrut = lectureDem && demandeBrutOn; demandeBrutOn = false;
+      if (lectureDem) Serial.printf("[RS232] Lecture demandée par Broodautomate (n°%u, DEX)…\n", (unsigned)lectureDem);
+      else if (nbLectures % 12 == 1) Serial.println(F("[RS232] Lecture de la machine (DEX)…"));
+      lireDex();
+      derniereLecture = millis();
+    }
+  }
   // Lecture de contrôle de la machine (liste 2) : chaque heure, à la demande, ou après un envoi de la machine
-  if (MODE == 0) {
+  else if (MODE == 0) {
     // surveillance : toutes les SURVEILLE_VENTES_SEC s (espacée à 2 puis 5 min si la machine ne répond pas : menu, coupure…)
     uint32_t pas = SURVEILLE_VENTES_SEC > 0 ? (uint32_t)SURVEILLE_VENTES_SEC * 1000UL * (echecsSurveillance < 3 ? 1UL : echecsSurveillance < 6 ? 4UL : 10UL)
                                            : (READ_EVERY_MIN > 0 ? (uint32_t)READ_EVERY_MIN * 60000UL : 0UL);

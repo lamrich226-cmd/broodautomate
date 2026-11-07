@@ -1,4 +1,4 @@
-# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.3)
+# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.4)
 
 Le boîtier reste branché sur la prise RS232 de la machine FAS. Il fait trois choses :
 
@@ -16,6 +16,32 @@ les plus anciens, stock, porte, température, coupures, erreurs de la machine da
 
 **Sécurité** : le boîtier ne fait que lire. Il n'envoie jamais de commande d'écriture ni d'effacement :
 toute autre trame est bloquée avant l'envoi (même liste de sécurité que le logiciel).
+
+---
+
+## Mise à jour v1.3 → v1.4 : un seul programme pour la Power Lift et la FAS 480
+
+Le boîtier **reconnaît tout seul** la machine branchée, au démarrage : il envoie un « ENQ » (05) ; une machine DEX (FAS 480/5) répond
+« DLE 0 » (10 30), une Power Lift ne répond rien. Rien à choisir, rien à programmer. (Pour forcer : `PROTOCOLE 1` = Power Lift, `2` = 480.)
+
+- **FAS 480/5** : à régler UNE fois à la main sur la machine : **commande 90 = 6, sortie RS232**. La 480 ne prévient pas quand elle vend :
+  le boîtier la lit toutes les `DEX_LECTURE_SEC` secondes (300) sur le câble (gratuit, lecture seule, aucun compteur remis à zéro).
+- **Data 4G** : l'envoi n'a lieu que s'il y a du nouveau (vente, nouvelle erreur), sinon au plus toutes les `DEX_RECAP_MIN` minutes (120)
+  et le signal de vie. Le relevé de la 480 (~3 Ko) est allégé avant l'envoi (`filtre.h`, `allegerDex`) : ID, heure, ventes totales, ventes
+  par sélection, **une seule température** (la plus récente), erreurs **nouvelles** seulement → environ 300 octets. La première lecture après
+  un démarrage sert de référence : les vieilles erreurs de la machine ne déclenchent pas de notification.
+- **Reconnaissance après panne** : si la machine ne répond plus du tout (6 essais ratés de suite), le boîtier refait la reconnaissance
+  (au plus toutes les 15 min).
+- Dans Broodautomate, la version du boîtier s'affiche « v1.4 DEX » pour une 480.
+- **Côté Broodautomate** : le lecteur de relevés (`js/evadts-parser.js`) lit aussi les températures `MA5*TEMP` et les ventes par sélection
+  d'une 480. Rien d'autre ne change (aucune commande SQL).
+- À téléverser comme d'habitude. **Ton `config.h` actuel peut rester tel quel** : les nouveaux réglages ont une valeur par défaut. Copie les
+  NOUVEAUX fichiers du dossier (surtout `dex_moteur.h`, `filtre.h`, `boitier.cpp`).
+- Vérifié sur ordinateur : `essais/test_dex.cpp` (fausse machine DEX, sonde, blocs abîmés, filtre, erreurs nouvelles), simulation complète
+  `essais/sim` scénario `dex` (reconnaissance, vente, erreur nouvelle, machine muette) ; les scénarios Power Lift donnent les mêmes résultats
+  qu'avec la v1.3 ; compilation ESP32 réussie. **Pas encore essayé sur la vraie 480 avec le boîtier** : premier essai à faire.
+- **Power Lift** : le boîtier lui envoie un seul octet 05 au démarrage (reconnaissance). Si une Power Lift s'en trouvait perturbée, mets
+  `PROTOCOLE 1` dans `config.h`.
 
 ---
 

@@ -88,7 +88,7 @@ struct FauxModem : Port {
 struct FausseMachine : Port {
   std::string rapport, evenement; bool active = true, echo = false, envoiApresLecture = false;
   uint8_t mTx = 0, lastPcXx = 0; std::deque<std::vector<uint8_t>> file; bool attendAck = false; uint8_t xxAttendu = 0;
-  int lectures = 0, sessionsMachine = 0; bool esclave = false;
+  int lectures = 0, sessionsMachine = 0; bool esclave = false; int sondesDex = 0;
   void ctrl(uint8_t type, uint8_t b4, uint8_t b5) { std::vector<uint8_t> f = {5, type, 0x40, b4, b5, 1}; ba::ddcmp::avecCrc(f); envoyer(std::string(f.begin(), f.end()), 3); }
   void msg(const std::vector<uint8_t>& body) { mTx++; auto m = ba::ddcmp::message(body, lastPcXx, mTx, 1); envoyer(std::string(m.begin(), m.end()), 3); }
   void pousser(const std::vector<uint8_t>& b) { file.push_back(b); if (!attendAck) suivant(); }
@@ -99,6 +99,7 @@ struct FausseMachine : Port {
   void recu(const uint8_t* b, size_t n) override {
     if (echo) { envoyer(std::string((const char*)b, n), 2); return; }
     if (!active) return;
+    if (n == 1 && (b[0] == 5 || b[0] == 4)) { sondesDex++; return; }      // v1.4 : reconnaissance DEX (un seul octet), sans effet sur une Power Lift
     if (!ba::ddcmp::autorise(b, n)) { printf("!!! TRAME INTERDITE ENVOYÉE À LA MACHINE\n"); exit(3); }
     if (n == 8 && b[0] == 5) {
       if (b[1] == 6) { mTx = 0; lastPcXx = 0; file.clear(); attendAck = false; esclave = false; ctrl(7, 0, 0); }
@@ -116,6 +117,52 @@ struct FausseMachine : Port {
   }
   bool finBlocs = false; uint32_t envoiPrevu = 0;
 };
+
+
+// ---------------- Machine FAS 480 simulée (DEX-UCS, commande 90 = 6) ----------------
+struct FausseMachineDex : Port {
+  std::string releve; int phase = 0; std::string buf; size_t bloc = 0; std::vector<std::string> blocs; bool active = true; int lectures = 0;
+  void pousse(std::initializer_list<uint8_t> l, uint32_t apres = 12) { std::string t; for (auto b : l) t += (char)b; envoyer(t, apres); }
+  void blocPousse(const std::string& d, bool dernier) {
+    std::vector<uint8_t> z(d.begin(), d.end()); z.push_back(dernier ? 3 : 0x17); uint16_t c = ba::dex::crc16(z);
+    std::string t = "\x10\x02" + d; t += (char)0x10; t += (char)(dernier ? 3 : 0x17); t += (char)(c & 255); t += (char)(c >> 8); envoyer(t, 15);
+  }
+  void recu(const uint8_t* b, size_t n) override {
+    if (!active) return;
+    for (size_t i = 0; i < n; i++) {
+      uint8_t c = b[i];
+      if (phase == 0) { if (c == 5) { pousse({0x10, '0'}); phase = 1; buf.clear(); } }
+      else if (phase == 1) {
+        if (c == 4) { phase = 0; continue; }
+        buf += (char)c;
+        if (buf.size() >= 4 && (uint8_t)buf[buf.size() - 4] == 0x10 && (uint8_t)buf[buf.size() - 3] == 3) { pousse({0x10, '1'}); phase = 2; }
+      } else if (phase == 2) { if (c == 4) { pousse({5}, 40); phase = 3; } }
+      else if (phase == 3) {
+        if (c == 0x30) {
+          std::string s = "00FAS00000001R01L01"; std::vector<uint8_t> id(s.begin(), s.end()), z = id; z.push_back(3); uint16_t cr = ba::dex::crc16(z);
+          std::string t = "\x10\x01" + s; t += (char)0x10; t += (char)3; t += (char)(cr & 255); t += (char)(cr >> 8); envoyer(t, 20); phase = 4;
+        }
+      } else if (phase == 4) { if (c == 0x31) { pousse({4, 5}, 30); phase = 5; } }
+      else if (phase == 5) {
+        if (c == 0x30) { lectures++; blocs.clear(); for (size_t p = 0; p < releve.size(); p += 200) blocs.push_back(releve.substr(p, 200)); bloc = 1; blocPousse(blocs[0], blocs.size() == 1); phase = 6; }
+      } else if (phase == 6) {
+        if (c == 0x30 || c == 0x31) { if (bloc < blocs.size()) { blocPousse(blocs[bloc], bloc + 1 == blocs.size()); bloc++; } else { pousse({4}); phase = 0; } }
+      }
+    }
+  }
+};
+// relevé INVENTÉ, de la forme de celui d'une 480 (aucune donnée réelle)
+static std::string inventerDex(int ventes, bool erreurNouvelle) {
+  std::vector<std::string> l = {"ST*001*0001", "ID1*FAS00000001* 480 TEST  *0280", "ID4*2*39", "ID5*121019*0930", "VA1*" + std::to_string(100000 + 270 * ventes) + "*" + std::to_string(400 + ventes) + "*100000*400",
+    "PA1*1*270*0", "PA2***" + std::to_string(10 + ventes), "PA1*2*270*0", "PA2***20", "EA3*0*121019*0930****"};
+  int h = 9, m = 30; for (int i = 0; i < 96; i++) { char b[40]; snprintf(b, sizeof b, "MA5*TEMP*%02d%02d*%d", h, m, 17 + i % 3); l.push_back(b); m += 15; if (m >= 60) { m -= 60; h = (h + 1) % 24; } }
+  l.push_back("MA5*ERROR*070111*1630*10*0"); l.push_back("MA5*ERROR*100116*2117*2*5");
+  if (erreurNouvelle) l.push_back("MA5*ERROR*121019*1010*2*3");
+  std::string z; for (auto& x : l) z += x + "\r\n";
+  char g[8]; snprintf(g, sizeof g, "%04X", ba::filtre::crc16(z));
+  return "DXS*1234567890*VA*V1/1\r\n" + z + "G85*" + g + "\r\nSE*" + std::to_string(l.size() + 1) + "*0001\r\nDXE*1*1\r\n";
+}
+static FausseMachineDex machineDex;
 
 // Après avoir changé un chiffre du relevé simulé, la machine recalcule son contrôle G85 (sinon le boîtier le jugerait abîmé)
 static void refaireG85(std::string& r) {
@@ -140,6 +187,10 @@ void simTick() {
   if (a == 8) machineSim.active = false;                       // la machine ne répond plus (menu de réglage)
   if (a == 9) machineSim.active = true;
   if (a == 10) { size_t p = machineSim.rapport.find("VA1*637970*2237"); if (p != std::string::npos) { machineSim.rapport.replace(p, 15, "VA1*638220*2238"); refaireG85(machineSim.rapport); } }
+  if (a == 20) machineDex.releve = inventerDex(1, false);
+  if (a == 21) machineDex.releve = inventerDex(1, true);
+  if (a == 22) machineDex.active = false;
+  if (a == 23) machineDex.active = true;
   if (a == 3) modemSim.reseau = false;
   if (a == 4) modemSim.reseau = true;
   if (a == 5) Serial.console += "etat\n";
@@ -175,7 +226,9 @@ int main(int argc, char** argv) {
   if (scen == "evenement") { machineSim.evenement = EV; evenements[20UL * 60000UL] = 2; evenements[20UL * 60000UL + 10] = 1; duree = 30UL * 60000UL; }
   // la machine envoie quelque chose juste après chacune de nos lectures : pas de lectures en boucle
   if (scen == "rafale") { machineSim.evenement = EV; machineSim.envoiApresLecture = true; duree = 140UL * 60000UL; }
-  ModemSerial.port = &modemSim; MachineSerial.port = &machineSim;
+  // v1.4 : FAS 480 (DEX) : vente à 20 min, erreur nouvelle à 35 min, machine muette de 50 à 58 min
+  if (scen == "dex") { evenements[20UL * 60000UL] = 20; evenements[35UL * 60000UL] = 21; evenements[50UL * 60000UL] = 22; evenements[58UL * 60000UL] = 23; duree = 75UL * 60000UL; machineDex.releve = inventerDex(0, false); }
+  ModemSerial.port = &modemSim; MachineSerial.port = (scen == "dex") ? (Port*)&machineDex : (Port*)&machineSim;
   setup();
   while (g_millis < duree) loop();
   // Résumé pour le script d'essai

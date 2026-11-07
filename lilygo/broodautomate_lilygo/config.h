@@ -34,6 +34,9 @@
 #define HEARTBEAT_MIN    30       // « je suis vivant » au moins toutes les N minutes, même sans changement
 #define DEMANDE_EVERY_SEC 120     // bouton « Lire maintenant » de Broodautomate : le boîtier regarde toutes les N secondes
                                   // s'il y a une demande (120 = réponse en 2 à 3 min) ; 0 = bouton désactivé
+#define PROTOCOLE        0        // v1.4 : 0 = le boîtier reconnaît tout seul la machine (Power Lift ou FAS 480) — conseillé ; 1 = force Power Lift ; 2 = force FAS 480
+#define DEX_LECTURE_SEC  300      // v1.4 FAS 480 : la machine ne prévient pas quand elle vend : le boîtier la lit toutes les N secondes sur le câble RS232 (gratuit)
+#define DEX_RECAP_MIN    120      // v1.4 FAS 480 : relevé de contrôle envoyé en 4G au moins toutes les N minutes même sans changement (sinon : seulement vente ou erreur nouvelle)
 #define LIRE_APRES_ENVOI_MACHINE 1  // 1 = quand la machine envoie elle-même (télémétrie = 1 : vente, porte…),
                                     //     le boîtier relit la machine juste après pour mettre les ventes à jour
 

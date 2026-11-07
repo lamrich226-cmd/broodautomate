@@ -10,6 +10,7 @@
 #pragma once
 #include <stdint.h>
 #include <stdio.h>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -113,6 +114,106 @@ inline std::string alleger(const std::string& src, std::string& vue) {
     std::string n; for (size_t k = 0; k < f.size(); k++) { if (k) n += '*'; n += f[k]; } final[s] = n; }
   std::string o;
   for (auto& x : final) { o += x; o += eol; }
+  return o;
+}
+
+
+// ---------------- v1.4 : relevé DEX d'une FAS 480 ----------------
+// Le relevé complet fait environ 5 Ko (96 températures, 18 erreurs…). On n'envoie que :
+//   ID1, ID5 (heure de la machine), VA1 (ventes totales), DA2, PA1/PA2 (ventes par sélection), EA3,
+//   les erreurs NOUVELLES depuis la lecture précédente (la première lecture après le démarrage sert de référence :
+//   les vieilles erreurs ne déclenchent pas de notification), et UNE seule température : la plus récente.
+// La machine écrit ses températures en anneau, pas dans l'ordre : la plus récente est celle qui précède le mieux
+// l'heure de la machine (ID5), en tenant compte du passage de minuit.
+struct ContexteDex {
+  bool initialise = false;                    // la lecture de référence des erreurs a été faite
+  std::map<std::string, int> erreursVues;     // texte de la ligne d'erreur → combien de fois vue
+};
+
+inline int minutesHHMM(const std::string& s) {
+  if (s.size() != 4) return -1;
+  for (char c : s) if (c < '0' || c > '9') return -1;
+  int h = (s[0] - '0') * 10 + (s[1] - '0'), m = (s[2] - '0') * 10 + (s[3] - '0');
+  return (h > 23 || m > 59) ? -1 : h * 60 + m;
+}
+
+// Ce qui change quand il se passe quelque chose : ventes (VA1, PA1, PA2) et erreurs. L'heure et les températures n'y sont pas.
+inline uint32_t empreinteDex(const std::string& src) {
+  std::string z;
+  std::string cur;
+  auto vide = [&](const std::string& l) {
+    if (commence(l, "VA1*") || commence(l, "PA1*") || commence(l, "PA2*") || commence(l, "MA5*ERROR*")) { z += l; z += '\n'; }
+  };
+  for (char c : src) { if (c == '\n') { if (!cur.empty() && cur.back() == '\r') cur.pop_back(); vide(cur); cur.clear(); } else cur += c; }
+  if (!cur.empty()) { if (cur.back() == '\r') cur.pop_back(); vide(cur); }
+  uint32_t h = 2166136261u;
+  for (unsigned char b : z) { h ^= b; h *= 16777619u; }
+  return h;
+}
+
+inline std::string allegerDex(const std::string& src, ContexteDex& ctx) {
+  const char* eol = src.find("\r\n") != std::string::npos ? "\r\n" : "\n";
+  std::vector<std::string> l;
+  { std::string cur; for (char c : src) { if (c == '\n') { if (!cur.empty() && cur.back() == '\r') cur.pop_back(); l.push_back(cur); cur.clear(); } else cur += c; }
+    if (!cur.empty()) { if (cur.back() == '\r') cur.pop_back(); l.push_back(cur); } }
+  size_t iSt = l.size(), iG85 = l.size(), iSe = l.size();
+  for (size_t i = 0; i < l.size(); i++) {
+    if (iSt == l.size() && commence(l[i], "ST*")) iSt = i;
+    else if (iSt != l.size() && iG85 == l.size() && commence(l[i], "G85*")) iG85 = i;
+    else if (iSt != l.size() && commence(l[i], "SE*")) { iSe = i; break; }
+  }
+  if (iSt == l.size() || iSe == l.size() || iG85 == l.size()) return src;          // pas un relevé DEX complet : tel quel
+  {                                                                                 // relevé abîmé (G85 faux) : tel quel
+    std::string annonce = l[iG85].size() > 4 ? l[iG85].substr(4) : "";
+    std::string bon = g85De(l, iSt, iG85), inverse = bon.substr(2) + bon.substr(0, 2);
+    for (auto& c : annonce) if (c >= 'a' && c <= 'f') c = (char)(c - 32);
+    while (annonce.size() < 4) annonce = "0" + annonce;
+    if (annonce != bon && annonce != inverse) return src;
+  }
+  // heure de la machine
+  int horloge = -1;
+  for (auto& x : l) if (commence(x, "ID5*")) { auto f = champs(x); if (f.size() > 2) horloge = minutesHHMM(f[2]); break; }
+  // erreurs : comptage de ce relevé
+  std::map<std::string, int> maintenant;
+  for (auto& x : l) if (commence(x, "MA5*ERROR*")) maintenant[x]++;
+  // température la plus récente
+  int meilleure = -1, ecartMin = 100000;
+  for (size_t i = 0; i < l.size(); i++) {
+    if (!commence(l[i], "MA5*TEMP*")) continue;
+    auto f = champs(l[i]);
+    int t = f.size() > 2 ? minutesHHMM(f[2]) : -1;
+    if (t < 0) continue;
+    int ecart = horloge >= 0 ? ((horloge - t) % 1440 + 1440) % 1440 : (1439 - t);
+    if (ecart < ecartMin) { ecartMin = ecart; meilleure = (int)i; }
+  }
+  std::vector<std::string> sortie;
+  std::map<std::string, int> dejaGardees;
+  for (size_t i = 0; i < l.size(); i++) {
+    const std::string& x = l[i];
+    if (i < iSt || i > iSe || i == iSt || i == iSe || i == iG85) { sortie.push_back(x); continue; }
+    if (commence(x, "ID1*") || commence(x, "ID5*") || commence(x, "VA1*") || commence(x, "DA2*") ||
+        commence(x, "PA1*") || commence(x, "PA2*") || commence(x, "EA3*")) { sortie.push_back(x); continue; }
+    if ((int)i == meilleure) { sortie.push_back(x); continue; }
+    if (commence(x, "MA5*ERROR*") && ctx.initialise) {
+      int avant = 0; auto it = ctx.erreursVues.find(x); if (it != ctx.erreursVues.end()) avant = it->second;
+      int deja = dejaGardees[x];
+      if (deja < maintenant[x] - avant) { dejaGardees[x]++; sortie.push_back(x); }
+    }
+  }
+  ctx.erreursVues = maintenant; ctx.initialise = true;
+  // SE : nombre de lignes de ST à SE ; G85 : contrôle recalculé
+  size_t a = 0, g = sortie.size(), s = sortie.size();
+  for (size_t i = 0; i < sortie.size(); i++) {
+    if (!a && commence(sortie[i], "ST*")) a = i + 1;
+    if (a && g == sortie.size() && commence(sortie[i], "G85*")) g = i;
+    if (a && commence(sortie[i], "SE*")) { s = i; break; }
+  }
+  if (!a || s == sortie.size() || g == sortie.size()) return src;
+  sortie[g] = "G85*" + g85De(sortie, a - 1, g);
+  { auto f = champs(sortie[s]); f.resize(f.size() < 3 ? 3 : f.size()); f[1] = std::to_string(s - (a - 1) + 1);
+    std::string n; for (size_t k = 0; k < f.size(); k++) { if (k) n += '*'; n += f[k]; } sortie[s] = n; }
+  std::string o;
+  for (auto& x : sortie) { o += x; o += eol; }
   return o;
 }
 
