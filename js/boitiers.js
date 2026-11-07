@@ -202,6 +202,20 @@ window.BA = window.BA || {};
       return "ok";
     }
 
+    // v5.18 : beaucoup de machines envoient le même n° générique (FAS000000001, FAS00000001…) : le n° ne prouve rien.
+    // On retient donc aussi le MODÈLE annoncé par la machine (ligne ID1 : « FASTER », « 480 LUX »…) au premier relevé accepté ;
+    // un relevé d'un autre modèle sur cette machine est refusé (rien n'est compté), comme un n° de série différent.
+    const sig = String(analyse.machineModel || "").replace(/\s+/g, " ").trim().toUpperCase().slice(0, 30);
+    const sigOld = String((m0.g4 && m0.g4.sig) || "");
+    if (sig && sigOld && sig !== sigOld) {
+      BA.Store.update(s => {
+        const x = pick(s); if (!x || !free(x)) return;
+        BA.Model.addEvent(s, x.num, "BOX_WRONG", { msg: sig, key: "m" + sig });
+        x.g4 = Object.assign({}, x.g4, { rid: R.id });
+      });
+      return "ok";
+    }
+
     if (analyse.g85.present && !analyse.g85.ok) {            // texte abîmé : rien n'est compté
       BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.readBad(s, x.num); x.g4 = Object.assign({}, x.g4, { rid: R.id }); });
       return "ok";
@@ -232,7 +246,7 @@ window.BA = window.BA || {};
       if (same) { BA.Reel.touch(s, x.num, tm, "4g"); BA.Reel.setTotals(s, x.num, audit, tm); }      // v5.13 : le total est mis à jour même sans vente
       else BA.Reel.applyAudit(s, x.num, x0);
       BA.Model.resolveEvents(s, x.num, "BOX_WRONG");
-      x.g4 = { rid: R.id, base: "r" + R.id, at: tm };
+      x.g4 = { rid: R.id, base: "r" + R.id, at: tm, sig: sigOld || sig || undefined };
       fait = true;
     });
     audits.set(R.id, audit);
@@ -838,14 +852,20 @@ window.BA = window.BA || {};
       <label class="check-row"><input type="checkbox" id="bx-porte-notif" ${((BA.Store.get() || {}).settings || {}).porteNotif === true ? "checked" : ""}> 🚪 ${E(t("bx_porte_notif"))}</label>
       <p class="note">${E(t("bx_porte_notif_note"))}</p></div>`;
   }
+  // v5.18 : on saisit le boîtier ET sa machine (nom ou adresse, ville, n° de plaque facultatif) ; on peut aussi choisir une machine déjà créée
   function htmlAdd() {
     const ms = machines().filter(m => m.id);
-    if (!ms.length) return `<div class="alert info">${E(t("rs_no_machine"))}</div>`;
-    return `<div class="add-sel-row">
+    return `<div class="add-sel-row rs-form">
       <label>${E(t("bx_name"))} <input id="bx-name" class="txt-in" value="${E(t("bx_name_def", { n: devices.length + 1 }))}"></label>
-      <label>${E(t("machine"))} <select id="bx-machine" class="auto-w">${ms.map(m => `<option value="${E(m.id)}">${E(nomM(m))}</option>`).join("")}</select></label>
+      <label>${E(t("machine"))} <select id="bx-machine" class="auto-w"><option value="">➕ ${E(t("bx_new_machine"))}</option>${ms.map(m => `<option value="${E(m.id)}">${E(nomM(m))}</option>`).join("")}</select></label>
+      <span id="bx-new" class="bx-new">
+        <label>${E(t("bx_m_street"))} <input id="bx-street" class="txt-in" placeholder="${E(t("rs_street_ph"))}"></label>
+        <label>${E(t("rs_city"))} <input id="bx-city" class="txt-in" placeholder="Antwerpen"></label>
+        <label>${E(t("bx_m_plate"))} <input id="bx-plate" class="txt-in" placeholder="202164170"></label>
+      </span>
       <button class="btn" id="bx-add">➕ ${E(t("bx_add"))}</button>
-    </div>`;
+    </div>
+    <p class="note" id="bx-new-note">${E(t("bx_m_note"))}</p>`;
   }
   // v5.12 (page Technique) : d'abord les boîtiers et leur détail ; l'installation (faite une fois) est repliée en bas
   function html() {
@@ -876,7 +896,11 @@ window.BA = window.BA || {};
     const busy = editing || document.querySelector(".modal-back") || (BA.Shell && BA.Shell.clicking && BA.Shell.clicking());
     if (busy && !force) { clearTimeout(redrawT); redrawT = setTimeout(() => redraw(), 600); return; }   // un peu plus tard
     clearTimeout(redrawT);
+    // v5.18 : ce qui est déjà tapé dans le formulaire « Ajouter un boîtier » est gardé quand la page est redessinée
+    const FORM = ["bx-name", "bx-machine", "bx-street", "bx-city", "bx-plate"];
+    const saved = {}; FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f) saved[i] = f.value; });
     _el.innerHTML = html();
+    FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f && saved[i] != null) f.value = saved[i]; });
     bind();
   }
   let redrawT = null;
@@ -937,10 +961,33 @@ window.BA = window.BA || {};
   function newKey() { const a = new Uint8Array(16); crypto.getRandomValues(a); return hex(a); }
   async function sha256(txt) { return hex(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(txt))); }
 
+  const nettoie = v => String(v || "").replace(/[<>"'`]/g, "").trim();
+  const normP = v => String(v || "").toUpperCase().replace(/^FAS-?/, "").replace(/[^0-9A-Z]/g, "").replace(/^0+/, "");
+  // Crée la machine saisie à la main (dans l'appli et dans Supabase). Renvoie son identifiant, ou null (message déjà affiché).
+  async function creerMachine() {
+    const val = k => nettoie((document.getElementById("bx-" + k) || {}).value);
+    const street = val("street").slice(0, 80), city = val("city").slice(0, 60);
+    const plaque = val("plate").replace(/\s+/g, "").replace(/^FAS-/i, "");
+    if (!street || !city) { U().toast("⚠️ " + t("bx_err_machine")); return null; }
+    if (plaque) {
+      if (plaque.length > 30 || !/^[A-Za-z0-9-]+$/.test(plaque)) { U().toast("⚠️ " + t("rs_err_plate")); return null; }
+      if (/^(FAS)?0*1$/i.test(plaque)) { U().toast("⚠️ " + t("rs_err_generic", { p: plaque })); return null; }
+      if (BA.Store.get().machines.some(x => x.serial && normP(x.serial) === normP(plaque))) { U().toast("⚠️ " + t("rs_err_plate_used")); return null; }
+    }
+    const id = "FAS-" + (plaque || ("BX" + Array.from(crypto.getRandomValues(new Uint8Array(5)), b => (b % 36).toString(36)).join("").toUpperCase()));
+    const num = BA.Store.get().machines.reduce((a, m) => Math.max(a, m.num), 0) + 1;
+    const err = BA.Store.update(s => BA.Reel.addMachine(s, { num, id, street, city, region: BA.Store.regionOf(city), serial: plaque }));
+    if (err) { U().toast("⚠️ " + t(err)); return null; }
+    try { await BA.DB.addMachine({ id, name: street, city, serial: plaque || null }); }
+    catch (e) { if (!/duplicate|unique|exists/i.test(e.message || "")) console.warn("Machine dans Supabase :", e.message); }
+    return id;
+  }
+
   async function addBox() {
-    const name = String((document.getElementById("bx-name") || {}).value || "").replace(/[<>"'`]/g, "").trim().slice(0, 40);
-    const mid = (document.getElementById("bx-machine") || {}).value;
-    if (!name || !mid) { U().toast("⚠️ " + t("bx_err_fields")); return; }
+    const name = nettoie((document.getElementById("bx-name") || {}).value).slice(0, 40);
+    let mid = (document.getElementById("bx-machine") || {}).value;
+    if (!name) { U().toast("⚠️ " + t("bx_err_fields")); return; }
+    if (!mid) { mid = await creerMachine(); if (!mid) return; }
     const key = newKey();
     try {
       const res = await sb().from("devices").insert({ name, machine_id: mid, key_hash: await sha256(key) }).select("id");
@@ -994,6 +1041,8 @@ window.BA = window.BA || {};
       else if (a === "check") { demForce = true; refresh(true); }
     });
     const add = el.querySelector("#bx-add"); if (add) add.onclick = () => addBox();
+    const sel = el.querySelector("#bx-machine");
+    if (sel) { const maj = () => { const n = el.querySelector("#bx-new"), nn = el.querySelector("#bx-new-note"); if (n) n.style.display = sel.value ? "none" : "contents"; if (nn) nn.style.display = sel.value ? "none" : ""; }; sel.onchange = maj; maj(); }
     el.querySelectorAll("[data-bxdel]").forEach(b => b.onclick = () => delBox(b.dataset.bxdel));
     el.querySelectorAll("[data-bxkey]").forEach(b => b.onclick = () => renewKey(b.dataset.bxkey));
     el.querySelectorAll("[data-bxm]").forEach(s => s.onchange = () => moveBox(s.dataset.bxm, s.value));
