@@ -896,7 +896,11 @@ window.BA = window.BA || {};
     const busy = editing || document.querySelector(".modal-back") || (BA.Shell && BA.Shell.clicking && BA.Shell.clicking());
     if (busy && !force) { clearTimeout(redrawT); redrawT = setTimeout(() => redraw(), 600); return; }   // un peu plus tard
     clearTimeout(redrawT);
+    // v5.18 : ce qui est déjà tapé dans le formulaire « Ajouter un boîtier » est gardé quand la page est redessinée
+    const FORM = ["bx-name", "bx-machine", "bx-street", "bx-city", "bx-plate"];
+    const saved = {}; FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f) saved[i] = f.value; });
     _el.innerHTML = html();
+    FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f && saved[i] != null) f.value = saved[i]; });
     bind();
   }
   let redrawT = null;
@@ -1038,7 +1042,7 @@ window.BA = window.BA || {};
     });
     const add = el.querySelector("#bx-add"); if (add) add.onclick = () => addBox();
     const sel = el.querySelector("#bx-machine");
-    if (sel) { const maj = () => { const n = el.querySelector("#bx-new"), nn = el.querySelector("#bx-new-note"); if (n) n.style.display = sel.value ? "none" : ""; if (nn) nn.style.display = sel.value ? "none" : ""; }; sel.onchange = maj; maj(); }
+    if (sel) { const maj = () => { const n = el.querySelector("#bx-new"), nn = el.querySelector("#bx-new-note"); if (n) n.style.display = sel.value ? "none" : "contents"; if (nn) nn.style.display = sel.value ? "none" : ""; }; sel.onchange = maj; maj(); }
     el.querySelectorAll("[data-bxdel]").forEach(b => b.onclick = () => delBox(b.dataset.bxdel));
     el.querySelectorAll("[data-bxkey]").forEach(b => b.onclick = () => renewKey(b.dataset.bxkey));
     el.querySelectorAll("[data-bxm]").forEach(s => s.onchange = () => moveBox(s.dataset.bxm, s.value));

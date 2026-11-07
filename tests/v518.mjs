@@ -116,7 +116,7 @@ const L480 = ["DXS*1234567890*VA*V1/1", "ST*001*0001", "ID1*FAS00000001* 480 LUX
   await report(L480, 10);
   r = await m1();
   ok("relevé d'une 480 (87 271 ventes, même n° générique) : RIEN compté, alerte « autre machine »", r.tot === 12 && r.wrong === 1 && r.rid === 3, r);
-  await p.evaluate(() => BA.Shell.go("alertes")); await sleep(900); await shot("v518-02-releve-autre-machine");
+  await p.evaluate(() => BA.Shell.go("alerts")); await sleep(900); await shot("v518-02-releve-autre-machine");
   const al = await p.evaluate(() => { const e = BA.Store.get().events.find(x => x.code === "BOX_WRONG"); return e && e.data && e.data.msg; });
   ok("alerte : nom du modèle reçu (480 LUX)", al === "480 LUX", al);
   await report(PL(13), 5);
