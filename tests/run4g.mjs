@@ -55,23 +55,39 @@ function v3Data() {
   };
 }
 const fake = new FakeSupabase(Object.assign({ baState: [] }, v3Data()));
+// v5.19 : tables des notifications (commandes SQL de la v5.9 déjà passées, comme sur le vrai Supabase)
+fake.t.ba_notifications = []; fake.t.ba_push_tokens = [];
 
 // ---------------- la vraie fonction « ingest », branchée sur le faux Supabase ----------------
 function client() {
   const q = table => {
     const st = { filters: [], op: "select", vals: null };
+    // v5.19 : aussi is / gt / in / upsert / select(…, { head }) (utilisés par les notifications d'ingest) :
+    // avant, ces appels donnaient « … is not a function » dans la sortie des tests (sans faire échouer le test)
+    const garde = (r, [c, v, k]) => k === "is" ? (v === null ? r[c] == null : r[c] === v) : k === "gt" ? String(r[c]) > String(v)
+      : k === "in" ? v.map(String).includes(String(r[c])) : String(r[c]) === String(v);
     const run = () => {
       const tab = fake.t[table];
       if (!tab) return { data: null, error: { message: `relation "public.${table}" does not exist` } };
-      const rows = tab.filter(r => st.filters.every(([c, v]) => String(r[c]) === String(v)));
-      if (st.op === "select") return { data: rows, error: null };
+      const rows = tab.filter(r => st.filters.every(f => garde(r, f)));
+      if (st.op === "select") return st.head ? { data: null, count: rows.length, error: null } : { data: rows, count: rows.length, error: null };
       if (st.op === "update") { rows.forEach(r => Object.assign(r, JSON.parse(JSON.stringify(st.vals)))); return { error: null }; }
       if (st.op === "insert") { tab.push(Object.assign({ id: ++fake.seq, received_at: new Date().toISOString() }, st.vals)); return { error: null }; }
+      if (st.op === "upsert") {
+        const ajoutes = [];
+        [].concat(st.vals).forEach(v => { if (st.conflit && tab.some(r => r[st.conflit] === v[st.conflit])) return; const r = Object.assign({ id: ++fake.seq, cree_at: new Date().toISOString(), envoye_at: null }, v); tab.push(r); ajoutes.push(r); });
+        return { data: ajoutes, error: null };
+      }
+      if (st.op === "delete") { fake.t[table] = tab.filter(r => !rows.includes(r)); return { error: null }; }
     };
     const api = {
-      select() { st.op = "select"; return api; }, update(v) { st.op = "update"; st.vals = v; return api; },
+      select(cols, o) { if (st.op !== "upsert") st.op = "select"; st.head = !!(o && o.head); return api; }, update(v) { st.op = "update"; st.vals = v; return api; },
       insert(v) { st.op = "insert"; st.vals = v; return Promise.resolve(run()); },
+      upsert(v, o) { st.op = "upsert"; st.vals = v; st.conflit = o && o.onConflict; return api; },
+      delete() { st.op = "delete"; return api; },
       eq(c, v) { st.filters.push([c, v]); return api; },
+      is(c, v) { st.filters.push([c, v, "is"]); return api; }, gt(c, v) { st.filters.push([c, v, "gt"]); return api; },
+      in(c, v) { st.filters.push([c, v, "in"]); return api; }, order() { return api; }, limit() { return api; },
       maybeSingle() { const r = run(); return Promise.resolve({ data: r.data ? r.data[0] || null : null, error: r.error || null }); },
       then(a, b) { return Promise.resolve(run()).then(a, b); }
     };
@@ -146,7 +162,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.18.0", (await a.innerText("#app-footer")).includes("5.18.0"));
+  ok("pied de page : version 5.19.0", (await a.innerText("#app-footer")).includes("5.19.0"));
   await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));

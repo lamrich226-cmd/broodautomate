@@ -59,14 +59,18 @@
         }).join("")}</div>`;
     } else {
       const urgent = o.todo ? ["door", "power", "empty", "error", "remove", "low"] : ["empty", "remove", "low"];
-      const todo = s.machines.map(m => ({ m, x: M.stats(s, m) }))
-        .filter(z => urgent.includes(z.x.st))
-        .sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct);
+      // v5.19 : une machine HORS LIGNE (pas de boîtier, ou boîtier muet) reste « à visiter » si le stock noté dans
+      // Broodautomate le demande (pains trop vieux à retirer, sélection vide…) : sa carte montre « Hors ligne » + la raison.
+      // Avant, elle disparaissait de la liste et la page disait « Rien d'urgent : toutes les machines sont en ordre ».
+      const todo = s.machines.map(m => { const x = M.stats(s, m); return { m, x, y: x.st === "offline" ? M.stats(s, m, { stock: true }) : x }; })
+        .filter(z => urgent.includes(z.y.st))
+        .sort((a, b) => (a.x.st === "offline") - (b.x.st === "offline") || M.RANK[a.y.st] - M.RANK[b.y.st] || a.y.pct - b.y.pct);
+      const raison = z => z.x.st === "offline" ? `<div class="chips">${U.pill(z.y.st)}</div>` : "";
       html += o.todo
-        ? `<h3>${t("op_todo_need")}</h3>${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, "")).join("")}</div>` : `<div class="alert ok">✔ ${t("op_todo_ok")}</div>`}`
+        ? `<h3>${t("op_todo_need")}</h3>${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, raison(z))).join("")}</div>` : `<div class="alert ok">✔ ${t("op_todo_ok")}</div>`}`
         : `<div class="alert info">${t("no_missions")}</div>
         <h3>💡 ${t("suggested_title")}</h3>
-        ${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, "")).join("")}</div>` : `<p class="note">${t("nothing_to_do")}</p>`}`;
+        ${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, raison(z))).join("")}</div>` : `<p class="note">${t("nothing_to_do")}</p>`}`;
     }
     el.innerHTML = html;
     bindCards(el);
@@ -173,6 +177,7 @@
     },
 
     close() {
+      if (this.w) clearTimeout(this.w.cancelTimer);
       this.w = null;
       document.getElementById("modal-root").innerHTML = "";
       BA.Shell.renderView();
@@ -290,6 +295,9 @@
     },
 
     // ---------- Étape 3 : chargement ----------
+    // v5.19 : remplissage SPONTANÉ (sans mission de l'admin, sans commande) → 0 pain par défaut partout :
+    // l'opérateur saisit lui-même ce qu'il charge. Remplissage d'une MISSION (commande envoyée par l'admin)
+    // → la quantité de la mission (corrigée avec le stock réel) est déjà écrite ; l'opérateur peut la changer.
     step3(s, m) {
       const def = M.lastDelivery(s.now);
       if (!this.w.delivery) this.w.delivery = def;
@@ -305,11 +313,11 @@
       // lignes de chargement : une ou plusieurs dates de livraison par sélection
       // (une sélection ajoutée pendant l'intervention reçoit aussi sa ligne)
       if (!this.w.lines) this.w.lines = {};
-      m.sels.forEach(sel => { if (!this.w.lines[sel.n]) this.w.lines[sel.n] = [{ qty: 0, date: this.w.delivery }]; });
+      m.sels.forEach(sel => { if (!this.w.lines[sel.n]) this.w.lines[sel.n] = [{ qty: mission ? advised(sel) : 0, date: this.w.delivery }]; });
       const L = this.w.lines;
       return `
         <h3>${t("step3_title")}</h3>
-        <p class="note">${t("step3_help")}</p>
+        <p class="note">${t(mission ? "step3_help" : "step3_help_free")}</p>
         <div class="alert warn">🔁 ${t("fifo_reminder")}</div>
         ${reduced ? `<div class="alert info">📈 ${t("op_reduced_load")}</div>` : ""}
         <label class="field-row">${t("ld_date_all")} <input type="datetime-local" id="ld-date" value="${F.toInput(this.w.delivery)}"></label>
@@ -318,17 +326,16 @@
           <tbody>${m.sels.map(sel => {
             const q = M.qty(sel), need = sel.cap - q;
             const lines = L[sel.n] || [];
-            const sum = lines.reduce((a, x) => a + (Number(x.qty) || 0), 0);
             return `<tr>${selCell(sel.n, sel.type).replace("</td>", `<div class="petit only-phone">${t("col_target")} ${sel.cap} · ${t("col_left")} ${q}</div></td>`)}<td class="big-num no-phone">${sel.cap}</td><td class="big-num no-phone">${q}</td>
               <td>${lines.map((x, i) => `<div class="ld-line">
                   <input type="number" class="num-in big-in" id="ld-${sel.n}-${i}" data-sel="${sel.n}" data-i="${i}" min="0" max="${need}" value="${x.qty}"> <span class="petit">${t("ld_units")}</span>
                   <input type="datetime-local" id="ldd-${sel.n}-${i}" data-sel="${sel.n}" data-i="${i}" value="${F.toInput(x.date)}">
                   ${lines.length > 1 ? `<button class="btn petit secondary ld-del" data-sel="${sel.n}" data-i="${i}" title="${t("ld_remove_line")}">✖</button>` : ""}
                 </div>`).join("")}
-                <div class="petit">${t("max_n", { n: need })}${advised(sel) > 0 ? " · " + t("op_advised") + " : " + advised(sel) : ""}
+                <div class="petit">${t("max_n", { n: need })}${mission && advised(sel) > 0 ? " · " + t("op_advised") + " : " + advised(sel) : ""}
                   ${need > 0 ? `<button class="btn petit secondary ld-add" data-sel="${sel.n}">${t("ld_add_date")}</button>` : ""}</div></td></tr>`;
           }).join("")}</tbody></table></div>
-        <p class="petit">${t("step3_total", { n: m.sels.reduce((a, sel) => a + (L[sel.n] || []).reduce((b, x) => b + (Number(x.qty) || 0), 0), 0) })}</p>
+        <p class="petit" id="ld-total">${t("step3_total", { n: m.sels.reduce((a, sel) => a + (L[sel.n] || []).reduce((b, x) => b + (Number(x.qty) || 0), 0), 0) })}</p>
         <div class="wz-actions">${this.canBack(s, 3) ? this.backBtn("wz-back") : ""}<button class="btn big" id="ld-validate">✔ ${t("btn_validate_load")}</button></div>`;
     },
 
@@ -351,9 +358,23 @@
     bind() {
       const w = this.w, q = id => document.getElementById(id);
       const go = (step) => { w.step = step; w.mode = "view"; w.error = ""; this.render(); };
+      // v5.19 : « Annuler » demande une confirmation pendant 4 s. Avant, le délai redessinait toute la fenêtre
+      // (les chiffres tapés pas encore validés étaient effacés) et un délai d'un « Remplir » précédent pouvait
+      // désarmer le suivant (le 2e clic n'annulait pas). Maintenant : seul le texte du bouton change, et le délai
+      // ne concerne que cette fenêtre.
       const c = q("wz-cancel");
       if (c) c.onclick = () => {
-        if (!w.cancelArmed) { w.cancelArmed = true; this.render(); setTimeout(() => { if (this.w) { this.w.cancelArmed = false; this.render(); } }, 4000); return; }
+        if (!w.cancelArmed) {
+          w.cancelArmed = true; c.textContent = "⚠️ " + t("btn_cancel_confirm");
+          clearTimeout(w.cancelTimer);
+          w.cancelTimer = setTimeout(() => {
+            if (this.w !== w || !w.cancelArmed) return;
+            w.cancelArmed = false;
+            const b = q("wz-cancel"); if (b) b.textContent = "✖ " + t("btn_cancel");
+          }, 4000);
+          return;
+        }
+        clearTimeout(w.cancelTimer);
         BA.Actions.cancelIntervention(w.itId); this.close();
       };
       if (q("wz-close")) q("wz-close").onclick = () => this.close();
@@ -410,6 +431,14 @@
           const L = w.lines[i.dataset.sel], v = F.fromInput(i.value); if (L && L[i.dataset.i] && v) L[i.dataset.i].date = v;
         });
       };
+      // v5.19 : le « Total à charger » suit ce que l'opérateur tape (ou les boutons − / +) ;
+      // avant, il restait au chiffre du premier affichage (0) jusqu'à la validation.
+      const total = q("ld-total");
+      if (total) document.querySelectorAll(".modal [id^=ld-][data-sel]").forEach(i => i.addEventListener("input", () => {
+        readLines();
+        const n = Object.keys(w.lines).reduce((a, k) => a + w.lines[k].reduce((b, x) => b + (Number(x.qty) || 0), 0), 0);
+        total.textContent = t("step3_total", { n });
+      }));
       // date pour toutes les lignes : on met à jour les cases sans redessiner la fenêtre
       // (un clic sur « Valider » juste après avoir tapé la date n'est donc pas perdu)
       if (q("ld-date")) U.dateInput(q("ld-date"), val => {

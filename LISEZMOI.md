@@ -151,3 +151,14 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Données 4G : c'est une **estimation** (5 à 9 Ko par échange avec Supabase, d'après le nombre d'envois que le boîtier compte lui-même). La vraie consommation se lit sur l'appli de la carte SIM.
 - Point de retour : v5.11.1 = commit 886f3a0.
 
+
+## v5.19 — remplissage spontané à 0, vérification complète
+- **Remplir (appli opérateur)** : remplissage **sans commande** (aucune mission de l'admin) → **0 pain par défaut** sur chaque sélection, l'opérateur saisit ce qu'il met (message « Remplissage sans commande : tout est à 0 »). Remplissage d'une **mission** (commande envoyée par l'admin) → les quantités de la commande sont déjà écrites (« conseillé »), modifiables.
+- Le **« Total à charger »** suit la saisie (boutons − / + ou clavier) ; avant, il restait à 0 jusqu'à la validation.
+- Téléphone : « Date de livraison (toutes les lignes) » sur une ligne, la date en dessous.
+- **À faire (opérateur)** : une machine **hors ligne** (pas de boîtier, ou boîtier muet) reste « à visiter » si le stock noté le demande (pains trop vieux à retirer, sélection vide…), avec « Hors ligne » et la raison sur sa carte. Avant, elle disparaissait et la page disait « Rien d'urgent ».
+- **Annuler** (Remplir) : la confirmation ne redessine plus la fenêtre (les chiffres tapés restent) et le délai d'un « Remplir » précédent ne désarme plus le suivant.
+- Les deux pages chargent les mêmes fichiers de textes ; chaque fichier js / css est demandé avec `?v=5.19.0` : après une publication, un simple rechargement de la page prend tous les nouveaux fichiers (plus de mélange avec l'ancienne version gardée par le navigateur). **À chaque nouvelle version, changer ce numéro dans `index.html`, `operateur.html` et `js/config.js`** (le test `v519.mjs` le vérifie).
+- Vérification complète : syntaxe et analyse de tout le code (ESLint), 252 écrans (admin PC et téléphone, opérateur, 3 langues, 2 thèmes), orthographe FR / NL / EN, programme du boîtier recompilé (0 avertissement) avec ses essais et son simulateur, Supabase (journaux, conseils de sécurité).
+- Tests : `tests/v519.mjs` (et `v515.mjs` ajouté à `npm run tout`).
+- Point de retour : v5.18 = commit 112cfd6.

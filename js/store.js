@@ -157,7 +157,8 @@ window.BA = window.BA || {};
       return Model.isOld(s, lot);
     },
 
-    stats(s, m) {
+    // opts.stock (v5.19) : état d'après le stock seulement, même si la machine est hors ligne
+    stats(s, m, opts) {
       let total = 0, cap = 0, emptySels = 0, toRemove = 0, mandatory = 0, keptOnce = 0, oldest = null;
       m.sels.forEach(sel => {
         const q = Model.qty(sel);
@@ -174,7 +175,7 @@ window.BA = window.BA || {};
       const pct = cap ? Math.round(total / cap * 100) : 0;
       const techActive = s.events.some(e => e.num === m.num && !e.resolved && (e.cat === "tech" || e.cat === "temp"));
       let st = "ok";
-      if (!m.online) st = "offline";
+      if (!m.online && !(opts && opts.stock)) st = "offline";
       else if (m.door) st = "door";
       else if (m.power) st = "power";
       else if (pct <= s.settings.emptyPct) st = "empty";

@@ -286,6 +286,8 @@ input.lot-date { width: auto; font-size: .82rem; padding: 4px 8px; min-height: 3
 .field-row input[type=datetime-local] { width: auto; }
 label.field-row { flex-wrap: nowrap; justify-content: space-between; gap: 10px; }
 label.field-row input { flex: none; }
+/* v5.19 : « Remplir » sur téléphone : « Date de livraison (toutes les lignes) » sur une ligne, la date en dessous (avant : texte coupé sur 4 lignes) */
+@media (max-width: 520px) { .modal label.field-row { flex-wrap: wrap; } .modal label.field-row input { flex: 1 1 100%; width: 100%; } }
 .settings-grid select { width: 100%; max-width: 100%; }
 .settings-grid label:not(.field-row):not(.case) { display: block; margin: 8px 0 4px; font-size: .9rem; }
 .yesno { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
