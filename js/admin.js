@@ -165,8 +165,9 @@
         <button data-tab="fc" class="${o.tab === "fc" || o.tab === "bk" ? "active" : ""}">📅 ${t("tab_fc")}</button>
       </div>
       ${(o.tab === "order" || o.tab === "stock") && BA.Boitiers && BA.Boitiers.allCard ? BA.Boitiers.allCard({ planAt: o.tab === "order" && o.plan ? o.planAt : 0 }) : ""}
-      ${(o.tab === "order" || o.tab === "stock") && BA.IA ? BA.IA.card() : ""}
+      ${o.tab === "stock" && BA.IA ? BA.IA.card() : ""}
       ${body}
+      ${o.tab === "order" && BA.IA ? BA.IA.card({ plan: !!o.plan }) : ""}
       ${lastOrders(s)}`;
     const fch = el.querySelector("#fc-host");
     if (fch) {

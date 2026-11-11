@@ -1,12 +1,12 @@
 // ============================================================
-// BROODAUTOMATE v5.4 — « 🤖 Copier pour l'IA » (BA.IA)
+// BROODAUTOMATE v5.20 — « 🤖 Claude / ChatGPT » (BA.IA)
 //
-// Un clic copie un résumé complet (stock, ventes par jour de semaine, jours
-// fériés, alertes, règles de la tournée) à coller dans une IA gratuite
-// (Claude, ChatGPT…). Rien n'est envoyé tout seul : pas de clé, pas de compte
-// à brancher, pas de coût. L'IA conseille ; l'admin décide, rien n'est commandé.
-// Le texte est toujours en français (langue de l'admin), quelle que soit la
-// langue de l'écran.
+// Sous « Préparer une commande » : deux boutons, Claude et ChatGPT. Un clic copie un
+// résumé complet (stock, 8 semaines de ventes, commandes passées, calcul du logiciel,
+// jours fériés, alertes, règles de la tournée) ET ouvre le site : il reste à coller (Ctrl+V).
+// Rien n'est envoyé tout seul : pas de clé, pas de compte à brancher, pas de coût.
+// L'IA conseille ; l'admin décide, rien n'est commandé. Pas d'adresse de rue dans le texte.
+// Le texte est toujours en français (langue de l'admin), quelle que soit la langue de l'écran.
 // ============================================================
 
 window.BA = window.BA || {};
@@ -39,6 +39,45 @@ window.BA = window.BA || {};
     return list.filter((x, i) => list.indexOf(x) === i).slice(0, 12);       // sans doublons
   }
 
+  // ---- Historique par semaine (v5.20) ----
+  // Les W semaines complètes avant aujourd'hui, de la plus ancienne à la plus récente : [{ from, days: [7 clés de jour] }]
+  function semaines(s, W) {
+    const FC = BA.Forecast, k0 = M.dayKey(s.now), out = [];
+    for (let w = W; w >= 1; w--) {
+      const from = FC.addDays(k0, -7 * w), days = [];
+      for (let d = 0; d < 7; d++) days.push(FC.addDays(from, d));
+      out.push({ from, days });
+    }
+    return out;
+  }
+  // Une machine : ventes de chaque semaine + total des pains retirés (null si aucune vente connue)
+  function histMachine(s, num, sem) {
+    let any = false, retires = 0;
+    const ventes = sem.map(w => w.days.reduce((a, k) => {
+      const r = (s.daily[k] || {})[num];
+      if (!r) return a;
+      any = true; retires += Math.max(0, r.x || 0);
+      return a + (r.s || 0);
+    }, 0));
+    return any ? { ventes, retires: Math.round(retires) } : null;
+  }
+  // Toute la flotte : ventes, pains chargés, pains retirés, ventes par type de pain
+  function histFlotte(s, sem) {
+    return sem.map(w => {
+      const o = { from: w.from, ventes: 0, charges: 0, retires: 0, types: {} };
+      w.days.forEach(k => {
+        const d = s.daily[k] || {};
+        Object.keys(d).forEach(num => {
+          const r = d[num]; if (!r) return;
+          o.ventes += r.s || 0; o.charges += r.l || 0; o.retires += Math.max(0, r.x || 0);
+          Object.keys(r.y || {}).forEach(ty => { o.types[ty] = (o.types[ty] || 0) + r.y[ty]; });
+        });
+      });
+      o.ventes = Math.round(o.ventes); o.charges = Math.round(o.charges); o.retires = Math.round(o.retires);
+      return o;
+    });
+  }
+
   // Le texte complet. o = état de « Commander » (pour joindre le calcul du logiciel s'il existe)
   function build(s, o) {
     const F = U().F, now = s.now, L = [];
@@ -68,7 +107,7 @@ window.BA = window.BA || {};
     L.push("");
     L.push("## Machines");
     all.forEach(({ m, x }) => {
-      const lieu = [m.street, m.city].filter(Boolean).join(", ") || ("machine " + m.num);
+      const lieu = m.city || ("machine " + m.num);          // v5.20 : la ville seulement, jamais l'adresse (l'IA n'en a pas besoin)
       const lecture = m.lastSeen ? (M.dayKey(m.lastSeen) === M.dayKey(now) ? "aujourd'hui " : F.dt(m.lastSeen).slice(0, 5) + " ") + F.time(m.lastSeen) : "jamais";
       L.push("");
       L.push("### #" + m.num + " — " + lieu);
@@ -93,6 +132,16 @@ window.BA = window.BA || {};
           + (p.short ? " — historique court, peu fiable" : ""));
         if (p.trend != null && Math.abs(p.trend) >= 0.18) L.push("- Tendance : ventes " + (p.trend > 0 ? "en hausse" : "en baisse") + " de " + pct(Math.abs(p.trend) * 100) + " sur 2 semaines");
       }
+      // v5.20 : ventes semaine par semaine (de la plus ancienne à la plus récente) et pains retirés
+      const hw = histMachine(s, m.num, semaines(s, (ctx && ctx.F.weeks) || 8));
+      if (hw) L.push("- Ventes par semaine (de la plus ancienne à la plus récente) : " + hw.ventes.join(" · ") + " — pains retirés sur la période : " + hw.retires
+        + (p && p.nDays != null && p.nDays < ((ctx && ctx.F.weeks) || 8) * 7 ? " — seulement " + p.nDays + " jours de ventes connus (historique court)" : ""));
+      if (p && p.src === "manual") {
+        // peu d'historique : l'admin a réglé les jours à la main (en % d'une journée normale)
+        const man = (s.profileManual || {})[m.num] || [];
+        const bits2 = ORDRE.map(i => (BA.Forecast.manualState(ctx, m.num, i).set && man[i] != null) ? JOURS_3[i] + " " + Math.round(man[i]) + " %" : null).filter(Boolean);
+        if (bits2.length) L.push("- Réglé à la main (pas assez d'historique), en % d'une journée normale : " + bits2.join(", ") + (p.base ? " · journée normale ≈ " + num1(p.base) + " pains" : ""));
+      }
       const al = alertes(s, m);
       if (al.length) L.push("- Alertes actives : " + al.join(" ; "));
     });
@@ -110,6 +159,28 @@ window.BA = window.BA || {};
       });
     }
 
+    // ---- Historique de la flotte, semaine par semaine (v5.20) ----
+    const sem = semaines(s, (ctx && ctx.F.weeks) || 8);
+    const flotte = histFlotte(s, sem);
+    L.push("");
+    L.push("## Les " + sem.length + " dernières semaines, toutes machines ensemble");
+    if (!flotte.some(w => w.ventes || w.charges || w.retires)) L.push("Pas encore d'historique de ventes dans le logiciel.");
+    else {
+      L.push("Semaines de 7 jours (la date est le premier jour ; la dernière semaine finit hier) · ventes · pains chargés · pains retirés");
+      flotte.forEach(w => L.push("- " + ddmm(w.from) + " : " + w.ventes + " · " + w.charges + " · " + w.retires));
+      const types = {};
+      flotte.forEach(w => Object.keys(w.types).forEach(ty => { types[ty] = true; }));
+      Object.keys(types).forEach(ty => L.push("- Ventes de " + typeNom(ty) + " par semaine : " + flotte.map(w => w.types[ty] || 0).join(" · ")));
+    }
+
+    // ---- Mes dernières commandes (v5.20) ----
+    L.push("");
+    L.push("## Mes dernières commandes au boulanger");
+    const cmds = (s.orders || []).slice(0, 8);
+    if (!cmds.length) L.push("Aucune commande enregistrée dans le logiciel pour l'instant.");
+    cmds.forEach(od => L.push("- " + F.dt(od.t) + (od.passageAt ? " · passage " + F.dt(od.passageAt) : "") + " · marge " + (od.marginPct || 0) + " % · "
+      + ((od.perType || []).map(r => typeNom(r.type) + " " + r.qty).join(", ") || "rien")));
+
     // ---- Calcul du logiciel ----
     const plan = o && o.plan;
     L.push("");
@@ -124,51 +195,69 @@ window.BA = window.BA || {};
 
     L.push("");
     L.push("## Ce que je te demande");
-    L.push("1. Vérifie ces chiffres et dis-moi ce qui te semble faux, bizarre ou manquant (lecture ancienne, machine hors ligne, historique court…).");
-    L.push("2. Propose la quantité à commander au boulanger, par type de pain, pour la tournée de demain matin, avec une petite marge de sécurité. Explique en 3 lignes pourquoi.");
-    L.push("3. Dis-moi quelles machines risquent d'être vides avant le prochain passage, et lesquelles ont du pain à retirer.");
-    L.push("4. Réponds en français, simplement, court. Si une information manque, pose-moi UNE question au lieu de deviner.");
+    L.push("Le « Calcul du logiciel » est ma référence : ne le refais pas de zéro, CRITIQUE-le à partir de l'historique et de mes dernières commandes.");
+    L.push("1. Es-tu d'accord avec le calcul du logiciel ? Si non, dis pourquoi, chiffres à l'appui.");
+    L.push("2. Donne-moi un tableau : type de pain · quantité conseillée à commander · différence avec le logiciel. Garde une petite marge de sécurité. Explique en 3 lignes pourquoi.");
+    L.push("3. Compare mes dernières commandes avec les ventes et les pains retirés des semaines passées : est-ce que je commande trop, juste assez ou pas assez ?");
+    L.push("4. Dis-moi quelles machines risquent d'être vides avant le prochain passage, et lesquelles ont du pain à retirer.");
+    L.push("5. Signale ce qui te semble faux, bizarre ou manquant (lecture ancienne, machine hors ligne, historique court, jours réglés à la main).");
+    L.push("6. Réponds en français, simplement, court, et vérifie tes additions. Si une information manque, pose-moi UNE question au lieu de deviner.");
     return L.join("\n");
   }
 
   // ---------------- Copie ----------------
+  // v5.20 : la copie « tout de suite » (execCommand) passe d'abord : quand on clique sur Claude / ChatGPT, le nouvel onglet
+  // prend la main, et l'ancienne méthode (navigator.clipboard) est alors refusée. Elle reste le plan B.
   async function copyText(text) {
-    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (e) { /* on essaie autrement */ }
     try {
       const ta = document.createElement("textarea");
       ta.value = text; ta.setAttribute("readonly", ""); ta.style.cssText = "position:fixed;left:-9999px;top:0";
       document.body.appendChild(ta); ta.select();
       const ok = document.execCommand("copy");
       ta.remove();
-      return !!ok;
-    } catch (e) { return false; }
+      if (ok) return true;
+    } catch (e) { /* plan B */ }
+    try { if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; } } catch (e) { /* abandon */ }
+    return false;
   }
 
-  async function copy(root) {
+  // site = "claude" | "chatgpt" (ouvre le site, le lien s'ouvre tout seul) ; sinon : copie seulement
+  async function copy(root, site) {
     const s = BA.Store.get(); if (!s) return;
     const o = BA.Shell && BA.Shell.state && BA.Shell.state.order;
     const text = build(s, o);
     const area = root && root.querySelector("textarea");
-    if (area) { area.value = text; const d = root.querySelector("details"); if (d) d.open = true; }
+    if (area) area.value = text;
+    if (!site) { const d = root && root.querySelector("details"); if (d) d.open = true; }
     const ok = await copyText(text);
-    U().toast(ok ? "✅ " + t("ia_copied", { n: text.length }) : "⚠️ " + t("ia_manual"), ok ? 6000 : 9000);
+    const nom = site === "chatgpt" ? "ChatGPT" : "Claude";
+    if (site) U().toast(ok ? "✅ " + t("ia_opened", { site: nom, n: text.length }) : "⚠️ " + t("ia_opened_manual", { site: nom }), ok ? 9000 : 12000);
+    else U().toast(ok ? "✅ " + t("ia_copied", { n: text.length }) : "⚠️ " + t("ia_manual"), ok ? 6000 : 9000);
+    if (!ok && area) { const d = root.querySelector("details"); if (d) d.open = true; }
   }
 
-  // Carte à mettre dans une page (admin)
-  function card() {
+  // Carte à mettre dans une page (admin). opts.plan : la commande est préparée (sinon on le rappelle en une ligne)
+  function card(opts) {
+    const E = U().E, plan = !opts || opts.plan !== false;
     return `<div class="ia-card" data-ia>
-      <div class="ia-head">
-        <button class="btn" data-ia-copy>🤖 ${U().E(t("ia_btn"))}</button>
-        <div class="ia-txt">${U().E(t("ia_note"))}
-          <span class="ia-links"><a href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a> · <a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a></span></div>
+      <div class="ia-txt"><b>🤖 ${E(t("ia_title"))}</b> ${E(t("ia_note2"))}</div>
+      ${plan ? "" : `<p class="petit ia-hint">${E(t("ia_noplan"))}</p>`}
+      <div class="ia-actions">
+        <a class="btn" data-ia-open="claude" href="https://claude.ai/new" target="_blank" rel="noopener">Claude</a>
+        <a class="btn" data-ia-open="chatgpt" href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT</a>
+        <button class="btn secondary" data-ia-copy>📋 ${E(t("ia_btn"))}</button>
       </div>
-      <details class="ia-prev"><summary>${U().E(t("ia_preview"))}</summary>
-        <textarea class="zone-texte" rows="14" readonly aria-label="${U().E(t("ia_preview"))}"></textarea></details>
+      <p class="petit">${E(t("ia_how"))}</p>
+      <details class="ia-prev"><summary>${E(t("ia_preview"))}</summary>
+        <textarea class="zone-texte" rows="14" readonly aria-label="${E(t("ia_preview"))}"></textarea></details>
     </div>`;
   }
 
   document.addEventListener("click", e => {
-    const b = e.target && e.target.closest && e.target.closest("[data-ia-copy]");
+    const tg = e.target && e.target.closest ? e.target : null; if (!tg) return;
+    const a = tg.closest("[data-ia-open]");
+    if (a) { copy(a.closest("[data-ia]"), a.dataset.iaOpen); return; }       // le lien s'ouvre ensuite tout seul (pas de preventDefault)
+    const b = tg.closest("[data-ia-copy]");
     if (b) copy(b.closest("[data-ia]"));
   });
 
