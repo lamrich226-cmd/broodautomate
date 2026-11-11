@@ -152,6 +152,12 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Point de retour : v5.11.1 = commit 886f3a0.
 
 
+## v5.20 — conseil IA sous la commande
+
+- Après la préparation de la commande (et dans l'onglet Stock), la carte « Demander conseil à une IA » a trois boutons : **Claude**, **ChatGPT**, **Copier pour l'IA**. Un clic copie le résumé et ouvre le site ; il reste à coller (Ctrl+V) et envoyer.
+- Le résumé contient le stock, le stock estimé, la quantité à commander, les commandes passées, le calcul du logiciel et 8 semaines de ventes (flotte, par type de pain, par machine) ; réglages manuels si l'historique est court. L'IA conseille, rien n'est commandé. Aucune adresse ni secret n'est copié.
+- Test : `tests/v520.mjs`. Aucun changement de base de données ni de fonction.
+
 ## v5.19 — remplissage spontané à 0, vérification complète
 - **Remplir (appli opérateur)** : remplissage **sans commande** (aucune mission de l'admin) → **0 pain par défaut** sur chaque sélection, l'opérateur saisit ce qu'il met (message « Remplissage sans commande : tout est à 0 »). Remplissage d'une **mission** (commande envoyée par l'admin) → les quantités de la commande sont déjà écrites (« conseillé »), modifiables.
 - Le **« Total à charger »** suit la saisie (boutons − / + ou clavier) ; avant, il restait à 0 jusqu'à la validation.
