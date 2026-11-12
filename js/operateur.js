@@ -38,11 +38,31 @@
     if (o.todo && !s.machines.length) { el.innerHTML = `<h2>📋 ${t("op_todo_title")}</h2><div class="alert info">${t("no_machine_op")}</div>`; return; }
     const open = s.missions.filter(x => x.status === "open");
     const card = (m, extra) => machineCard(s, m, extra);
-    let html = o.todo ? `<h2>📋 ${t("op_todo_title")}</h2>${resume(s)}` : `<h2>🧾 ${t("nav_missions")}</h2>`;
+    // v5.22 : page « À faire » = titre + pastilles + barre de recherche (comme le Dashboard admin) + liste.
+    // Le haut de page reste en place (la saisie n'est pas coupée quand la liste se redessine chaque seconde).
+    let host = el, q = "";
+    if (o.todo) {
+      if (!el.querySelector("#todo-body")) {
+        el.innerHTML = `<h2>📋 ${t("op_todo_title")}</h2><div id="todo-sum"></div>
+          <div class="toolbar"><input id="todo-search" class="search" type="search" data-live="1" autocomplete="off" placeholder="${E(t("search_ph"))}" value="${E(st().todoQ || "")}"></div>
+          <div id="todo-body"></div>`;
+        el.querySelector("#todo-search").addEventListener("input", e => { st().todoQ = e.target.value; renderMissions(el, o); });
+      }
+      el.querySelector("#todo-sum").innerHTML = resume(s);
+      q = (el.querySelector("#todo-search").value || "").trim().toLowerCase();
+      host = el.querySelector("#todo-body");
+    }
+    let html = o.todo ? "" : `<h2>🧾 ${t("nav_missions")}</h2>`;
     // Déplacements de pain demandés par l'admin (d'une sélection à l'autre, même produit)
-    const mvs = s.machines.filter(m => U.openMoves(s, m).length);
+    const mvs = q ? [] : s.machines.filter(m => U.openMoves(s, m).length);
     if (mvs.length) html += `<h3>⇄ ${t("mv_todo_title")}</h3>` + mvs.map(m => `<div class="mv-machine"><b>#${m.num}</b> <span class="petit">${E(m.street)}</span>${U.moveRequests(s, m)}</div>`).join("");
-    if (open.length) {
+    if (q) {
+      // Recherche : toutes les machines qui correspondent (n°, rue ou ville), porte ouverte en premier
+      const found = s.machines.filter(m => (m.num + " " + m.street + " " + m.city).toLowerCase().includes(q))
+        .map(m => ({ m, x: M.stats(s, m) }))
+        .sort((a, b) => (a.x.st === "offline") - (b.x.st === "offline") || M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct || a.m.num - b.m.num);
+      html += found.length ? `<div class="cards machines-grid">${found.map(z => card(z.m, z.x.st === "offline" ? `<div class="chips">${U.pill(M.stats(s, z.m, { stock: true }).st)}</div>` : "")).join("")}</div>` : `<div class="alert info">${t("no_match")}</div>`;
+    } else if (open.length) {
       html += `<p class="note">${t("missions_note", { n: open.length })}</p>
         <div class="cards machines-grid">${open.map(ms => {
           const m = M.machine(s, ms.num);
@@ -72,9 +92,9 @@
         <h3>💡 ${t("suggested_title")}</h3>
         ${todo.length ? `<div class="cards machines-grid">${todo.map(z => card(z.m, raison(z))).join("")}</div>` : `<p class="note">${t("nothing_to_do")}</p>`}`;
     }
-    el.innerHTML = html;
-    bindCards(el);
-    U.bindMoves(el);
+    host.innerHTML = html;
+    bindCards(host);
+    U.bindMoves(host);
   }
 
   // Résumé en pastilles : seulement ce qui demande une action (rien si tout va bien)

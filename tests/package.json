@@ -3,7 +3,7 @@
   "private": true,
   "description": "Tests automatiques de Broodautomate (navigateur simulé, faux Supabase, faux câble RS232, fonction ingest)",
   "scripts": {
-    "tout": "node cles-traduction.js && node sql/supabase.test.mjs && node sql/v515.test.mjs && node ../lilygo/essais/test_filtre.mjs && node --experimental-strip-types --no-warnings ingest/logique.test.mts && node --experimental-strip-types --no-warnings ingest/flux.test.mts && node run.js .. captures && node run4g.mjs .. captures-4g && node v511.mjs .. captures-v511 && node v512.mjs .. captures-v512 && node v513.mjs .. captures-v513 && node v518.mjs .. captures-v518 && node v515.mjs .. captures-v515 && node v519.mjs .. captures-v519 && node v520.mjs .. captures-v520 && bash ../lilygo/essais/sim/essai_udp.sh && node v521.mjs .. captures-v521"
+    "tout": "node cles-traduction.js && node sql/supabase.test.mjs && node sql/v515.test.mjs && node ../lilygo/essais/test_filtre.mjs && node --experimental-strip-types --no-warnings ingest/logique.test.mts && node --experimental-strip-types --no-warnings ingest/flux.test.mts && node run.js .. captures && node run4g.mjs .. captures-4g && node v511.mjs .. captures-v511 && node v512.mjs .. captures-v512 && node v513.mjs .. captures-v513 && node v518.mjs .. captures-v518 && node v515.mjs .. captures-v515 && node v519.mjs .. captures-v519 && node v520.mjs .. captures-v520 && bash ../lilygo/essais/sim/essai_udp.sh && node v521.mjs .. captures-v521 && node v522.mjs .. captures-v522"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.117.2",
