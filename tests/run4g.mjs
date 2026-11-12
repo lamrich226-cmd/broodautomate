@@ -356,7 +356,7 @@ try {
   await a.waitForFunction(() => BA.Boitiers.demInstalled() === true, null, { timeout: 15000 });
   await a.waitForFunction(() => /\(v1\.1\)/.test((document.querySelector("#rs-boitiers") || {}).innerText || ""), null, { timeout: 15000 }).catch(() => {});
   sec = await a.innerText("#rs-boitiers");
-  ok("boîtier avec l'ancien programme (v1.0) : « mets à jour le programme du boîtier (v1.1) » au lieu du bouton", sec.includes("(v1.1)") && !(await a.$("button[data-bxread]")), sec.slice(0, 500));
+  ok("boîtier avec l'ancien programme (v1.0) : pas de bouton « Lire maintenant » (et plus de texte d'explication, v5.23)", !sec.includes("(v1.1)") && !(await a.$("button[data-bxread]")), sec.slice(0, 500));
   await boitier(key, { fw: "1.1", lu: 11 });
   await a.evaluate(() => BA.Boitiers.refresh(true));
   await a.waitForSelector("button[data-bxread]:not([disabled])", { timeout: 15000 });
@@ -494,12 +494,12 @@ try {
   ok("onglet Boîtiers 4G : bouton « Lire toutes les machines »", /Lire toutes les machines/.test(await a.innerText("#rs-boitiers .bx-all")));
   await view(a, "dashboard");
   await a.waitForSelector("#dash-bx .bx-all button[data-bxreadall]:not([disabled])", { timeout: 10000 });
-  ok("Dashboard : carte « Avant une commande : lis toutes les machines » + bouton actif", /Avant une commande/.test(await a.innerText("#dash-bx")));
+  ok("Dashboard : carte « Lire toutes les machines » + compteur, sans phrase d'explication (v5.23)", /Lire toutes les machines/.test(await a.innerText("#dash-bx")) && !/Avant une commande/.test(await a.innerText("#dash-bx")));
   await shot(a, "4g-07-dashboard-lire-tout");
   await view(a, "order");
   await a.waitForSelector("#view-order .bx-all button[data-bxreadall]:not([disabled])", { timeout: 10000 });
   let card = await a.innerText("#view-order .bx-all");
-  ok("Commander : carte en haut, « 1 sur 2 machines lues il y a moins de 15 min » (#2 jamais lue)", /Avant une commande/.test(card) && /1 sur 2 machines lues il y a moins de 15 min/.test(card), card);
+  ok("Commander : carte en haut, « 1 sur 2 machines lues il y a moins de 15 min » (#2 jamais lue)", !/Avant une commande/.test(card) && /1 sur 2 machines lues il y a moins de 15 min/.test(card), card);
   await (await a.$("#view-order .bx-all")).screenshot({ path: path.join(OUT, "z-lire-tout-avant.png") });
   await spyToasts(a);
   const nDem0 = fake.t.ba_demandes.length, avant3 = await salesToday(a);
