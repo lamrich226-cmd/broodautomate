@@ -9,7 +9,7 @@
   Object.assign(D.fr, {
     tq_j_dlg_lines: "Texte reçu, ligne par ligne, avec sa traduction", tq_j_dlg_lines_note: "À gauche : la ligne exactement comme la machine l'a envoyée. À droite : ce qu'elle veut dire.", tq_j_dlg_l_raw: "Ligne reçue", tq_j_dlg_l_txt: "Ce que ça veut dire",
     bx_porte_notif: "Me prévenir tout de suite quand une porte s'ouvre", bx_porte_notif_note: "Éteint par défaut : sinon chaque passage de l'opérateur ferait sonner les téléphones. Dans tous les cas, tu es prévenu si une porte reste ouverte plus de 15 min.", bx_porte_notif_on: "Notification immédiate activée", bx_porte_notif_off: "Notification immédiate désactivée",
-    tq_c_title: "Consommation (offre gratuite Supabase)",
+    tq_c_title: "Consommation Supabase",
     tq_c_dl: "Téléchargé par cet appareil", tq_c_dl_v: "{v} ce mois ({n} requêtes) · ≈ {p} sur 30 jours · plafond : 5 Go par mois pour TOUS les appareils",
     tq_c_db: "Base de données", tq_c_db_v: "{v} sur 500 Mo ({p} %)", tq_c_warn: "plus de 80 % : prévenir / copier les données",
     tq_c_missing: "Commande SQL v5.13 pas encore faite",
@@ -37,7 +37,7 @@
   Object.assign(D.nl, {
     tq_j_dlg_lines: "Ontvangen tekst, regel per regel, met vertaling", tq_j_dlg_lines_note: "Links: de regel precies zoals de automaat hem stuurde. Rechts: wat hij betekent (in het Frans).", tq_j_dlg_l_raw: "Ontvangen regel", tq_j_dlg_l_txt: "Betekenis",
     bx_porte_notif: "Meteen verwittigen wanneer een deur opengaat", bx_porte_notif_note: "Standaard uit: anders gaan de telefoons bij elk bezoek van de operator af. Je wordt in elk geval verwittigd als een deur langer dan 15 min openblijft.", bx_porte_notif_on: "Directe melding aan", bx_porte_notif_off: "Directe melding uit",
-    tq_c_title: "Verbruik (gratis Supabase-abonnement)",
+    tq_c_title: "Verbruik Supabase",
     tq_c_dl: "Gedownload door dit toestel", tq_c_dl_v: "{v} deze maand ({n} verzoeken) · ≈ {p} over 30 dagen · limiet: 5 GB per maand voor ALLE toestellen",
     tq_c_db: "Database", tq_c_db_v: "{v} van 500 MB ({p} %)", tq_c_warn: "meer dan 80 %: waarschuwen / gegevens kopiëren",
     tq_c_missing: "SQL-opdracht v5.13 nog niet uitgevoerd",
@@ -64,7 +64,7 @@
   Object.assign(D.en, {
     tq_j_dlg_lines: "Received text, line by line, with translation", tq_j_dlg_lines_note: "Left: the line exactly as the machine sent it. Right: what it means (in French).", tq_j_dlg_l_raw: "Received line", tq_j_dlg_l_txt: "Meaning",
     bx_porte_notif: "Notify me right away when a door opens", bx_porte_notif_note: "Off by default: otherwise every operator visit would ring the phones. In all cases you are warned when a door stays open for more than 15 min.", bx_porte_notif_on: "Instant notification on", bx_porte_notif_off: "Instant notification off",
-    tq_c_title: "Usage (free Supabase plan)",
+    tq_c_title: "Supabase usage",
     tq_c_dl: "Downloaded by this device", tq_c_dl_v: "{v} this month ({n} requests) · ≈ {p} over 30 days · limit: 5 GB per month for ALL devices",
     tq_c_db: "Database", tq_c_db_v: "{v} of 500 MB ({p} %)", tq_c_warn: "over 80 %: warn / copy the data",
     tq_c_missing: "SQL command v5.13 not run yet",

@@ -425,7 +425,7 @@ window.BA = window.BA || {};
   // Bouton (désactivé : ancien programme, boîtier hors ligne, demande en cours)
   function readBtn(d) {
     if (demInstalled !== true) return "";
-    if (!fwOk(d)) return `<span class="petit">⬆️ ${E(t("bx_read_fw"))}</span>`;
+    if (!fwOk(d)) return "";
     const st = btnState(d);
     return `<button class="btn petit" data-bxread="${E(d.id)}" ${st.disabled ? "disabled" : ""} title="${E(st.title)}">${E(st.label)}</button>`;
   }
@@ -591,7 +591,7 @@ window.BA = window.BA || {};
       if (planAt && planAt < lot.finiAt && ok) extra += `<div class="alert warn">🔄 ${E(t("bx_all_plan_old", { b: t("btn_calc") }))}</div>`;
     } else {
       const fresh = rows.filter(r => r.m.lastSeen && Date.now() - r.m.lastSeen < 15 * MIN).length;
-      head = `${E(t("bx_all_hint"))} <span class="petit">${E(t("bx_all_idle", { a: fresh, n }))}</span>`;
+      head = `<span class="petit">${E(t("bx_all_idle", { a: fresh, n }))}</span>`;
     }
     const titre = running ? t("bx_all_running") : ready ? t("bx_all_title", { d: delai() }) : t("bx_all_none");
     const btn = `<button class="btn" data-bxreadall ${running || !ready ? "disabled" : ""} title="${E(titre)}">${running ? "⏳ " + E(t("bx_all_running_btn")) : "📡 " + E(t(lot ? "bx_all_again" : "bx_all_btn"))}</button>`;
@@ -878,13 +878,12 @@ window.BA = window.BA || {};
     else body = `${demInstalled === false ? `<div class="alert info">📡 ${E(t("bx_read_install"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></div>` : ""}
       ${htmlList()}${htmlDetails()}
       ${demInstalled === true ? htmlEcoute() + allCard() : ""}
-      <h3>➕ ${E(t("bx_add_title"))}</h3><p class="note">${E(t("bx_add_note"))}</p>${htmlAdd()}`;
+      <h3>➕ ${E(t("bx_add_title"))}</h3>${htmlAdd()}`;
     const done = installed === true && devices.length > 0;
     const install = `<p class="note">${E(t("bx_intro"))}</p>${htmlSteps()}`;
     return `${done ? "" : install}
       ${lastError ? `<div class="alert err">${E(t("bx_error", { e: lastError }))}</div>` : ""}
-      <div class="card">${body}</div>
-      ${done ? `<details class="rs-more bx-install"><summary>🛠 ${E(t("bx_install_title"))}</summary>${install}</details>` : ""}`;
+      <div class="card">${body}</div>`;
   }
 
   function mount(el) { _el = el; redraw(true); if (installed !== true || Date.now() - lastCheck > 20000) refresh(true); }
@@ -956,9 +955,7 @@ window.BA = window.BA || {};
             <input type="radio" name="bx-sim-dlg" value="${E(k)}" ${k === choix ? "checked" : ""}>
             <span><b>📶 ${E(P.SIMS[k].nom)}</b> <span class="petit">${E(t("bx_sim_" + k.replace(/[^a-z0-9]/g, "")))}</span></span></label>`).join("")}</div>
           <div class="carte-actions"><button class="btn" id="bx-prog-dl">⬇️ ${E(t("bx_prog_btn"))}</button></div>
-          <p class="note" id="bx-prog-note">${E(t("bx_prog_note"))}</p>
-        </div>
-        <p class="petit">${E(t("bx_key_manual"))}</p>` : `<p>${E(t("bx_key_text"))}</p>`}
+        </div>` : `<p>${E(t("bx_key_text"))}</p>`}
         <pre class="bx-key" id="bx-key-line">${E(line)}</pre>
         <div class="carte-actions"><button class="btn ${P ? "secondary petit" : ""}" id="bx-key-copy">📋 ${E(t("bx_copy"))}</button></div>
         <div class="alert warn">${E(t(P ? "bx_key_once2" : "bx_key_once"))}</div>`,

@@ -451,7 +451,6 @@
         <label>${t("display")} <select id="st-view" class="auto-w">${["numbers", "line", "bar", "cumul", "pie"].map(v => `<option value="${v}" ${o.view === v ? "selected" : ""}>${t("v_" + v)}</option>`).join("")}</select></label>
         ${o.view === "line" || o.view === "bar" || o.view === "cumul" ? `<label>${t("metric")} <select id="st-metric" class="auto-w">${METRICS.map(k => `<option value="${k}" ${o.metric === k ? "selected" : ""}>${t("m_" + k)}</option>`).join("")}</select></label>` : ""}
       </div>
-      <p class="note">${t("stats_period_now", { p: bucketLabel(cur.k, o.period) })}${o.which === "current" ? " · " + t("current_note") : ""} · ${t("stats_note")}</p>
       ${main}
       <h3>💶 ${t("profit_by_machine", { p: bucketLabel(cur.k, o.period) })}</h3>
       <div class="table-scroll"><table class="compact">

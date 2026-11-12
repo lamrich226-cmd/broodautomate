@@ -451,8 +451,7 @@ window.BA = window.BA || {};
         [t("tq_s_boxes_read"), cloud ? oui(BA.Boitiers && BA.Boitiers.demInstalled()) : "—"],
         [t("tq_s_boxes_seen"), vu ? F.dt(vu) : "—"]
       ])}
-      </div>
-      <p class="note">${E(t("tq_s_note"))}</p>`;
+      </div>`;
     const bc = z.querySelector("#tq-c-copy"); if (bc) bc.onclick = () => copieDonnees(bc);
     const bp = z.querySelector("#tq-c-purge"); if (bp) bp.onclick = () => purge(bp);
     const b = z.querySelector("#tq-s-check");

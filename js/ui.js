@@ -600,7 +600,6 @@ window.BA = window.BA || {};
         <div class="card"><div class="label">${t("lbl_last_intervention")}</div><div class="value v-small">${lastIt ? F.dt(lastIt.end) : "—"}</div></div>
       </div>
       <h3>🍞 ${t("lots_title")}</h3>
-      <p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>
       ${lotsTable(s, m, ctx)}
       <h3>🧾 ${t("det_last_moves")}</h3>
       ${BA.History.recent(s, m.num, ctx.admin, 8)}
