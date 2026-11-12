@@ -149,7 +149,7 @@ const etat = {
   await entrer(a);
   const opts = await a.$$eval("#bx-sim option", o => o.map(x => ({ v: x.value, t: x.textContent.trim(), s: x.selected })));
   ok("liste « Carte SIM » : Digi (choisie par défaut, comme avant) et 1NCE", JSON.stringify(opts) === JSON.stringify([{ v: "digi", t: "Digi", s: true }, { v: "1nce", t: "1NCE", s: false }]), opts);
-  ok("texte d'aide : programme complet donné quand on ajoute un boîtier", /programme complet du boîtier, prêt à téléverser/.test(await a.innerText("#view-technique")));
+  ok("v5.23 : plus de phrase d'aide sous « Ajouter un boîtier » (le formulaire reste)", !/programme complet du boîtier, prêt à téléverser/.test(await a.innerText("#view-technique")));
   await a.fill("#bx-name", "Boîtier essai 1NCE");
   await a.selectOption("#bx-sim", "1nce");
   await a.selectOption("#bx-machine", "FAS-202160521"); await sleep(200);
@@ -180,7 +180,7 @@ const etat = {
   ok("config.h : en-tête « préparé par Broodautomate » avec le nom du boîtier et la carte", v1.entete, v1.config.slice(0, 400));
   ok("config.h : les autres réglages sont intacts (Supabase, broches, code PIN)", v1.reste);
   ok("ce config.h se compile avec le programme (simulateur g++)", compile(z1.f) === "ok", compile(z1.f));
-  ok("message après téléchargement : nom du fichier et étapes Arduino IDE", /broodautomate_lilygo_boitier-essai-1nce_1nce\.zip/.test(await a.innerText("#bx-prog-note")) && /ESP32 Dev Module/.test(await a.innerText("#bx-prog-note")) && /Téléchargé/.test(await a.innerText("#bx-prog-dl")));
+  ok("après téléchargement : le bouton passe à « Téléchargé » (v5.23 : plus de texte d'explication)", /Téléchargé/.test(await a.innerText("#bx-prog-dl")) && !(await a.$("#bx-prog-note")));
 
   console.log("\n== 3. Même boîtier, carte Digi : rien d'autre ne change");
   await a.check("input[name=bx-sim-dlg][value=digi]");
