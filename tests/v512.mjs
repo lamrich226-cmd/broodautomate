@@ -120,7 +120,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   ok("total de tous les boîtiers allumés depuis plus d'une heure (2)", /Tous les boîtiers \(2\), au rythme actuel : ≈ \d+ à \d+ Mo par mois/.test(await p.innerText("#rs-boitiers")));
   await p.evaluate(() => BA.Boitiers.redraw(true)); await sleep(300);
   ok("le détail ouvert reste ouvert quand la liste est redessinée", await p.$eval(`details.bx-more[data-bxmore="${DEV.A}"]`, d => d.open));
-  ok("installation (commandes SQL, fonction) repliée en bas", !!(await p.$("#rs-boitiers details.bx-install:not([open])")) && !(await p.isVisible("#rs-boitiers [data-bx=fn]")));
+  ok("v5.23 : plus de bloc « Installation » en bas de la page", !(await p.$("#rs-boitiers details.bx-install")) && !(await p.isVisible("#rs-boitiers [data-bx=fn]")));
   ok("tableau des boîtiers : réseau en clair (BASE / Telenet)", /BASE \/ Telenet \(20620\)/.test(await p.innerText("#rs-boitiers .bx-table")));
   await shot("v512-02-technique-boitiers");
 

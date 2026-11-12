@@ -202,12 +202,8 @@ try {
   await shot(a, "4g-02-cle-du-boitier");
   await (await a.$(".dlg-modal")).screenshot({ path: path.join(OUT, "z-cle.png") });
   await a.click("#dlg-ok");
-  // v5.12 : une fois un boîtier ajouté, l'installation (commandes, fonction) est repliée en bas
-  await a.click("#rs-boitiers details.bx-install > summary");
-  await a.click("#rs-boitiers [data-bx=fn]");
-  await a.waitForSelector("#bx-fn-code");
-  ok("fenêtre « fonction ingest » : code complet + étapes (Verify JWT désactivé)", (await a.inputValue("#bx-fn-code")).includes("Deno.serve") && (await a.innerText(".dlg-modal")).includes("Verify JWT"));
-  await a.click("#dlg-ok");
+  // v5.23 : le bloc « Installation » (commandes, fonction) n'est plus affiché une fois un boîtier ajouté
+  ok("v5.23 : plus de bloc « Installation » replié après l'ajout d'un boîtier", !(await a.$("#rs-boitiers details.bx-install")));
 
   console.log("\n== 3. Le boîtier envoie : signal de vie, premier relevé, ventes");
   let r = await boitier(key, { st: "démarrage", stok: false, premier: true });
