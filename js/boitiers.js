@@ -857,6 +857,7 @@ window.BA = window.BA || {};
     const ms = machines().filter(m => m.id);
     return `<div class="add-sel-row rs-form">
       <label>${E(t("bx_name"))} <input id="bx-name" class="txt-in" value="${E(t("bx_name_def", { n: devices.length + 1 }))}"></label>
+      ${BA.Programme ? `<label>📶 ${E(t("bx_sim"))} <select id="bx-sim" class="auto-w">${Object.keys(BA.Programme.SIMS).map(k => `<option value="${E(k)}">${E(BA.Programme.SIMS[k].nom)}</option>`).join("")}</select></label>` : ""}
       <label>${E(t("machine"))} <select id="bx-machine" class="auto-w"><option value="">➕ ${E(t("bx_new_machine"))}</option>${ms.map(m => `<option value="${E(m.id)}">${E(nomM(m))}</option>`).join("")}</select></label>
       <span id="bx-new" class="bx-new">
         <label>${E(t("bx_m_street"))} <input id="bx-street" class="txt-in" placeholder="${E(t("rs_street_ph"))}"></label>
@@ -897,7 +898,7 @@ window.BA = window.BA || {};
     if (busy && !force) { clearTimeout(redrawT); redrawT = setTimeout(() => redraw(), 600); return; }   // un peu plus tard
     clearTimeout(redrawT);
     // v5.18 : ce qui est déjà tapé dans le formulaire « Ajouter un boîtier » est gardé quand la page est redessinée
-    const FORM = ["bx-name", "bx-machine", "bx-street", "bx-city", "bx-plate"];
+    const FORM = ["bx-name", "bx-sim", "bx-machine", "bx-street", "bx-city", "bx-plate"];
     const saved = {}; FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f) saved[i] = f.value; });
     _el.innerHTML = html();
     FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f && saved[i] != null) f.value = saved[i]; });
@@ -942,18 +943,46 @@ window.BA = window.BA || {};
     const b = document.getElementById("bx-fn-copy");
     if (b) b.onclick = () => copy(code, b);
   }
-  function keyDialog(name, key) {
+  // v5.21 : la fenêtre de la clé donne aussi le programme COMPLET du boîtier (.zip prêt à téléverser), avec la carte SIM choisie
+  function keyDialog(name, key, sim) {
     const line = `#define DEVICE_KEY  "${key}"`;
+    const P = BA.Programme && BA.Zip ? BA.Programme : null;
+    const choix = P && P.SIMS[sim] ? sim : "digi";
     U().confirmDialog({
       title: "🔑 " + t("bx_key_title", { n: name }),
-      html: `<p>${E(t("bx_key_text"))}</p>
+      html: `${P ? `<div class="bx-prog">
+          <p class="bx-prog-titre"><b>⬇️ ${E(t("bx_prog_title"))}</b></p>
+          <div class="bx-sim-choix" role="radiogroup" aria-label="${E(t("bx_sim"))}">${Object.keys(P.SIMS).map(k => `<label class="bx-sim-opt">
+            <input type="radio" name="bx-sim-dlg" value="${E(k)}" ${k === choix ? "checked" : ""}>
+            <span><b>📶 ${E(P.SIMS[k].nom)}</b> <span class="petit">${E(t("bx_sim_" + k.replace(/[^a-z0-9]/g, "")))}</span></span></label>`).join("")}</div>
+          <div class="carte-actions"><button class="btn" id="bx-prog-dl">⬇️ ${E(t("bx_prog_btn"))}</button></div>
+          <p class="note" id="bx-prog-note">${E(t("bx_prog_note"))}</p>
+        </div>
+        <p class="petit">${E(t("bx_key_manual"))}</p>` : `<p>${E(t("bx_key_text"))}</p>`}
         <pre class="bx-key" id="bx-key-line">${E(line)}</pre>
-        <div class="carte-actions"><button class="btn" id="bx-key-copy">📋 ${E(t("bx_copy"))}</button></div>
-        <div class="alert warn">${E(t("bx_key_once"))}</div>`,
+        <div class="carte-actions"><button class="btn ${P ? "secondary petit" : ""}" id="bx-key-copy">📋 ${E(t("bx_copy"))}</button></div>
+        <div class="alert warn">${E(t(P ? "bx_key_once2" : "bx_key_once"))}</div>`,
       ok: "✔ " + t("bx_key_ok"), cancel: t("bx_close"), onOk: () => {}
     });
     const b = document.getElementById("bx-key-copy");
     if (b) b.onclick = () => copy(line, b);
+    const dl = document.getElementById("bx-prog-dl");
+    if (dl && P) dl.onclick = async () => {
+      const r = document.querySelector('input[name="bx-sim-dlg"]:checked');
+      const s = r && P.SIMS[r.value] ? r.value : choix;
+      const avant = dl.textContent;
+      dl.disabled = true; dl.textContent = "⏳ " + t("bx_prog_wait");
+      try {
+        const f = await P.telecharger({ name, key, sim: s });
+        dl.textContent = "✅ " + t("bx_prog_done");
+        const n = document.getElementById("bx-prog-note");
+        if (n) n.textContent = t("bx_prog_done_note", { f, s: P.SIMS[s].nom });
+      } catch (e) {
+        dl.textContent = avant;
+        U().toast("⚠️ " + t("bx_prog_err", { e: e.message }), 9000);
+      }
+      dl.disabled = false;
+    };
   }
 
   // ---------------- Clé secrète ----------------
@@ -986,6 +1015,7 @@ window.BA = window.BA || {};
   async function addBox() {
     const name = nettoie((document.getElementById("bx-name") || {}).value).slice(0, 40);
     let mid = (document.getElementById("bx-machine") || {}).value;
+    const sim = (document.getElementById("bx-sim") || {}).value || "digi";
     if (!name) { U().toast("⚠️ " + t("bx_err_fields")); return; }
     if (!mid) { mid = await creerMachine(); if (!mid) return; }
     const key = newKey();
@@ -995,7 +1025,7 @@ window.BA = window.BA || {};
     } catch (e) { U().toast("⚠️ " + t("bx_error", { e: e.message })); return; }
     lastKey = key;
     await refresh(true);
-    keyDialog(name, key);
+    keyDialog(name, key, sim);
   }
   async function renewKey(id) {
     const d = devices.find(x => x.id === id); if (!d) return;
@@ -1007,7 +1037,7 @@ window.BA = window.BA || {};
         const key = newKey();
         const res = await sb().from("devices").update({ key_hash: await sha256(key) }).eq("id", id);
         if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return; }
-        keyDialog(d.name, key);
+        keyDialog(d.name, key, /1NCE/i.test(String((d.info || {}).fw || "")) ? "1nce" : "digi");
       }
     });
   }

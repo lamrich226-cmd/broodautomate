@@ -6,6 +6,7 @@ REL=${RELEVE:-../../../../scripts/releve_21oct.txt}   # relevé de la machine si
 D=build_$SC; rm -rf $D; mkdir -p $D/sketch
 cp ../../broodautomate_lilygo/*.h ../../broodautomate_lilygo/*.cpp $D/sketch/
 sed -i "s/^#define MODE  [0-9]/#define MODE  $MODE/; s/COLLE_ICI_LA_CLE_DU_BOITIER/0123456789abcdef0123456789abcdef/" $D/sketch/config.h
+[ -n "$UDP" ] && sed -i "s/^#define ECOUTE_UDP 0/#define ECOUTE_UDP 1/" $D/sketch/config.h      # v1.5 : carte 1NCE (écoute UDP)
 [ -n "$SURV" ] && sed -i "s/^#define SURVEILLE_VENTES_SEC [0-9]*/#define SURVEILLE_VENTES_SEC $SURV/" $D/sketch/config.h
 g++ -std=gnu++17 -O1 -I. -I$D/sketch -DSKETCH_CPP="\"$D/sketch/boitier.cpp\"" -o $D/sim sim.cpp 2>&1 | grep -E "error|warning" | head -20
 cd $D && ./sim $REL $SC > console.txt

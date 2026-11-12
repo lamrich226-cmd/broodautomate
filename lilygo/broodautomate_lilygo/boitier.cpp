@@ -1,7 +1,9 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.4)
+// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.5)
 // Lit la machine FAS en RS232 (lecture seule, comme le câble de Broodautomate) et envoie
 // les relevés à Supabase par la 4G (HTTPS).
+//   • v1.5 : carte 1NCE (ECOUTE_UDP 1) : le boîtier écoute un port UDP ; le Device Controller de 1NCE lui envoie « lire »
+//     → lecture et envoi tout de suite (« Lire maintenant » instantané). Sans ECOUTE_UDP (Digi…) : tout est comme en v1.4.
 //   • v1.4 : UN SEUL programme pour deux familles de machines, reconnues toutes seules au branchement :
 //     Power Lift (EVA-DTS DDCMP) et FAS 480/5 (DEX-UCS, commande 90 = 6 sortie RS232). Rien à choisir.
 //     Une 480 ne prévient pas quand elle vend : le boîtier la lit toutes les DEX_LECTURE_SEC secondes sur le
@@ -27,7 +29,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.4"
+#define FW_VERSION "1.5"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
@@ -43,6 +45,18 @@
 #endif
 #ifndef DEX_RECAP_MIN
 #define DEX_RECAP_MIN 120        // FAS 480 : relevé de contrôle envoyé au moins toutes les N minutes même sans changement
+#endif
+
+// v1.5 : carte 1NCE : le boîtier écoute un port UDP (« Lire maintenant » instantané via le Device Controller de 1NCE).
+// Si ton config.h date d'avant la v1.5, ces valeurs par défaut sont prises : pas d'écoute, tout marche comme la v1.4.
+#ifndef ECOUTE_UDP
+#define ECOUTE_UDP 0             // 1 = écoute UDP (carte 1NCE) ; 0 = comme avant (Digi, Proximus…)
+#endif
+#ifndef UDP_PORT_ECOUTE
+#define UDP_PORT_ECOUTE 3000     // port UDP écouté par le boîtier (à indiquer dans le Device Controller de 1NCE)
+#endif
+#ifndef UDP_VIVANT_MIN
+#define UDP_VIVANT_MIN 0         // petit message « vivant » vers 1NCE toutes les N minutes (0 = jamais : le signal de vie HTTPS suffit)
 #endif
 
 using namespace ba;
@@ -87,6 +101,9 @@ static uint32_t demandeId = 0;            // demande reçue, lecture pas encore 
 static uint32_t lectureDem = 0;           // demande à laquelle répond la lecture en cours
 static bool demandeBrutOn = false, lectureBrut = false;   // v1.3 : onglet « Flux brut » : relevé complet, sans filtre
 static uint32_t demandeFaite = 0;         // demande terminée, résultat pas encore annoncé à Supabase
+// v1.5 : « lire » reçu en UDP (Device Controller de 1NCE) : lecture tout de suite, relevé envoyé même sans changement
+static bool udpLire = false;              // reçu, lecture pas encore lancée
+static bool lectureForcee = false;        // la lecture en cours répond à « lire »
 // v1.2 : délai réglé à distance dans Broodautomate (admin → Boîtiers 4G : 15 min, 30 min ou 1 h),
 // reçu à chaque passage chez ba_boitier (« ec » en secondes). Tant que rien n'est réglé : DEMANDE_EVERY_SEC.
 static uint32_t ecouteSec = DEMANDE_EVERY_SEC;
@@ -162,6 +179,7 @@ struct Ecoute : MoteurDdcmp::Ecouteur {
     // le résultat (échec) est annoncé tout de suite ; sinon il le sera après l'envoi du relevé
     uint32_t d = lectureDem; lectureDem = 0;
     if (d && !demandeEnFile(d)) demandeTerminee(d, false, ok ? String("relevé reçu incomplet") : statut);
+    if (lectureForcee) { lectureForcee = false; Serial.println(ok ? F("[UDP] Lecture demandée par « lire » terminée : le relevé part tout de suite.") : F("[UDP] ✖ Lecture demandée par « lire » impossible (voir ci-dessus).")); }
   }
   bool heure(HeureLocale& h) override {
     if (!horlogeOk) return false;
@@ -194,7 +212,7 @@ static void ajouterReleve(const std::string& texte, bool machineMaitre, int list
     // relevé de contrôle au moins toutes les READ_EVERY_MIN minutes, même sans changement (températures)
     bool recap = READ_EVERY_MIN > 0 && (!dernierReleveEnFile || millis() - dernierReleveEnFile >= (uint32_t)READ_EVERY_MIN * 60000UL);
     derniereEmpreinte = e; empreinteConnue = true;
-    if (pareil && !dem && !recap) { if (SURVEILLE_VENTES_SEC <= 0) Serial.println(F("[Relevé] Aucun changement depuis le relevé précédent : rien à envoyer.")); return; }
+    if (pareil && !dem && !recap && !lectureForcee) { if (SURVEILLE_VENTES_SEC <= 0) Serial.println(F("[Relevé] Aucun changement depuis le relevé précédent : rien à envoyer.")); return; }
     dernierReleveEnFile = millis(); if (!dernierReleveEnFile) dernierReleveEnFile = 1;
     // v1.3 : on n'envoie que les lignes utiles (la data 4G se paie à l'octet)
     // (demande « Flux brut » de Broodautomate : le relevé part complet, tel que la machine l'a donné)
@@ -226,7 +244,7 @@ static void ajouterReleveDex(const std::string& texte, uint32_t dem, bool brut) 
   bool pareil = empreinteConnue && e == derniereEmpreinte;
   bool recap = DEX_RECAP_MIN > 0 && (!dernierReleveEnFile || millis() - dernierReleveEnFile >= (uint32_t)DEX_RECAP_MIN * 60000UL);
   derniereEmpreinte = e; empreinteConnue = true;
-  if (pareil && !dem && !recap) return;                       // rien de nouveau : rien à envoyer
+  if (pareil && !dem && !recap && !lectureForcee) return;     // rien de nouveau : rien à envoyer
   dernierReleveEnFile = millis(); if (!dernierReleveEnFile) dernierReleveEnFile = 1;
   std::string a = brut ? texte : filtre::allegerDex(texte, ctxDex);
   if (a.size() < texte.size()) Serial.printf("[Relevé] Allégé : %u → %u octets.\n", (unsigned)texte.size(), (unsigned)a.size());
@@ -316,7 +334,7 @@ static bool envoyer(const Releve* r) {
   std::string b;
   b.reserve(512 + (r ? r->texte.size() * 11 / 10 : 0));
   b += "{\"k\":"; envoi::json(b, DEVICE_KEY);
-  b += std::string(",\"fw\":\"" FW_VERSION) + (proto == PROTO_DEX ? " DEX" : "") + "\",\"mode\":" + std::to_string(MODE);
+  b += std::string(",\"fw\":\"" FW_VERSION) + (proto == PROTO_DEX ? " DEX" : "") + (ECOUTE_UDP ? " 1NCE" : "") + "\",\"mode\":" + std::to_string(MODE);
   b += ",\"seq\":" + std::to_string(++seq);
   b += ",\"ec\":" + std::to_string(ecouteSec);
   b += ",\"up\":" + std::to_string(millis() / 1000);
@@ -374,6 +392,60 @@ static void essaiBoucle() {
   else Serial.println("[Essai] ✖ PAS DE RETOUR, reçu : '" + r + "'");
 }
 
+// ---------------- v1.5 : écoute UDP (carte 1NCE, ECOUTE_UDP 1) ----------------
+// Le boîtier ouvre un port UDP et l'écoute. Le Device Controller de 1NCE peut lui envoyer « lire » : le boîtier lit
+// la machine tout de suite et envoie le relevé à Supabase (comme « Lire maintenant », sans attendre). Un autre message
+// est seulement affiché. Le boîtier répond à 1NCE (« RECU … », visible dans le portail 1NCE : Device Inspector).
+static const char* UDP_HOTE_1NCE = "udp.os.1nce.com";
+static const int UDP_PORT_1NCE = 4445;
+static String udpIp1nce;
+static uint32_t udpProchaineOuverture = 0, udpDernierEnvoi = 0, udpNbRecus = 0, udpNbEnvoyes = 0;
+static bool udpVivantDemande = false;
+static void udpEnvoyerTexte(const String& t) {
+  if (!modem.udpPret) return;
+  udpDernierEnvoi = millis();
+  if (!udpIp1nce.length() && !modem.udpResoudre(UDP_HOTE_1NCE, udpIp1nce)) { Serial.println(F("[UDP] ✖ Adresse de udp.os.1nce.com introuvable (DNS) : envoi annulé.")); return; }
+  bool ok = modem.udpEnvoyer(udpIp1nce, UDP_PORT_1NCE, t);
+  if (ok) udpNbEnvoyes++;
+  else udpIp1nce = "";                     // l'adresse sera redemandée la prochaine fois
+  Serial.printf("[UDP] %s Envoi à 1NCE (%u octets) : « %s »%s\n", ok ? "✔" : "✖", (unsigned)t.length(), t.c_str(), ok ? "" : (" — " + modem.derniereErreur).c_str());
+}
+static void ecouteUdp() {
+  uint32_t now = millis();
+  if (!modem.reseau) { modem.udpPret = false; return; }
+  if (!modem.udpPret) {
+    if (udpProchaineOuverture && (int32_t)(now - udpProchaineOuverture) < 0) return;
+    udpProchaineOuverture = now + 60000UL; if (!udpProchaineOuverture) udpProchaineOuverture = 1;
+    Serial.printf("[UDP] Ouverture du port d'écoute %d…\n", UDP_PORT_ECOUTE);
+    if (modem.udpOuvrir(UDP_PORT_ECOUTE)) {
+      Serial.printf("[UDP] ✔ Le boîtier écoute le port %d. Adresse du boîtier : %s (avec 1NCE, elle commence par 10.)\n", UDP_PORT_ECOUTE, modem.ip.c_str());
+      Serial.printf("[UDP] Essai : portail 1NCE → 1NCE OS → Device Controller → ta carte → UDP, port %d, texte « lire », « Send now ».\n", UDP_PORT_ECOUTE);
+      udpEnvoyerTexte(String("OUVERT v") + FW_VERSION + " port " + String(UDP_PORT_ECOUTE) + " signal " + String(modem.csq));
+    } else Serial.println("[UDP] ✖ Ouverture impossible : " + modem.derniereErreur + " — nouvel essai dans 1 minute.");
+    return;
+  }
+  std::string d, de;
+  while (modem.udpRecu(d, de)) {
+    udpNbRecus++;
+    std::string m = d;
+    while (!m.empty() && (m.back() == '\r' || m.back() == '\n' || m.back() == ' ')) m.pop_back();
+    while (!m.empty() && m[0] == ' ') m.erase(0, 1);
+    for (auto& c : m) if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
+    std::string vu = d.substr(0, 60); for (auto& c : vu) if ((unsigned char)c < 0x20) c = ' ';   // affichage sur une ligne
+    Serial.printf("[UDP] ✔✔ MESSAGE REÇU n°%u (après %lu s de marche) de %s : « %s » (%u octets)\n", (unsigned)udpNbRecus, (unsigned long)(millis() / 1000), de.empty() ? "1NCE" : de.c_str(), vu.c_str(), (unsigned)d.size());
+    if (m == "lire" || m == "read" || m == "lees") {
+      if (MODE == 0) { udpLire = true; lectureDemandee = true; Serial.println(F("[UDP] → Lecture de la machine tout de suite, puis envoi du relevé à Supabase.")); }
+      else Serial.println(F("[UDP] (mode essai : le boîtier ne lit pas la machine)"));
+    }
+    udpEnvoyerTexte(String("RECU ") + String(m.substr(0, 40).c_str()));
+  }
+  if (!modem.udpPret) return;
+  if (udpVivantDemande || (UDP_VIVANT_MIN > 0 && now - udpDernierEnvoi >= (uint32_t)UDP_VIVANT_MIN * 60000UL)) {
+    udpVivantDemande = false;
+    udpEnvoyerTexte(String("VIVANT ") + String((unsigned long)(now / 1000)) + "s signal " + String(modem.csq) + " recus " + String((unsigned long)udpNbRecus));
+  }
+}
+
 // ---------------- Moniteur série : commandes de dépannage ----------------
 static void afficherEtat() {
   Serial.println(F("------------------------------------------------------------"));
@@ -389,7 +461,9 @@ static void afficherEtat() {
   if (demandeId || lectureDem) Serial.printf(" ; demande en cours n°%u", (unsigned)(lectureDem ? lectureDem : demandeId));
   if (demandesRatees) Serial.printf(" ; %u vérifications ratées", (unsigned)demandesRatees);
   Serial.println();
-  Serial.println(F("Commandes : etat, lire, envoi, demande, aide, ou une commande AT (ex. AT+CSQ)"));
+  if (ECOUTE_UDP) Serial.printf("Carte 1NCE, écoute UDP : port %d %s ; messages reçus %u ; envoyés à 1NCE %u\n", UDP_PORT_ECOUTE, modem.udpPret ? "ouvert" : "FERMÉ", (unsigned)udpNbRecus, (unsigned)udpNbEnvoyes);
+  if (ECOUTE_UDP) Serial.println(F("Commandes : etat, lire, envoi, demande, udp, aide, ou une commande AT (ex. AT+CSQ)"));
+  else Serial.println(F("Commandes : etat, lire, envoi, demande, aide, ou une commande AT (ex. AT+CSQ)"));
   Serial.println(F("------------------------------------------------------------"));
 }
 static void console() {
@@ -403,6 +477,7 @@ static void console() {
     if (m == "etat" || m == "état" || m == "aide" || m == "help") afficherEtat();
     else if (m == "lire") { lectureDemandee = true; Serial.println(F("[Console] Lecture de la machine demandée.")); }
     else if (m == "envoi") { dernierPing = 0; prochainEssaiEnvoi = 0; dernierEnvoiOk = millis() - (uint32_t)HEARTBEAT_MIN * 60000UL - 1; Serial.println(F("[Console] Signal de vie demandé.")); }
+    else if (m == "udp") { if (ECOUTE_UDP) { udpVivantDemande = true; Serial.println(F("[Console] Petit message de test vers 1NCE demandé.")); } else Serial.println(F("[Console] Écoute UDP désactivée (ECOUTE_UDP 0 dans config.h).")); }
     else if (m == "demande") { prochaineDemande = millis(); Serial.println(F("[Console] Je regarde tout de suite s'il y a une demande de lecture.")); }
     else if (m.startsWith("at")) {
       if (MODE == 2) { Serial.println(F("[Console] Modem éteint en mode 2.")); continue; }
@@ -420,6 +495,7 @@ void setup() {
   Serial.println(F("============================================================"));
   Serial.printf("Broodautomate — boîtier 4G LILYGO v%s\n", FW_VERSION);
   Serial.printf("Mode %d : %s\n", MODE, MODE == 0 ? "NORMAL (lecture de la machine + envoi)" : MODE == 1 ? "ESSAI 4G sans machine" : "ESSAI de la liaison RS232 (sans 4G)");
+  if (ECOUTE_UDP && MODE != 2) Serial.printf("Carte 1NCE : le boîtier écoute le port UDP %d (« lire » envoyé par le Device Controller = lecture tout de suite)\n", UDP_PORT_ECOUTE);
   if (MODE == 0) Serial.printf("Surveillance de la machine toutes les %d s (0 = non) ; relevé de contrôle au moins chaque %d min ; « Lire maintenant » vérifié toutes les %d s\n", SURVEILLE_VENTES_SEC, READ_EVERY_MIN, DEMANDE_EVERY_SEC);
   Serial.println(F("============================================================"));
   MachineSerial.setRxBufferSize(4096);
@@ -450,6 +526,7 @@ void loop() {
     if (modem.connecter()) { delaiReseau = 60000; if (!horlogeOk) synchroHeure(); }
     else delaiReseau = delaiReseau < 600000UL ? delaiReseau * 2 : 600000UL;
   }
+  if (ECOUTE_UDP) ecouteUdp();
   // Heure : au démarrage puis toutes les 6 heures
   if (modem.reseau && (!horlogeOk || now - derniereSynchro > 6UL * 3600000UL) && now - dernierEssaiHeure > 120000UL) synchroHeure();
 
@@ -470,6 +547,7 @@ void loop() {
     if ((lectureDemandee || due) && horlogeOk) {
       lectureDemandee = false; derniereLecture = now; nbLectures++;
       lectureDem = demandeId; demandeId = 0; lectureBrut = lectureDem && demandeBrutOn; demandeBrutOn = false;
+      lectureForcee = udpLire; udpLire = false;
       if (lectureDem) Serial.printf("[RS232] Lecture demandée par Broodautomate (n°%u, DEX)…\n", (unsigned)lectureDem);
       else if (nbLectures % 12 == 1) Serial.println(F("[RS232] Lecture de la machine (DEX)…"));
       lireDex();
@@ -485,6 +563,7 @@ void loop() {
     if ((lectureDemandee || due) && horlogeOk && !moteur.occupe() && !moteur.lectureEnAttente()) {
       lectureDemandee = false; derniereLecture = now; nbLectures++;
       lectureDem = demandeId; demandeId = 0; lectureBrut = lectureDem && demandeBrutOn; demandeBrutOn = false;
+      lectureForcee = udpLire; udpLire = false;
       if (lectureDem) Serial.printf("[RS232] Lecture demandée par Broodautomate (n°%u, liste 2)…\n", (unsigned)lectureDem);
       else if (SURVEILLE_VENTES_SEC <= 0 || nbLectures % 20 == 1) Serial.println(F("[RS232] Lecture de contrôle (liste 2)…"));
       moteur.lire(2);

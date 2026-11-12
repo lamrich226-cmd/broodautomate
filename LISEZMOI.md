@@ -152,6 +152,17 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Point de retour : v5.11.1 = commit 886f3a0.
 
 
+## v5.21 — carte SIM du boîtier (Digi / 1NCE) et programme complet à télécharger
+
+- Technique → 📡 Boîtiers 4G → **Ajouter un boîtier** : nouveau choix **Carte SIM** (Digi par défaut, comme avant, ou 1NCE).
+- La fenêtre de la clé (aussi après 🔑 « Nouvelle clé ») propose **⬇️ Télécharger le programme complet (.zip)** : le programme
+  du boîtier v1.5 avec `config.h` déjà rempli (MODE 0, clé de CE boîtier, APN de la carte, écoute UDP pour 1NCE). La clé ne
+  quitte pas le navigateur : le .zip est fabriqué sur l'ordinateur (`js/zip.js`, `js/programme.js`). La ligne DEVICE_KEY à
+  copier reste là (ancienne méthode).
+- Boîtier v1.5 (`lilygo/`) : avec 1NCE, il écoute le port UDP 3000 ; `lire` envoyé par le Device Controller de 1NCE = lecture
+  et envoi tout de suite. Avec Digi, rien ne change. Mode d'emploi et essai pas à pas : `lilygo/LISEZMOI.md`.
+- Aucun changement de base de données ni de fonction Supabase. Tests : `tests/v521.mjs`, `lilygo/essais/sim/essai_udp.sh`.
+
 ## v5.20 — conseil IA sous la commande
 
 - Après la préparation de la commande (et dans l'onglet Stock), la carte « Demander conseil à une IA » a trois boutons : **Claude**, **ChatGPT**, **Copier pour l'IA**. Un clic copie le résumé et ouvre le site ; il reste à coller (Ctrl+V) et envoyer.

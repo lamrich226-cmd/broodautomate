@@ -33,9 +33,24 @@ struct FauxModem : Port {
     return "\r\n+CCLK: \"" + deux(y % 100) + "/" + deux(m) + "/" + deux(d) + "," + deux(s / 3600) + ":" + deux(s / 60 % 60) + ":" + deux(s % 60) + (utc ? "+00" : "+04") + "\"\r\n\r\nOK\r\n";
   }
   bool ntpFait = false; uint32_t demandeSuivante = 7;
+  // v1.5 : UDP (essai 1NCE)
+  bool udpMode = false, netOuvert = false, udpOuvert = false; std::vector<std::string> udpEnvois; int udpRecus = 0;
+  // format des messages reçus (on ne sait pas encore lequel le vrai modem donne : les cinq sont essayés)
+  //   0 = RECV FROM + +RECEIVE,0,n ; 1 = RECV FROM + +IPDn ; 2 = +IPDn seul ; 3 = RECV FROM puis le message seul ; 4 = +CIPRXGET: 1,0 (à demander)
+  int udpFormat = 0, udpPendantHttp = 0; std::string udpGarde, udpTexteHttp = "lire";
+  void udpRecoit(const std::string& s) {
+    if (!udpOuvert) return;
+    udpRecus++;
+    const std::string de = "RECV FROM:3.120.5.9:4445\r\n", n = std::to_string(s.size());
+    if (udpFormat == 0) rep("\r\n" + de + "+RECEIVE,0," + n + "\r\n" + s + "\r\n", 5);
+    else if (udpFormat == 1) rep("\r\n" + de + "+IPD" + n + "\r\n" + s, 5);
+    else if (udpFormat == 2) rep("\r\n+IPD" + n + "\r\n" + s, 5);
+    else if (udpFormat == 3) rep("\r\n" + de + s, 5);
+    else { udpGarde = s; rep("\r\n+CIPRXGET: 1,0\r\n", 5); }
+  }
   void recu(const uint8_t* b, size_t n) override {
     for (size_t i = 0; i < n; i++) {
-      if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; envois.push_back(corps); rep("\r\nOK\r\n", 20); } continue; }
+      if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; if (udpMode) { udpMode = false; udpEnvois.push_back(corps); rep("\r\n+CIPSEND: 0," + std::to_string(corps.size()) + "," + std::to_string(corps.size()) + "\r\n\r\nOK\r\n", 20); } else { envois.push_back(corps); rep("\r\nOK\r\n", 20); } } continue; }
       ligne += (char)b[i];
       if (ligne.size() >= 2 && ligne.substr(ligne.size() - 2) == "\r\n") { std::string c = ligne.substr(0, ligne.size() - 2); ligne.clear(); commande(c); }
     }
@@ -44,6 +59,13 @@ struct FauxModem : Port {
     auto commence = [&](const char* p) { return c.compare(0, strlen(p), p) == 0; };
     if (commence("AT+HTTPPARA=\"URL\",\"")) { url = c.substr(19, c.size() - 20); rep("\r\nOK\r\n"); return; }
     if (commence("AT+HTTPPARA=\"USERDATA\",\"")) { entete = c.substr(24, c.size() - 25); rep("\r\nOK\r\n"); return; }
+    if (c == "AT+CIPCLOSE=0") { rep(udpOuvert ? (udpOuvert = false, "\r\nOK\r\n\r\n+CIPCLOSE: 0,0\r\n") : "\r\n+CIPCLOSE: 0,2\r\n\r\nERROR\r\n"); return; }
+    if (commence("AT+CGSOCKCONT") || c == "AT+CSOCKSETPN=1" || c == "AT+CIPRXGET=0" || c == "AT+CIPSRIP=1" || c == "AT+CIPHEAD=1") { rep("\r\nOK\r\n"); return; }
+    if (c == "AT+CIPRXGET=2,0,1400") { rep("\r\n+CIPRXGET: 2,0," + std::to_string(udpGarde.size()) + ",0\r\n" + udpGarde + "\r\nOK\r\n", 5); udpGarde.clear(); return; }
+    if (c == "AT+NETOPEN") { if (netOuvert) rep("\r\n+IP ERROR: Network is already opened\r\n"); else { netOuvert = true; rep("\r\nOK\r\n\r\n+NETOPEN: 0\r\n", 300); } return; }
+    if (commence("AT+CIPOPEN=0,\"UDP\",,,")) { udpOuvert = true; rep("\r\nOK\r\n\r\n+CIPOPEN: 0,0\r\n", 50); return; }
+    if (commence("AT+CDNSGIP=")) { rep("\r\nOK\r\n\r\n+CDNSGIP: 1,\"udp.os.1nce.com\",\"3.120.1.2\"\r\n", 200); return; }
+    if (commence("AT+CIPSEND=0,")) { attendus = (size_t)atol(c.c_str() + 13); corps.clear(); data = true; udpMode = true; rep("\r\n>", 5); return; }
     if (c == "AT" || c == "ATE0" || commence("AT+CMEE") || commence("AT+CTZU") || commence("AT+CFUN") || commence("AT+CDNSCFG") || commence("AT+COPS=") || commence("AT+CNMP") || commence("AT+CEREG=") || commence("AT+CGDCONT") || commence("AT+CSSLCFG") || commence("AT+HTTPPARA")) rep("\r\nOK\r\n");
     else if (c == "AT+CGMR") rep("\r\n+CGMR: A011B07A7670M7_F\r\n\r\nOK\r\n");
     else if (c == "AT+CPIN?") rep("\r\n+CPIN: READY\r\n\r\nOK\r\n");
@@ -60,6 +82,7 @@ struct FauxModem : Port {
     else if (commence("AT+HTTPDATA=")) { attendus = (size_t)atol(c.c_str() + 12); corps.clear(); data = true; rep("\r\nDOWNLOAD\r\n"); }
     else if (c == "AT+HTTPACTION=1") {
       actions++;
+      if (udpPendantHttp && actions == udpPendantHttp) udpRecoit(udpTexteHttp);   // message UDP qui arrive PENDANT un envoi HTTPS
       rep("\r\nOK\r\n");
       if (!reseau || !serveur) { rep("\r\n+HTTPACTION: 1,706,0\r\n", 3000); reponse.clear(); return; }
       if (url.find("/rest/v1/rpc/ba_boitier") != std::string::npos) {     // base de données (PostgREST)
@@ -163,6 +186,15 @@ static std::string inventerDex(int ventes, bool erreurNouvelle) {
   return "DXS*1234567890*VA*V1/1\r\n" + z + "G85*" + g + "\r\nSE*" + std::to_string(l.size() + 1) + "*0001\r\nDXE*1*1\r\n";
 }
 static FausseMachineDex machineDex;
+static void refaireG85(std::string& r);
+// relevé Power Lift INVENTÉ (aucune donnée réelle) pour les essais UDP
+static std::string inventerEva() {
+  std::string r = "DXS*BA00000001*VA*V1/6*1\r\nST*001*0001\r\nID1*BA0000001*TEST*0001\r\nID4*2*32*0\r\nID5*261110*0930\r\nVA1*25000*10*0*0\r\n"
+                  "PA1*11*250*****0\r\nPA2*6*1500*0*0\r\nPA1*15*250*****0\r\nPA2*4*1000*0*0\r\nEA3*0*261110*0930***\r\nMA5*TEMPER*261110*0900*4\r\n"
+                  "G85*0000\r\nSE*13*0001\r\nDXE*1*1\r\n";
+  refaireG85(r);
+  return r;
+}
 
 // Après avoir changé un chiffre du relevé simulé, la machine recalcule son contrôle G85 (sinon le boîtier le jugerait abîmé)
 static void refaireG85(std::string& r) {
@@ -191,6 +223,10 @@ void simTick() {
   if (a == 21) machineDex.releve = inventerDex(1, true);
   if (a == 22) machineDex.active = false;
   if (a == 23) machineDex.active = true;
+  if (a == 30) modemSim.udpRecoit("Hello world");
+  if (a == 31) modemSim.udpRecoit("lire");
+  if (a == 33) modemSim.udpRecoit("LIRE\r\n");
+  if (a == 32) { modemSim.udpOuvert = false; modemSim.rep("\r\n+CIPEVENT: NETWORK CLOSED UNEXPECTEDLY\r\n"); }
   if (a == 3) modemSim.reseau = false;
   if (a == 4) modemSim.reseau = true;
   if (a == 5) Serial.console += "etat\n";
@@ -211,6 +247,13 @@ int main(int argc, char** argv) {
   if (scen == "coupure") { evenements[3UL * 60000UL] = 3; evenements[25UL * 60000UL] = 4; evenements[10UL * 60000UL] = 2; }
   // v1.3 : surveillance des ventes : vente à 5 min 07 s, autre vente à 12 min 30 s ; la machine reste muette de 15 à 28 min (menu)
   if (scen == "vente") { evenements[5UL * 60000UL + 7000] = 2; evenements[12UL * 60000UL + 30000] = 10; evenements[15UL * 60000UL] = 8; evenements[28UL * 60000UL] = 9; duree = 40UL * 60000UL; }
+  // v1.5 : carte 1NCE (ECOUTE_UDP 1) : « lire » à 10 min (relevé identique : envoyé quand même), « Hello » à 25 min,
+  // « lire » PENDANT le 12e envoi HTTPS, liaison coupée par le modem à 30 min (réouverture), « LIRE » à 33 min
+  if (scen.compare(0, 3, "udp") == 0) {
+    machineSim.rapport = inventerEva();
+    if (scen == "udp") { evenements[10UL * 60000UL] = 31; evenements[25UL * 60000UL] = 30; evenements[30UL * 60000UL] = 32; evenements[33UL * 60000UL] = 33; modemSim.udpPendantHttp = 12; duree = 50UL * 60000UL; }
+    else { evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; modemSim.udpFormat = scen == "udp_ipd" ? 1 : scen == "udp_ipd_seul" ? 2 : scen == "udp_brut" ? 3 : 4; }
+  }
   if (scen == "cle") modemSim.code = 401;
   if (scen == "boucle") { machineSim.echo = true; duree = 10000; }
   // bouton « Lire maintenant » : demande n°7 à 10 min, n°8 à 30 min (relevé identique : envoyé quand même)
@@ -237,6 +280,9 @@ int main(int argc, char** argv) {
   fclose(o);
   o = fopen("rpc.txt", "w");
   for (auto& e : modemSim.appelsRpc) { fputs(e.c_str(), o); fputc('\n', o); }
+  fclose(o);
+  o = fopen("udp.txt", "w");
+  for (auto& e : modemSim.udpEnvois) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
   fprintf(stderr, "RESUME scen=%s envois=%zu lectures=%d sessionsMachine=%d restarts=%d http=%d rpc=%zu rpcSansCle=%d\n", scen.c_str(), modemSim.envois.size(), machineSim.lectures, machineSim.sessionsMachine, g_restarts, modemSim.actions, modemSim.appelsRpc.size(), modemSim.rpcSansCle);
   return 0;

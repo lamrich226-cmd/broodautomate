@@ -12,13 +12,16 @@
 #define MODE  1
 
 // ---------- 2. Clé secrète de CE boîtier ----------
-// Donnée par Broodautomate (onglet « Connexion RS232 » → « Boîtiers 4G » → « Ajouter un boîtier »).
+// Donnée par Broodautomate (menu Technique → Boîtiers 4G → « Ajouter un boîtier »).
+// v1.5 : Broodautomate peut aussi donner le programme COMPLET, déjà rempli (clé, carte SIM, mode) : rien à écrire ici.
 // Une clé différente par boîtier. Ne la donne à personne.
 #define DEVICE_KEY  "COLLE_ICI_LA_CLE_DU_BOITIER"
 
 // ---------- 3. Carte SIM ----------
 #define APN      "internet.proximus.be"   // Mobile Vikings (réseau Proximus). Autres : Digi Portugal "internet", 1NCE "iot.1nce.net". Si ça ne marche pas, le boîtier essaie aussi web.be et mworld.be
 #define SIM_PIN  ""                       // vide si la carte SIM n'a pas de code PIN (conseillé)
+#define ECOUTE_UDP 0                      // v1.5 : 1 = carte 1NCE : le boîtier écoute le port UDP 3000 (« lire » envoyé par le
+                                          //        Device Controller de 1NCE = lecture tout de suite) ; 0 = comme avant (Digi…)
 
 // ---------- 4. Supabase (ne pas changer) ----------
 #define SERVER_URL    "https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest"          // relevés et signaux de vie

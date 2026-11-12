@@ -1,4 +1,4 @@
-# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.4)
+# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.5)
 
 Le boîtier reste branché sur la prise RS232 de la machine FAS. Il fait trois choses :
 
@@ -16,6 +16,48 @@ les plus anciens, stock, porte, température, coupures, erreurs de la machine da
 
 **Sécurité** : le boîtier ne fait que lire. Il n'envoie jamais de commande d'écriture ni d'effacement :
 toute autre trame est bloquée avant l'envoi (même liste de sécurité que le logiciel).
+
+---
+
+## Mise à jour v1.4 → v1.5 : carte 1NCE, « Lire maintenant » instantané (à tester)
+
+**Programme complet, déjà rempli.** Dans Broodautomate (Technique → 📡 Boîtiers 4G → **Ajouter un boîtier**), tu choisis
+la **carte SIM** (Digi ou 1NCE). La fenêtre de la clé propose **⬇️ Télécharger le programme complet (.zip)** : le dossier
+`broodautomate_lilygo` avec les 9 fichiers, et `config.h` déjà rempli (`MODE 0`, la clé de CE boîtier, l'APN de la carte,
+l'écoute UDP pour 1NCE). Décompresse, ouvre `broodautomate_lilygo.ino`, téléverse : **rien à écrire**.
+Boîtier déjà déclaré : bouton 🔑 « Nouvelle clé » (la nouvelle clé remplace l'ancienne : téléverse le nouveau programme).
+Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il est fabriqué dans le navigateur (rien n'est envoyé).
+
+- **Digi** (`ECOUTE_UDP 0`, APN `internet`) : rien ne change, tout marche comme en v1.4 (vérifié : sur 14 scénarios
+  du simulateur, les envois vers Supabase sont identiques à ceux de la v1.4, et le Moniteur série aussi).
+- **1NCE** (`ECOUTE_UDP 1`, APN `iot.1nce.net`) : en plus, le boîtier ouvre le port UDP **3000** et l'écoute. Le
+  **Device Controller** de 1NCE peut lui envoyer `lire` : le boîtier lit la machine tout de suite et envoie le relevé à
+  Supabase (quelques secondes), même si rien n'a changé. Il répond à 1NCE `RECU lire` (visible dans le portail 1NCE :
+  Device Inspector) ; au démarrage il envoie `OUVERT v1.5 …` à 1NCE (`udp.os.1nce.com:4445`). Un autre message est seulement
+  affiché. Les relevés partent toujours en HTTPS, filtrés, comme avant. Dans Broodautomate, la version s'affiche « v1.5 1NCE ».
+- Un message qui arrive pendant un envoi HTTPS n'est pas perdu ; si le modem ferme la liaison UDP, elle est rouverte (1 min).
+
+### Essai avec la carte 1NCE
+1. Portail 1NCE : **Configuration → Internet Breakout** → **Europe (Frankfurt)** (1NCE OS ne marche qu'avec Frankfurt,
+   N. Virginia ou Tokyo ; en mode automatique, une carte en Belgique devrait déjà passer par Frankfurt). À faire AVANT
+   d'allumer le boîtier.
+2. Carte SIM : détache le format **nano** de la carte 3-en-1 ; insère-la **carte LILYGO débranchée** (puce vers la carte).
+3. Broodautomate : **Ajouter un boîtier** (carte **1NCE**), ou 🔑 « Nouvelle clé » sur le boîtier existant → télécharge
+   le programme → Arduino IDE → **Téléverser** → **Moniteur série**, vitesse 115200.
+4. Dans le Moniteur série, attends `[4G] ✔ Réseau … adresse 10.…` puis `[UDP] ✔ Le boîtier écoute le port 3000`.
+5. Portail 1NCE : **1NCE OS → Device Controller** → ta carte (ICCID) → **UDP** → Port **3000** → Data `lire` →
+   Request Mode **Send now** → **Send Data**.
+6. Attendu (quelques secondes) : `[UDP] ✔✔ MESSAGE REÇU … « lire »`, puis `[UDP] Lecture demandée par « lire » terminée`
+   et `[Envoi] ✔ Reçu par Supabase`. Dans Broodautomate, l'heure de la dernière lecture du boîtier change.
+   **Sans machine branchée** (essai sur la table) : tu verras `MESSAGE REÇU … « lire »` puis « lecture impossible » :
+   c'est normal, l'essai de l'écoute est réussi.
+7. Refais l'essai après 5 minutes, puis après 30 minutes sans rien faire : le boîtier doit toujours entendre.
+8. Si ça ne marche pas : copie tout le texte du Moniteur série (lignes `[UDP]` et `[4G]`) et envoie-le. Le programme
+   affiche aussi les messages du modem qu'il ne comprend pas (lignes `[UDP] (modem) …`).
+
+Pendant l'essai, mets « Lire maintenant » sur **1 h** dans Boîtiers 4G (moins de data). La prochaine étape, si l'essai
+marche : le bouton « Lire maintenant » de Broodautomate passe par 1NCE (instantané), puis les relevés en petits paquets UDP.
+Console du Moniteur série : `udp` envoie un petit message de test à 1NCE.
 
 ---
 
@@ -114,8 +156,9 @@ Bouton **📋 Fonction « ingest »** dans la même partie (le code est aussi da
    Le boîtier se présente avec sa propre clé secrète, pas avec un compte.
 
 ## 2. Broodautomate : déclarer le boîtier
-Page **Technique** → onglet **📡 Boîtiers 4G** → **Ajouter un boîtier** : un nom (par ex. « Boîtier Midi ») et la machine.
-Une fenêtre montre la ligne à copier :
+Page **Technique** → onglet **📡 Boîtiers 4G** → **Ajouter un boîtier** : un nom (par ex. « Boîtier Midi »), la **carte SIM**
+(v1.5 : Digi ou 1NCE) et la machine. La fenêtre donne le **programme complet** à télécharger (v1.5, conseillé : rien à écrire,
+passe directement à l'étape 3, point 3) et, pour l'ancienne méthode, la ligne à copier :
 
 ```
 #define DEVICE_KEY  "…32 caractères…"
@@ -132,7 +175,8 @@ Dans **Mes machines**, le « N° de plaque » de la machine doit être le numér
 1. Arduino IDE 2 avec la carte **esp32 (Espressif)** déjà installée (Gestionnaire de carte).
 2. Télécharge le programme : https://lamrich226-cmd.github.io/broodautomate/lilygo/broodautomate_lilygo.zip
    (aussi : bouton **⬇️ Programme du boîtier** dans Broodautomate). Clic droit sur le fichier → **Extraire tout**.
-   Les 7 fichiers doivent rester ensemble dans le dossier `broodautomate_lilygo`.
+   Les 9 fichiers doivent rester ensemble dans le dossier `broodautomate_lilygo`.
+   v1.5 : avec le **programme complet** de l'étape 2, `config.h` est déjà rempli : saute le point 4.
    Arduino IDE → **Fichier → Ouvrir** → `broodautomate_lilygo.ino`.
 3. **Outils → Type de carte → esp32 → ESP32 Dev Module.**
 4. Onglet **config.h** (le SEUL fichier à modifier) :
@@ -243,6 +287,13 @@ Pour une carte avec très peu de données (1NCE : 500 Mo pour 10 ans), dans conf
 `DEMANDE_EVERY_SEC 0` (bouton désactivé) ou `600` (réponse en 10 minutes), et `HEARTBEAT_MIN 60`.
 
 ## Ce qui a été vérifié
+- **Sur ordinateur (v1.5)** : compilation pour l'ESP32 (esp32 2.0.9, « ESP32 Dev Module ») sans avertissement, en version
+  Digi et 1NCE, et le programme complet tel qu'il sort de Broodautomate ; simulateur : écoute UDP avec les 5 façons
+  possibles dont le modem peut donner un message reçu (la vraie n'est pas encore connue), `lire` reçu pendant un envoi
+  HTTPS, liaison fermée par le modem puis rouverte, relevé identique envoyé quand même ; version Digi identique à la v1.4
+  sur 14 scénarios (`essais/sim/essai_udp.sh`, relevé inventé). **Pas encore vérifié** : sur le vrai modem avec la carte
+  1NCE (le texte exact que l'A7670E donne quand un message UDP arrive, l'écoute UDP pendant les envois HTTPS, le délai
+  du Device Controller).
 - **Sur la vraie machine (30/10/2026, v1.0)** : 4G Mobile Vikings, envoi HTTPS vers Supabase, module MAX3232 (fils 2/3 croisés),
   lecture complète de la Power Lift (2791 octets, liste 2) reçue par Supabase.
 - **Sur ordinateur (v1.1)** : compilation pour l'ESP32 (esp32 3.3.12, « ESP32 Dev Module »), sans avertissement, dans les 3 modes ;
