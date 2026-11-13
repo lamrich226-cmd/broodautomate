@@ -614,7 +614,7 @@ window.BA = window.BA || {};
     el.querySelector("#det-machine").onchange = e => { BA.Shell.state.machine = Number(e.target.value); renderDetails(el, ctx); };
     bindDetailAlerts(el, ctx, evs, () => renderDetails(el, ctx));
     bindLotActions(el, m.num);
-    if (BA.MachineView) BA.MachineView.bind(el, m, { actions: true, proxy: el });
+    if (BA.MachineView) BA.MachineView.bind(el, m);
     BA.History.bindRecent(el, m.num);
   }
 

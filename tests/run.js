@@ -71,6 +71,8 @@ const allErrors = [];
 const IGNORE = [/WebSocket connection to .* failed/i, /Failed to load resource: net::ERR_INTERNET_DISCONNECTED/i, /Failed to load resource: net::ERR_CONNECTION_RESET/i, /ERR_INTERNET_DISCONNECTED/, /net::ERR_FAILED/];
 async function device(fake, name, opts = {}) {
   const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 900 }, locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts.ctx || {}));
+  // v5.24 : « Remplir » s'ouvre en vue « Machine » ; ces essais passent par le tableau (même fonctionnement, voir v524.mjs pour la machine)
+  await ctx.addInitScript(() => { try { localStorage.setItem("ba_wz_vue", "table"); } catch (e) { /* */ } });
   for (const u of Object.keys(LIBTXT)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: LIBTXT[u] }));
   if (opts.local) {
     const cfg = fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8").replace(/url: "[^"]*"/, 'url: "REMPLACER_ICI"').replace(/key: "[^"]*"/, 'key: "REMPLACER_ICI"');

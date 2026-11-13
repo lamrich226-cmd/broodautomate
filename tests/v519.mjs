@@ -139,6 +139,8 @@ const DEFAUTS = `() => {
   const errs = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts));
+    // v5.24 : « Remplir » s'ouvre en vue « Machine » ; ces essais passent par le tableau (voir v524.mjs pour la machine)
+    await ctx.addInitScript(() => { try { localStorage.setItem("ba_wz_vue", "table"); } catch (e) { /* */ } });
     for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
     await fake.attach(ctx, nom);
     const p = await ctx.newPage();

@@ -154,6 +154,7 @@
     b.textContent = txt(); document.body.prepend(b); setTimeout(() => { b.textContent = txt(); }, 1500);
   });
   window.addEventListener("load", () => {
+    if (/[?&]tick=0\b/.test(location.search)) return;     // essais automatiques : pas de ventes inventées
     setInterval(() => {
       try {
         if (!(window.BA && BA.Store && BA.Store.update)) return;

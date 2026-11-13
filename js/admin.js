@@ -31,6 +31,7 @@
       <h2>🍞 ${t("nav_products")}</h2>
       ${U.machinePicker(s, m.num, "prod-machine")}
       <p class="note">${t("products_admin_note")}</p>
+      ${BA.MachineView ? BA.MachineView.block(s, m) : ""}
       ${U.stockTable(s, m, true)}
       <h3>🧮 ${t("fleet_stock_title")}</h3>
       <div class="table-scroll"><table>
@@ -42,6 +43,7 @@
     el.querySelector("#prod-machine").onchange = e => { st().machine = Number(e.target.value); renderProducts(el); };
     el.querySelectorAll("[data-goto]").forEach(b => b.onclick = () => { st().machine = Number(b.dataset.goto); renderProducts(el); window.scrollTo(0, 0); });
     U.bindStockTable(el, m.num, true, () => renderProducts(el));
+    if (BA.MachineView) BA.MachineView.bind(el, m);
   }
 
   // ================= Commander / Extraction =================

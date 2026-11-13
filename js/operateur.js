@@ -172,6 +172,7 @@
       <div class="carte-actions"><button class="btn big" id="fill-btn">🧺 ${t("btn_fill")}</button>
         <button class="btn big secondary" id="add-sel-go">➕ ${t("add_sel_title")}</button></div>
       <p class="note" data-aide="1">${t("op_sel_help")}</p>
+      ${BA.MachineView ? BA.MachineView.block(s, m) : ""}
       ${U.stockTable(s, m, false)}
       <p class="note">${t("products_op_note", { h: s.settings.thrHours })}</p>`;
     el.querySelector("#prod-machine").onchange = e => { st().machine = Number(e.target.value); renderProducts(el); };
@@ -179,6 +180,7 @@
     // v5.11.1 : le formulaire d'ajout est en bas de la page : ce bouton y va directement
     el.querySelector("#add-sel-go").onclick = () => { const f = el.querySelector(".add-sel"); if (!f) return; f.scrollIntoView({ behavior: "smooth", block: "center" }); const n = f.querySelector("input"); if (n) setTimeout(() => n.focus({ preventScroll: true }), 350); };
     U.bindStockTable(el, m.num, false, () => renderProducts(el));
+    if (BA.MachineView) BA.MachineView.bind(el, m);
   }
 
   // Cellule « sélection + type de pain » (compacte pour le téléphone)
@@ -220,23 +222,25 @@
       const s = BA.Store.get();
       const m = M.machine(s, w.num);
       let body = "";
-      if (w.step === 1) body = this.step1(s, m);
-      else if (w.step === 2) body = this.step2(s, m);
-      else if (w.step === 3) body = this.step3(s, m);
-      else body = this.summary(s, m);
+      // v5.24 (design-test) : « Machine » (on touche les tiroirs) ou « Tableau » (comme avant) ; mêmes actions derrière
+      const mach = !!BA.MachineView && this.vue() === "machine";
+      if (w.step === 1) body = mach ? this.mStep(s, m) : this.step1(s, m);
+      else if (w.step === 2) body = mach ? this.mStep(s, m) : this.step2(s, m);
+      else if (w.step === 3) body = mach ? this.mStep(s, m) : this.step3(s, m);
+      else body = this.summary(s, m) + (mach ? this.mAfter(s, m) : "");
       document.getElementById("modal-root").innerHTML = `
-        <div class="modal-back"><div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-back"><div class="modal${mach ? " wz-wide" : ""}" role="dialog" aria-modal="true">
           <div class="modal-head">
             <div><h2>🧺 ${t("fill_title", { n: m.num })}</h2><div class="petit">${E(m.street)}, ${E(m.city)} · 🚪 ${t("door_open_now")}</div></div>
             ${w.step <= 3 ? `<button class="danger" id="wz-cancel">${w.cancelArmed ? "⚠️ " + t("btn_cancel_confirm") : "✖ " + t("btn_cancel")}</button>` : ""}
           </div>
           ${w.step <= 3 ? this.stepper(w.step) : ""}
           ${w.error ? `<div class="alert err">${w.error}</div>` : ""}
-          ${w.step <= 2 && BA.MachineView ? `<details class="mv-fold"><summary>🧩 ${t("mv_title")}</summary>${BA.MachineView.block(s, m, { title: false })}</details>` : ""}
+          ${w.step <= 3 && BA.MachineView ? this.vueSwitch(mach ? "machine" : "table") : ""}
           ${body}
         </div></div>`;
       this.bind();
-      if (w.step <= 2 && BA.MachineView) BA.MachineView.bind(document.getElementById("modal-root"), m, {});
+      if (mach && w.step <= 3) this.mBind();
     },
 
     // ---------- Étape 1 : inventaire ----------
@@ -250,7 +254,7 @@
           <tbody>${m.sels.map(sel => {
             const q = M.qty(sel);
             return `<tr>${selCell(sel.n, sel.type)}<td class="big-num">${q}</td>
-              <td><input type="number" class="num-in big-in" id="inv-${sel.n}" data-sel="${sel.n}" min="0" max="${sel.cap}" value="${q}" ${edit ? "" : "disabled"}> <span class="petit">/ ${sel.cap}</span></td></tr>`;
+              <td><input type="number" class="num-in big-in" id="inv-${sel.n}" data-sel="${sel.n}" min="0" max="${sel.cap}" value="${edit && this.w.inv && this.w.inv[sel.n] != null ? this.w.inv[sel.n] : q}" ${edit ? "" : "disabled"}> <span class="petit">/ ${sel.cap}</span></td></tr>`;
           }).join("")}</tbody></table></div>
         ${edit
           ? `<div class="wz-actions">${this.backBtn("inv-back")}<button class="btn big" id="inv-validate">✔ ${t("btn_validate_inv")}</button></div>`
@@ -298,8 +302,8 @@
           <tbody>${rows.map((r, i) => `<tr class="${r.mandatory ? "must-row" : r.kept ? "kept-row" : ""}">${selCell(r.sel, r.type)}<td>${F.dt(r.date)}<div class="petit">${F.age(s.now - r.date)}</div>${mustCell(r)}</td><td class="big-num">${r.qty}</td>
             ${edit ? (r.mandatory
               ? `<td><input type="number" class="num-in big-in" id="rm-${i}" data-i="${i}" value="${r.qty}" disabled></td><td><span class="tag c-must">⛔ ${t("must_tag")}</span></td>`
-              : `<td><input type="number" class="num-in big-in" id="rm-${i}" data-i="${i}" min="0" max="${r.qty}" value="${r.qty}"></td>
-              <td><label class="case"><input type="checkbox" id="keep-${i}" data-i="${i}"> ${t("keep_label")}</label></td>`) : ""}</tr>`).join("")}</tbody></table></div>
+              : `<td><input type="number" class="num-in big-in" id="rm-${i}" data-i="${i}" min="0" max="${r.qty}" value="${this.rmDraft(r)}"></td>
+              <td><label class="case"><input type="checkbox" id="keep-${i}" data-i="${i}"${this.rmDraft(r) === 0 && r.qty > 0 ? " checked" : ""}> ${t("keep_label")}</label></td>`) : ""}</tr>`).join("")}</tbody></table></div>
         <p class="petit">${t("step2_total", { n: rows.reduce((a, r) => a + r.qty, 0) })}</p>
         ${nNew ? `<div class="alert info">⏳ ${t("step2_keep_note", { d: F.dt(M.nextDayAt(s, s.now)) })}</div>` : ""}
         ${edit
@@ -321,22 +325,7 @@
     // l'opérateur saisit lui-même ce qu'il charge. Remplissage d'une MISSION (commande envoyée par l'admin)
     // → la quantité de la mission (corrigée avec le stock réel) est déjà écrite ; l'opérateur peut la changer.
     step3(s, m) {
-      const def = M.lastDelivery(s.now);
-      if (!this.w.delivery) this.w.delivery = def;
-      // Charge envoyée par l'admin « selon le besoin » (ventes prévues jusqu'au prochain passage + marge) :
-      // on propose la quantité de la mission, corrigée avec le stock réel (pas forcément « remplir à fond »)
-      const mission = M.openMission(s, m.num);
-      const fewer = sel => {
-        const l = mission && mission.reduced && (mission.lines || []).find(x => x.sel === sel.n);
-        return l ? Math.max(0, l.full - l.load) : 0;
-      };
-      const advised = sel => Math.max(0, sel.cap - M.qty(sel) - fewer(sel));
-      const reduced = m.sels.some(sel => fewer(sel) > 0);
-      // lignes de chargement : une ou plusieurs dates de livraison par sélection
-      // (une sélection ajoutée pendant l'intervention reçoit aussi sa ligne)
-      if (!this.w.lines) this.w.lines = {};
-      m.sels.forEach(sel => { if (!this.w.lines[sel.n]) this.w.lines[sel.n] = [{ qty: mission ? advised(sel) : 0, date: this.w.delivery }]; });
-      const L = this.w.lines;
+      const { mission, advised, reduced, L } = this.loadCtx(s, m);
       return `
         <h3>${t("step3_title")}</h3>
         <p class="note">${t(mission ? "step3_help" : "step3_help_free")}</p>
@@ -361,6 +350,25 @@
         <div class="wz-actions">${this.canBack(s, 3) ? this.backBtn("wz-back") : ""}<button class="btn big" id="ld-validate">✔ ${t("btn_validate_load")}</button></div>`;
     },
 
+    loadCtx(s, m) {
+      const def = M.lastDelivery(s.now);
+      if (!this.w.delivery) this.w.delivery = def;
+      // Charge envoyée par l'admin « selon le besoin » (ventes prévues jusqu'au prochain passage + marge) :
+      // on propose la quantité de la mission, corrigée avec le stock réel (pas forcément « remplir à fond »)
+      const mission = M.openMission(s, m.num);
+      const fewer = sel => {
+        const l = mission && mission.reduced && (mission.lines || []).find(x => x.sel === sel.n);
+        return l ? Math.max(0, l.full - l.load) : 0;
+      };
+      const advised = sel => Math.max(0, sel.cap - M.qty(sel) - fewer(sel));
+      const reduced = m.sels.some(sel => fewer(sel) > 0);
+      // lignes de chargement : une ou plusieurs dates de livraison par sélection
+      // (une sélection ajoutée pendant l'intervention reçoit aussi sa ligne)
+      if (!this.w.lines) this.w.lines = {};
+      m.sels.forEach(sel => { if (!this.w.lines[sel.n]) this.w.lines[sel.n] = [{ qty: mission ? advised(sel) : 0, date: this.w.delivery }]; });
+      return { mission, advised, reduced, L: this.w.lines };
+    },
+
     summary(s, m) {
       const it = s.interventions.find(x => x.id === this.w.itId) || { inv: [], rem: [], load: [] };
       const gap = it.inv.reduce((a, r) => a + (r.real - r.exp), 0);
@@ -377,8 +385,326 @@
         <div class="wz-actions"><button class="btn big" id="wz-close">${t("btn_close")}</button></div>`;
     },
 
+    // Validation du chargement (vue Tableau et vue Machine) : mêmes contrôles qu'avant, puis applyLoad
+    doLoad() {
+      const w = this.w;
+      const s = BA.Store.get(), m = M.machine(s, w.num);
+      const loads = {}; let bad = false;
+      m.sels.forEach(sel => {
+        const need = sel.cap - M.qty(sel), L = w.lines[sel.n] || [];
+        let sum = 0;
+        loads[sel.n] = L.map(x => {
+          const v = Number(x.qty);
+          if (x.qty === "" || !(v >= 0) || v > need || (v > 0 && !isFinite(x.date))) bad = true;
+          sum += v || 0;
+          return { qty: v || 0, date: x.date };
+        });
+        if (sum > need) bad = true;
+      });
+      if (bad) { w.error = t("err_load"); this.render(); return; }
+      BA.Actions.applyLoad(w.itId, loads, w.delivery);
+      w.step = 4; w.error = ""; this.render();
+    },
+
+    // ================= v5.24 (design-test) : « Remplir » en touchant les tiroirs =================
+    // Les trois étapes appellent les MÊMES actions qu'avec le tableau (applyInventory, applyRemoval, applyLoad),
+    // avec les mêmes valeurs. Seule la façon de les saisir change : − / + sur chaque tiroir.
+    vue() { try { return localStorage.getItem("ba_wz_vue") === "table" ? "table" : "machine"; } catch (e) { return "machine"; } },
+    vueSwitch(cur) {
+      const b = (v, ico, k) => `<button type="button" data-wzvue="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${ico} ${t(k)}</button>`;
+      return `<div class="seg wz-vue" role="group" aria-label="${E(t("mv_vue_aria"))}">${b("machine", "🧩", "mv_vue_machine")}${b("table", "📋", "mv_vue_table")}</div>`;
+    },
+    // Passer d'une vue à l'autre sans perdre ce qui a déjà été saisi
+    setVue(v) {
+      const w = this.w; if (!w || v === this.vue()) return;
+      const s = BA.Store.get(), m = M.machine(s, w.num);
+      if (v === "machine") this.syncFromTable();
+      else if (m) {     // vers le tableau : les corrections faites sur la machine s'ouvrent en mode « modifier »
+        if (w.step === 1 && w.inv && m.sels.some(sel => w.inv[sel.n] != null && w.inv[sel.n] !== M.qty(sel))) w.mode = "edit";
+        if (w.step === 2 && (w.rows || []).some(r => !r.mandatory && this.rmDraft(r) !== r.qty)) w.mode = "edit";
+      }
+      try { localStorage.setItem("ba_wz_vue", v); } catch (e) { /* préférence non gardée */ }
+      this.render();
+    },
+    rmKey(r) { return r.sel + "-" + r.lotId; },
+    // nombre de pains retirés d'un lot (par défaut : tout le lot, comme « Oui, retirer »)
+    rmDraft(r) {
+      if (r.mandatory) return r.qty;
+      const v = this.w && this.w.rmd ? this.w.rmd[this.rmKey(r)] : null;
+      return v != null ? Math.max(0, Math.min(r.qty, v)) : r.qty;
+    },
+    syncFromTable() {
+      const w = this.w, q = id => document.getElementById(id);
+      if (w.step === 1 && w.mode === "edit") {
+        w.inv = w.inv || {};
+        document.querySelectorAll(".modal [id^=inv-][data-sel]").forEach(i => { const v = Number(i.value); if (i.value !== "" && v >= 0) w.inv[i.dataset.sel] = Math.round(v); });
+      }
+      if (w.step === 2 && w.mode === "edit") {
+        w.rmd = w.rmd || {};
+        (w.rows || []).forEach((r, i) => {
+          const inp = q("rm-" + i), cb = q("keep-" + i); if (r.mandatory || !inp) return;
+          const v = Number(inp.value);
+          w.rmd[this.rmKey(r)] = cb && cb.checked ? 0 : inp.value !== "" && v >= 0 ? Math.min(r.qty, Math.round(v)) : r.qty;
+        });
+      }
+      if (w.step === 3 && w.lines) {
+        document.querySelectorAll(".modal [id^=ld-][data-sel]").forEach(i => { const L = w.lines[i.dataset.sel]; if (L && L[i.dataset.i]) L[i.dataset.i].qty = i.value === "" ? "" : Number(i.value); });
+        document.querySelectorAll(".modal [id^=ldd-][data-sel]").forEach(i => { const L = w.lines[i.dataset.sel], v = F.fromInput(i.value); if (L && L[i.dataset.i] && v) L[i.dataset.i].date = v; });
+      }
+      w.mode = "view";
+    },
+
+    mStep(s, m) {
+      const w = this.w;
+      let head;
+      if (w.step === 1) head = `<h3>${t("step1_title")}</h3><p class="note">${t("mv_inv_help")}</p>`;
+      else if (w.step === 2) {
+        const mission = M.openMission(s, m.num);
+        const rule = mission && mission.removeBefore ? t("step2_rule_mission", { d: F.dt(mission.removeBefore) }) : t("step2_rule_thr", { h: s.settings.thrHours });
+        head = `<h3>${t("step2_title")}</h3><p class="note">${rule} ${t("mv_rm_help")}</p>`;
+      } else {
+        const c = this.loadCtx(s, m);
+        head = `<h3>${t("step3_title")}</h3>
+          <p class="note">${t(c.mission ? "step3_help" : "step3_help_free")} ${t("mv_ld_help")}</p>
+          <div class="alert warn">🔁 ${t("fifo_reminder")}</div>
+          ${c.reduced ? `<div class="alert info">📈 ${t("op_reduced_load")}</div>` : ""}
+          <label class="field-row">${t("ld_date_all")} <input type="datetime-local" id="mvl-date" value="${F.toInput(w.delivery)}"></label>`;
+      }
+      return `${head}<div id="wz-mv">${this.mInner(s, m)}</div>`;
+    },
+
+    mInner(s, m) {
+      const w = this.w, V = BA.MachineView;
+      const o = w.step === 1 ? this.mInv(s, m) : w.step === 2 ? this.mRm(s, m) : this.mLoad(s, m);
+      const key = w.mvKey != null && M.sel(m, Number(w.mvKey)) ? String(w.mvKey) : (o.first != null ? String(o.first) : null);
+      w.mvKey = key;
+      const sel = key != null ? M.sel(m, Number(key)) : null;
+      const panel = sel ? o.panel(sel) : "", wide = V.isWide();
+      const grid = V.grid(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false, panel: wide ? "" : panel });
+      return `<div class="mv-cols wz-mv-cols"><div class="mv-machine"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${wide ? `<div class="mv-side">${panel}</div>` : ""}</div>${o.footer}`;
+    },
+
+    // compteur − / + (grands boutons pour le doigt)
+    mCounter(label, v, min, max, attrs, idBase) {
+      return `<div class="mv-count"><span class="mv-count-l">${label}</span>
+        <button type="button" class="btn secondary mv-pm" id="${idBase}-m" ${attrs} data-d="-1" aria-label="${E(t("mv_minus"))}"${v <= min ? " disabled" : ""}>−</button>
+        <output class="mv-num" aria-live="polite">${v}</output>
+        <button type="button" class="btn secondary mv-pm" id="${idBase}-p" ${attrs} data-d="1" aria-label="${E(t("mv_plus"))}"${v >= max ? " disabled" : ""}>+</button></div>`;
+    },
+    mHead(sel) { return `<h4>${t("mv_sel", { n: sel.n })} · ${U.prod(sel.type)}</h4>`; },
+
+    // ---------- Étape 1 : inventaire ----------
+    mInv(s, m) {
+      const w = this.w, V = BA.MachineView, C = w.inv || (w.inv = {});
+      const cnt = sel => (C[sel.n] != null ? C[sel.n] : M.qty(sel));
+      const changed = m.sels.filter(sel => cnt(sel) !== M.qty(sel)).length;
+      return {
+        mode: "inv",
+        list: sel => V.items.inv(s, m, sel, C[sel.n]),
+        stat: (sel, l) => V.status.inv(sel, l, M.qty(sel), C[sel.n]),
+        first: m.sels[0] ? m.sels[0].n : null,
+        panel: sel => {
+          const e = M.qty(sel), c = cnt(sel), d = c - e;
+          return `<div class="mv-panel">${this.mHead(sel)}
+            <div class="mv-kv"><span>${t("col_recorded")}</span><b>${e} / ${sel.cap}</b></div>
+            ${this.mCounter(t("col_counted"), c, 0, sel.cap, `data-mvi="${sel.n}"`, "mvi")}
+            ${d < 0 ? `<p class="petit mv-warn">${t("mv_inv_less", { n: -d })}</p>` : d > 0 ? `<p class="petit">${t("mv_inv_more", { n: d })}</p>` : ""}
+            ${d ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvi-r" data-mvi-r="${sel.n}">↺ ${t("mv_inv_reset_one")}</button></div>` : ""}</div>`;
+        },
+        footer: changed
+          ? `<p class="petit">${t("mv_inv_changed", { n: changed })}</p>
+             <div class="wz-actions"><button class="btn big" id="mvw-inv-ok">✔ ${t("btn_validate_inv")}</button><button class="btn big secondary" id="mvw-inv-reset">↺ ${t("mv_reset")}</button></div>`
+          : `<div class="q-title">${t("step1_question")}</div>
+             <div class="wz-actions"><button class="btn big" id="mvw-inv-yes">✔ ${t("btn_inv_yes")}</button><button class="btn secondary" id="mvw-inv-skip">⏭ ${t("btn_skip")}</button></div>`
+      };
+    },
+
+    // ---------- Étape 2 : retrait ----------
+    mRm(s, m) {
+      const w = this.w, V = BA.MachineView, mission = M.openMission(s, m.num);
+      const rows = M.removalList(s, m, mission);
+      w.rows = rows;
+      const remOf = r => this.rmDraft(r);
+      const nOut = rows.reduce((a, r) => a + remOf(r), 0), nKeep = rows.reduce((a, r) => a + r.qty - remOf(r), 0);
+      const changed = rows.some(r => !r.mandatory && remOf(r) !== r.qty);
+      const must = rows.filter(r => r.mandatory), nMust = must.reduce((a, r) => a + r.qty, 0), nOpt = rows.length - must.length;
+      const again = rows.filter(r => r.kept && !r.mandatory), nAgain = again.reduce((a, r) => a + r.qty, 0);
+      const back = this.canBack(s, 2) ? `<button class="btn big secondary" id="mvw-back">${t("btn_back")}</button>` : "";
+      const footer = !rows.length
+        ? `<div class="alert info">✅ ${t("step2_none")}</div><div class="wz-actions">${back}<button class="btn big" id="mvw-rm-next">${t("btn_next")} →</button></div>`
+        : `${nMust ? `<div class="alert err">${t("step2_must_alert", { n: nMust })}</div>` : ""}
+           ${nAgain ? `<div class="alert info">${t("step2_again_alert", { n: nAgain, d: F.dt(Math.min.apply(null, again.map(r => r.until))) })}</div>` : ""}
+           <p class="petit">${t("mv_rm_sum", { n: nOut, k: nKeep })}</p>
+           ${nKeep ? `<div class="alert info">⏳ ${t("step2_keep_note", { d: F.dt(M.nextDayAt(s, s.now)) })}</div>` : ""}
+           <div class="wz-actions">${back}${changed
+             ? `<button class="btn big" id="mvw-rm-ok">✔ ${t("btn_validate_rm")}</button><button class="btn big secondary" id="mvw-rm-reset">↺ ${t("mv_reset")}</button>`
+             : `<button class="btn big" id="mvw-rm-yes">✔ ${t(nOpt === 0 ? "btn_rm_must" : "btn_rm_yes")}</button>${nOpt > 0 ? `<button class="btn big secondary" id="mvw-rm-no">✖ ${t(nMust ? "btn_rm_only_must" : "btn_rm_no")}</button>` : ""}`}</div>`;
+      return {
+        mode: "rm",
+        list: sel => V.items.rm(s, m, sel, rows, remOf),
+        stat: (sel, l) => V.status.rm(sel, l),
+        first: rows.length ? rows[0].sel : m.sels[0] ? m.sels[0].n : null,
+        panel: sel => {
+          const mine = rows.filter(r => r.sel === sel.n);
+          const lots = sel.lots.slice().sort((a, b) => a.date - b.date || a.id - b.id).map(l => {
+            const r = mine.find(x => x.lotId === l.id);
+            const head = `<span>${t("mv_lot", { d: V.dd(l.date) })} · <b class="${r ? "old" : ""}">${t("mv_ago", { h: V.hrs(s, l.date) })}</b> · ${t("mv_n", { n: l.qty })}</span>`;
+            if (!r) return `<div class="mv-lotline">${head}<span class="mv-ok">✔ ${t("mv_good")}</span></div>`;
+            if (r.mandatory) return `<div class="mv-lotline">${head}<span class="mv-must">⛔ ${t("must_tag")} · ${t("mv_out_n", { n: r.qty })}</span></div>`;
+            const k = this.rmKey(r), v = remOf(r);
+            return `<div class="mv-lotline mv-rmline">${head}
+              ${r.kept && r.keptAt ? `<span class="petit">⏳ ${t("kept_on", { d: F.dt(r.keptAt) })}</span>` : ""}
+              ${this.mCounter(t("mv_rm_out"), v, 0, r.qty, `data-mvr="${k}"`, "mvr-" + k)}
+              <div class="mv-btns"><button type="button" class="btn ${v === r.qty ? "" : "secondary"}" id="mvr-a-${k}" data-mvr-set="${k}" data-v="${r.qty}">✖ ${t("mv_rm_all")}</button>
+                <button type="button" class="btn ${v === 0 ? "" : "secondary"}" id="mvr-k-${k}" data-mvr-set="${k}" data-v="0" title="${E(t("btn_keep_tip"))}">⏳ ${t("btn_keep")}</button></div></div>`;
+          }).join("");
+          return `<div class="mv-panel">${this.mHead(sel)}${mine.length ? "" : `<p class="petit">✅ ${t("mv_rm_none_sel")}</p>`}${lots || `<p class="petit">${t("mv_empty")}</p>`}</div>`;
+        },
+        footer
+      };
+    },
+
+    // ---------- Étape 3 : chargement ----------
+    mLoad(s, m) {
+      const w = this.w, V = BA.MachineView, c = this.loadCtx(s, m), L = c.L;
+      const sum = n => (L[n] || []).reduce((a, x) => a + (Number(x.qty) || 0), 0);
+      const total = m.sels.reduce((a, sel) => a + sum(sel.n), 0);
+      const back = this.canBack(s, 3) ? `<button class="btn big secondary" id="mvw-back">${t("btn_back")}</button>` : "";
+      const firstSel = m.sels.find(sel => sel.cap - M.qty(sel) > 0) || m.sels[0];
+      return {
+        mode: "load",
+        list: sel => V.items.load(s, m, sel, L[sel.n]),
+        stat: (sel, l) => V.status.load(sel, l),
+        first: firstSel ? firstSel.n : null,
+        panel: sel => {
+          const q = M.qty(sel), need = sel.cap - q, lines = L[sel.n] || [], used = sum(sel.n);
+          return `<div class="mv-panel">${this.mHead(sel)}
+            <div class="mv-kv"><span>${t("mv_inside")}</span><b>${q} / ${sel.cap}</b></div>
+            <div class="mv-kv"><span>${t("mv_ld_free")}</span><b>${need}</b></div>
+            ${c.mission && c.advised(sel) > 0 ? `<div class="mv-kv"><span>${t("op_advised")}</span><b>${c.advised(sel)}</b></div>` : ""}
+            ${need <= 0 ? `<p class="petit">✔ ${t("mv_full_sel")}</p>` : lines.map((x, i) => {
+              const v = Number(x.qty) || 0, room = need - (used - v);
+              return `<div class="mv-ldline">${this.mCounter(t("mv_ld_add"), v, 0, room, `data-mvl="${sel.n}" data-i="${i}"`, `mvl-${sel.n}-${i}`)}
+                <label class="mv-ld-date">${t("mv_ld_date")} <input type="datetime-local" id="mvl-d-${sel.n}-${i}" data-mvld="${sel.n}" data-i="${i}" value="${F.toInput(x.date)}"></label>
+                ${lines.length > 1 ? `<button type="button" class="btn petit secondary" id="mvl-x-${sel.n}-${i}" data-mvl-del="${sel.n}" data-i="${i}" title="${E(t("ld_remove_line"))}" aria-label="${E(t("ld_remove_line"))}">✖</button>` : ""}</div>`;
+            }).join("")}
+            ${need > 0 ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvl-f-${sel.n}" data-mvl-full="${sel.n}">⬆ ${t("mv_ld_full")}</button>
+              <button type="button" class="btn secondary" id="mvl-z-${sel.n}" data-mvl-zero="${sel.n}">0</button>
+              <button type="button" class="btn secondary" id="mvl-a-${sel.n}" data-mvl-add="${sel.n}">${t("ld_add_date")}</button></div>` : ""}</div>`;
+        },
+        footer: `<p class="petit" id="mvl-total">${t("step3_total", { n: total })}</p>
+          <div class="wz-actions">${back}<button class="btn big secondary" id="mvw-ld-full">⬆ ${t("mv_ld_all_full")}</button><button class="btn big" id="mvw-ld-ok">✔ ${t("btn_validate_load")}</button></div>`
+      };
+    },
+
+    // Après le remplissage : la machine telle qu'elle est maintenant (lecture seule)
+    mAfter(s, m) {
+      return `<h3>🧩 ${t("mv_after")}</h3><div class="mv-glass">${BA.MachineView.grid(s, m, { ro: true, free: true })}</div>${BA.MachineView.legend(s, "view")}`;
+    },
+
+    // Redessine seulement la machine et les boutons (le défilement de la fenêtre ne bouge pas)
+    mRefresh(focusId) {
+      const w = this.w, box = document.getElementById("wz-mv"); if (!w || !box) return;
+      const s = BA.Store.get(), m = M.machine(s, w.num); if (!m) return;
+      const ae = document.activeElement, id = focusId || (ae && box.contains(ae) ? ae.id : null);
+      box.innerHTML = this.mInner(s, m);
+      this.mBindInner();
+      if (id) { const n = document.getElementById(id); if (n && !n.disabled) n.focus({ preventScroll: true }); }
+    },
+    mBindInner() {
+      const w = this.w;
+      document.querySelectorAll("#wz-mv [data-mvld]").forEach(inp => U.dateInput(inp, val => {
+        const v = F.fromInput(val), L = w.lines && w.lines[inp.dataset.mvld];
+        if (!v || !L || !L[inp.dataset.i]) return;
+        L[inp.dataset.i].date = v; this.mRefresh();
+      }));
+    },
+    mBind() {
+      const w = this.w, box = document.getElementById("wz-mv"); if (!box) return;
+      const A = BA.Actions;
+      const go = step => { w.step = step; w.mode = "view"; w.error = ""; w.mvKey = null; this.render(); };
+      const all = document.getElementById("mvl-date");
+      if (all) U.dateInput(all, val => {
+        const v = F.fromInput(val); if (!v) return;
+        w.delivery = v;
+        Object.keys(w.lines || {}).forEach(k => w.lines[k].forEach(x => { x.date = v; }));
+        this.mRefresh();
+      });
+      this.mBindInner();
+      box.onclick = e => {
+        const b = e.target.closest("button");
+        if (!b || !box.contains(b) || b.disabled) return;
+        const s = BA.Store.get(), m = M.machine(s, w.num); if (!m) return;
+        const d = b.dataset;
+        if (d.mvSel != null) { w.mvKey = String(d.mvSel); this.mRefresh(b.id); return BA.MachineView.scrollPanel(box); }
+        // étape 1 : nombre compté
+        if (d.mvi != null || d.mviR != null) {
+          const sel = M.sel(m, Number(d.mvi != null ? d.mvi : d.mviR)); if (!sel) return;
+          const C = w.inv || (w.inv = {}), exp = M.qty(sel), c = C[sel.n] != null ? C[sel.n] : exp;
+          const v = d.mviR != null ? exp : Math.max(0, Math.min(sel.cap, c + Number(d.d)));
+          if (v === exp) delete C[sel.n]; else C[sel.n] = v;
+          return this.mRefresh(d.mviR != null ? "mvt-" + m.num + "-" + sel.n : b.id);
+        }
+        // étape 2 : pains retirés d'un lot (le reste est gardé une fois)
+        if (d.mvr != null || d.mvrSet != null) {
+          const k = d.mvr != null ? d.mvr : d.mvrSet, r = (w.rows || []).find(x => this.rmKey(x) === k);
+          if (!r || r.mandatory) return;
+          const R = w.rmd || (w.rmd = {}), v0 = this.rmDraft(r);
+          R[k] = Math.max(0, Math.min(r.qty, d.mvrSet != null ? Number(d.v) : v0 + Number(d.d)));
+          return this.mRefresh(b.id);
+        }
+        // étape 3 : pains chargés (une ou plusieurs dates de livraison par tiroir, comme dans le tableau)
+        const lineOf = n => { const sel = M.sel(m, Number(n)), L = w.lines && w.lines[n]; return sel && L ? { sel, L, need: sel.cap - M.qty(sel) } : null; };
+        if (d.mvl != null) {
+          const o = lineOf(d.mvl); if (!o || !o.L[d.i]) return;
+          const others = o.L.reduce((a, x, j) => a + (j === Number(d.i) ? 0 : Number(x.qty) || 0), 0);
+          o.L[d.i].qty = Math.max(0, Math.min(o.need - others, (Number(o.L[d.i].qty) || 0) + Number(d.d)));
+          return this.mRefresh(b.id);
+        }
+        if (d.mvlFull != null) { const o = lineOf(d.mvlFull); if (!o) return; o.L[0].qty = Math.max(0, o.need - o.L.slice(1).reduce((a, x) => a + (Number(x.qty) || 0), 0)); return this.mRefresh(b.id); }
+        if (d.mvlZero != null) { const o = lineOf(d.mvlZero); if (!o) return; o.L.forEach(x => { x.qty = 0; }); return this.mRefresh(b.id); }
+        if (d.mvlAdd != null) {     // même règle que « + autre date » du tableau
+          const o = lineOf(d.mvlAdd); if (!o) return;
+          const sum = o.L.reduce((a, x) => a + (Number(x.qty) || 0), 0);
+          let qty = 1;
+          if (sum + 1 > o.need) { const big = o.L.reduce((a, x) => (x.qty > a.qty ? x : a), o.L[0]); if (big && big.qty > 1) big.qty -= 1; else qty = 0; }
+          o.L.push({ qty, date: w.delivery });
+          return this.mRefresh(b.id);
+        }
+        if (d.mvlDel != null) { const o = lineOf(d.mvlDel); if (!o || o.L.length < 2) return; o.L.splice(Number(d.i), 1); return this.mRefresh(); }
+        const rowsAll = () => (w.rows || []).map(r => ({ sel: r.sel, lotId: r.lotId, date: r.date, planned: r.qty, removed: r.qty, keep: false }));
+        switch (b.id) {
+          case "mvw-inv-yes": A.applyInventory(w.itId, {}, false); return go(2);
+          case "mvw-inv-skip": A.applyInventory(w.itId, {}, true); return go(2);
+          case "mvw-inv-reset": w.inv = {}; return this.mRefresh();
+          case "mvw-inv-ok": {
+            const counts = {};
+            m.sels.forEach(sel => { counts[sel.n] = w.inv && w.inv[sel.n] != null ? w.inv[sel.n] : M.qty(sel); });
+            A.applyInventory(w.itId, counts, false); return go(2);
+          }
+          case "mvw-rm-next": A.applyRemoval(w.itId, [], "none"); return go(3);
+          case "mvw-rm-yes": A.applyRemoval(w.itId, rowsAll(), "all"); return go(3);
+          case "mvw-rm-no": A.applyRemoval(w.itId, rowsAll(), "none"); return go(3);
+          case "mvw-rm-reset": w.rmd = {}; return this.mRefresh();
+          case "mvw-rm-ok": {
+            const list = (w.rows || []).map(r => {
+              const v = this.rmDraft(r);
+              return { sel: r.sel, lotId: r.lotId, date: r.date, planned: r.qty, removed: v, keep: !r.mandatory && v === 0 };
+            });
+            A.applyRemoval(w.itId, list, "edit"); return go(3);
+          }
+          case "mvw-ld-full":
+            m.sels.forEach(sel => { const L = w.lines && w.lines[sel.n]; if (!L || !L.length) return; L[0].qty = Math.max(0, sel.cap - M.qty(sel) - L.slice(1).reduce((a, x) => a + (Number(x.qty) || 0), 0)); });
+            return this.mRefresh(b.id);
+          case "mvw-ld-ok": return this.doLoad();
+          case "mvw-back": { const to = w.step - 1; A.undoToStep(w.itId, to); w.lines = null; w.inv = null; w.rmd = null; return go(to); }
+        }
+      };
+    },
+
     bind() {
       const w = this.w, q = id => document.getElementById(id);
+      document.querySelectorAll(".modal [data-wzvue]").forEach(b => b.onclick = () => this.setVue(b.dataset.wzvue));
       const go = (step) => { w.step = step; w.mode = "view"; w.error = ""; this.render(); };
       // v5.19 : « Annuler » demande une confirmation pendant 4 s. Avant, le délai redessinait toute la fenêtre
       // (les chiffres tapés pas encore validés étaient effacés) et un délai d'un « Remplir » précédent pouvait
@@ -402,7 +728,7 @@
       if (q("wz-close")) q("wz-close").onclick = () => this.close();
 
       // retour arrière (annule l'étape déjà validée)
-      const back = (to) => { BA.Actions.undoToStep(w.itId, to); w.lines = null; go(to); };
+      const back = (to) => { BA.Actions.undoToStep(w.itId, to); w.lines = null; w.inv = null; w.rmd = null; go(to); };
       if (q("wz-back")) q("wz-back").onclick = () => back(w.step - 1);
       if (q("inv-back")) q("inv-back").onclick = () => { w.mode = "view"; w.error = ""; this.render(); };
       if (q("rm-back")) q("rm-back").onclick = () => { w.mode = "view"; w.error = ""; this.render(); };
@@ -484,25 +810,7 @@
       document.querySelectorAll(".modal .ld-del").forEach(b => b.onclick = () => {
         readLines(); w.lines[b.dataset.sel].splice(Number(b.dataset.i), 1); this.render();
       });
-      if (q("ld-validate")) q("ld-validate").onclick = () => {
-        readLines();
-        const s = BA.Store.get(), m = M.machine(s, w.num);
-        const loads = {}; let bad = false;
-        m.sels.forEach(sel => {
-          const need = sel.cap - M.qty(sel), L = w.lines[sel.n] || [];
-          let sum = 0;
-          loads[sel.n] = L.map(x => {
-            const v = Number(x.qty);
-            if (x.qty === "" || !(v >= 0) || v > need || (v > 0 && !isFinite(x.date))) bad = true;
-            sum += v || 0;
-            return { qty: v || 0, date: x.date };
-          });
-          if (sum > need) bad = true;
-        });
-        if (bad) { w.error = t("err_load"); this.render(); return; }
-        BA.Actions.applyLoad(w.itId, loads, w.delivery);
-        w.step = 4; w.error = ""; this.render();
-      };
+      if (q("ld-validate")) q("ld-validate").onclick = () => { readLines(); this.doLoad(); };
     }
   };
   BA.Wizard = Wizard;
