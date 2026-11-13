@@ -630,7 +630,7 @@ try {
   rr = await R();
   ok("clavier (Tab) : le menu s'ouvre aussi", rr.w === 280 && rr.lab === 1, rr);
   await a.keyboard.press("Escape"); await a.evaluate(() => document.activeElement && document.activeElement.blur()); await a.mouse.move(900, 450); await sleep(500);
-  ok("téléphone de l'opérateur : pas de barre latérale visible, ses 4 onglets en bas", !(await o.isVisible("#app-side")) && (await o.$$eval("#app-tabbar button[data-view]", b => b.length)) === 4 && (await o.isVisible("#app-tabbar")));
+  ok("téléphone de l'opérateur : pas de barre latérale visible, ses 5 onglets en bas (v5.25 : avec le Dashboard)", !(await o.isVisible("#app-side")) && (await o.$$eval("#app-tabbar button[data-view]", b => b.length)) === 5 && (await o.isVisible("#app-tabbar")));
   // téléphone (390 px) : bouton ☰ (tiroir), onglets en bas
   await a.setViewportSize({ width: 390, height: 844 }); await sleep(500);
   const P = () => a.evaluate(() => { const n = document.getElementById("app-side"), tb = document.getElementById("app-tabbar"), mb = document.getElementById("menu-btn"); const r = n.getBoundingClientRect(); return { open: document.body.classList.contains("side-open"), vis: getComputedStyle(n).visibility, btn: !!mb && getComputedStyle(mb).display !== "none", tabs: getComputedStyle(tb).display !== "none", left: Math.round(r.left), right: Math.round(r.right), mainLeft: Math.round(document.querySelector("#app-main").getBoundingClientRect().left), over: document.scrollingElement.scrollWidth > window.innerWidth + 1 }; });
