@@ -36,3 +36,8 @@ Très peu, et toujours utile ; tout est coupé si l'appareil demande « réduire
 
 ## Accessibilité
 Cibles tactiles ≥ 44 px sur écran tactile, anneau de focus visible au clavier, l'état n'est jamais porté par la couleur seule.
+
+## v5.24 (essai « design-test ») : vue machine et mode démo
+- **Vue machine** (`js/machine-view.js`, section 15 de `css/app.css`) : étages (dizaine du n° de sélection) × tiroirs ; sous CHAQUE pain, ses heures et sa date de livraison ; « à retirer » en orange (avec le texte, jamais la couleur seule). Affichage seulement : les boutons « Retirer » du panneau appellent ceux du tableau des lots.
+  Présente dans « Détails machine » (admin et opérateur), sur chaque carte du Dashboard (version réduite) et, repliée, dans « Remplir » de l'opérateur (étapes 1 et 2).
+- **Mode démo** (`js/demo.js`, actif seulement avec `?demo` dans l'adresse) : 20 machines inventées, ventes inventées toutes les ~15 s, stockage et appels Supabase remplacés par une mémoire de la page : aucune donnée réelle lue ou écrite.

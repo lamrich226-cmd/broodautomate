@@ -200,6 +200,7 @@ window.BA = window.BA || {};
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
       <div class="cm-row"><span>${x.total}/${x.cap} ${t("breads")}</span><span>${x.pct} %</span></div>
       <div class="chips">${chips.join("")}</div>
+      ${BA.MachineView ? BA.MachineView.grid(s, m, { compact: true }) : ""}
       <div class="cm-foot"><span>${left}</span><span>${right}</span></div>
     </div>`;
   }
@@ -599,6 +600,7 @@ window.BA = window.BA || {};
         ${ctx.admin ? totalCards(m, today) : ""}
         <div class="card"><div class="label">${t("lbl_last_intervention")}</div><div class="value v-small">${lastIt ? F.dt(lastIt.end) : "—"}</div></div>
       </div>
+      ${BA.MachineView ? BA.MachineView.block(s, m) : ""}
       <h3>🍞 ${t("lots_title")}</h3>
       <p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>
       ${lotsTable(s, m, ctx)}
@@ -612,6 +614,7 @@ window.BA = window.BA || {};
     el.querySelector("#det-machine").onchange = e => { BA.Shell.state.machine = Number(e.target.value); renderDetails(el, ctx); };
     bindDetailAlerts(el, ctx, evs, () => renderDetails(el, ctx));
     bindLotActions(el, m.num);
+    if (BA.MachineView) BA.MachineView.bind(el, m, { actions: true, proxy: el });
     BA.History.bindRecent(el, m.num);
   }
 

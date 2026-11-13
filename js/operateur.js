@@ -232,9 +232,11 @@
           </div>
           ${w.step <= 3 ? this.stepper(w.step) : ""}
           ${w.error ? `<div class="alert err">${w.error}</div>` : ""}
+          ${w.step <= 2 && BA.MachineView ? `<details class="mv-fold"><summary>🧩 ${t("mv_title")}</summary>${BA.MachineView.block(s, m, { title: false })}</details>` : ""}
           ${body}
         </div></div>`;
       this.bind();
+      if (w.step <= 2 && BA.MachineView) BA.MachineView.bind(document.getElementById("modal-root"), m, {});
     },
 
     // ---------- Étape 1 : inventaire ----------
