@@ -641,7 +641,7 @@ window.BA = window.BA || {};
         <div class="card"><div class="label">${t("lbl_last_intervention")}</div><div class="value v-small">${lastIt ? F.dt(lastIt.end) : "—"}</div></div>
       </div>
       ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
-      ${BA.MachineView && BA.MachineView.on() ? BA.MachineView.block(s, m) : ""}
+      ${BA.MachineView && BA.MachineView.on() ? moveRequests(s, m) + BA.MachineView.block(s, m) : ""}
       ${BA.MachineView ? BA.MachineView.fold("lots", "🍞 " + t("lots_title"), `<p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>`, lotsTable(s, m, ctx))
         : `<h3>🍞 ${t("lots_title")}</h3><p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>${lotsTable(s, m, ctx)}`}
       <h3>🧾 ${t("det_last_moves")}</h3>
@@ -967,7 +967,7 @@ window.BA = window.BA || {};
     F, E, t, prod, pill, ICON, NAV_ICONS,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
     machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, evTitle, interventionsTable, prodText,
-    confirmDialog, dateInput, afterClick, removeDialog, toast, openWindow,
+    confirmDialog, dateInput, afterClick, removeDialog, moveDialog, toast, openWindow,
     chartTheme, chartCrosshair, chartEndLabel, chartSignColor
   };
 
@@ -1059,7 +1059,7 @@ window.BA = window.BA || {};
       // téléphone : onglets du bas (admin : 4 pages + « Menu » ; opérateur : ses 4 onglets, « Plus » compris)
       const tabs = admin ? ["dashboard", "details", "products", "alerts"].map(id => c.views.find(v => v.id === id)).filter(Boolean) : navViews;
       const tb = $("#app-tabbar");
-      tb.classList.toggle("tab4", !admin);
+      tb.classList.toggle("tab4", !admin && tabs.length === 4);   // v5.25 : 5 onglets chez l'opérateur depuis que le Dashboard y est
       tb.innerHTML = tabs.map(v => btn(v, v.id === cur)).join("")
         + (admin ? `<button id="tab-more" type="button" aria-controls="app-side">${this.icon("menu")}<span>${t("nav_menu")}</span></button>` : "");
       [nav, tb].forEach(n => n.querySelectorAll("button[data-view]").forEach(b => b.onclick = () => this.go(b.dataset.view)));

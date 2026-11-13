@@ -874,6 +874,7 @@
     // v5.10 : 4 onglets seulement (À faire, Remplir, Alertes, Plus) ; les autres pages s'ouvrent depuis « Plus »
     views: [
       { id: "todo",      icon: "📋", label: "op_nav_todo",   render: el => renderMissions(el, { todo: true }), live: true },
+      { id: "dashboard", icon: "🌍", label: "nav_dashboard", render: U.renderDashboard, live: true },   // v5.25 (design-test) : le Dashboard est un onglet de l'opérateur (machines vides ou pas, pains de chaque tiroir)
       { id: "fill",      icon: "🧺", label: "op_nav_fill",   render: renderFill,        live: true },
       { id: "alerts",    icon: "⚠️", label: "op_nav_alerts", render: U.renderAlerts,    live: true },
       { id: "more",      icon: "☰",  label: "op_nav_more",   render: renderMore,        live: false },
@@ -881,7 +882,6 @@
       { id: "products",  icon: "🍞", label: "nav_products",  render: sousPage(renderProducts),    live: true, hidden: true, parent: "more" },
       { id: "history",   icon: "🧾", label: "nav_history",   render: sousPage(BA.History.render), live: false, tick: BA.History.tick, hidden: true, parent: "more" },
       { id: "rs232",     icon: "🔌", label: "nav_rs232",     render: sousPage(el => BA.Rs232.renderOp(el)), live: true, hidden: true, parent: "more" },
-      { id: "dashboard", icon: "🌍", label: "nav_dashboard", render: U.renderDashboard, live: true, hidden: true, parent: "todo" },
       { id: "missions",  icon: "🧾", label: "nav_missions",  render: renderMissions,    live: true, hidden: true, parent: "todo" }
     ],
     footer() {

@@ -88,7 +88,18 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
     await a.click(`#mvt-105-${bad}`); await sleep(300);
     ok("toucher un tiroir ouvre une fenêtre pop-up (la page ne bouge pas)", !!(await a.$(".mv-pop .mv-panel")) && !(await a.$(".mv-side, .mv-inline")));
     await shot(a, "v524-00c-popup-pc");
-    await a.click(".mv-pop [data-mv-rm]"); await sleep(400);
+    // « ⇄ Déplacer » (pains d'une sélection vers une autre du même pain) : toujours là, dans la fenêtre du tiroir
+    const mvSel = await S(a, n => { const s = BA.Store.get(), M = BA.Model, m = M.machine(s, n); const x = m.sels.find(z => M.qty(z) > 0 && z.lots.some(l => !(l.kept && M.isMandatory(s, l))) && m.sels.some(y => y !== z && y.type === z.type)); return x ? x.n : null; }, 105);
+    if (mvSel) {
+      await a.keyboard.press("Escape"); await sleep(150);
+      await a.click(`#mvt-105-${mvSel}`); await sleep(250);
+      ok("le bouton « ⇄ Déplacer » est toujours là (dans la fenêtre du tiroir)", !!(await a.$(".mv-pop [data-mv-move]")));
+      await a.click(".mv-pop [data-mv-move]"); await sleep(400);
+      ok("« Déplacer » ouvre la même fenêtre qu'avant (choix de la sélection d'arrivée)", !!(await a.$("#mv-to")) && !(await a.$(".mv-pop")));
+      await a.click("#mv-cancel"); await sleep(250);
+      await a.click(`#mvt-105-${bad}`); await sleep(250);
+    }
+    await a.click(".mv-pop [data-mv-rm]"); await sleep(400); await sleep(1)
     ok("« Retirer » d'un lot ouvre la fenêtre habituelle de retrait (par-dessus)", !!(await a.$("#modal-root .modal")));
     ok("la fenêtre du tiroir s'est fermée quand la fenêtre « Retirer » s'ouvre", !(await a.$(".mv-pop")));
     await a.keyboard.press("Escape"); await sleep(200);
@@ -180,6 +191,9 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   ok("fin : la machine telle qu'elle est maintenant", !!(await o.$("#modal-root .mv-glass")));
   await shot(o, "v524-07-fin-tel", true);
   await o.click("#wz-close"); await sleep(300);
+
+  await S(o, () => BA.Shell.go("dashboard")); await sleep(500);
+  ok("opérateur : un onglet « Dashboard » (5 onglets), avec les 20 machines et les pains de chaque tiroir", (await o.$$eval("#app-tabbar [data-view]", l => l.map(b => b.dataset.view).join())) === "todo,dashboard,fill,alerts,more" && (await o.$$(".carte-machine .mv-compact")).length === 20);
 
   console.log("\n== 3. Vue « Tableau » : le chemin d'avant fonctionne toujours");
   const t2 = await device("tel-tableau", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "operateur.html", "classic");

@@ -273,7 +273,8 @@ window.BA = window.BA || {};
       return `<div class="mv-lotline"><span>${t("mv_lot", { d: dd(l.date) })} · <b class="${old || must ? "old" : ""}">${t("mv_ago", { h: hrs(s, l.date) })}</b>${tag ? " · " + tag : ""}${l.estimated ? ` <span class="petit">${t("estimated")}</span>` : ""}</span>
         <span class="mv-lq">${t("mv_n", { n: l.qty })}
           ${old ? `<button type="button" class="btn petit secondary" data-mv-keep="${sel.n}" data-lot="${l.id}" title="${E(t("btn_keep_tip"))}">${t("btn_keep")}</button>` : ""}
-          <button type="button" class="btn petit ${old || must ? "" : "secondary"}" data-mv-rm="${sel.n}" data-lot="${l.id}" title="${E(t("btn_rm_tip"))}">➖ ${t("btn_withdraw")}</button></span></div>`;
+          <button type="button" class="btn petit ${old || must ? "" : "secondary"}" data-mv-rm="${sel.n}" data-lot="${l.id}" title="${E(t("btn_rm_tip"))}">➖ ${t("btn_withdraw")}</button>
+          ${!must && m.sels.some(x => x !== sel && x.type === sel.type) ? `<button type="button" class="btn petit secondary mv-btn" data-mv-move="${sel.n}" data-lot="${l.id}" title="${E(t("btn_move_tip"))}"><span class="mv-arrows">⇄</span> ${t("btn_move")}</button>` : ""}</span></div>`;
     }).join("");
     const id = k => `mvx-${k}-${m.num}`;
     return `<div class="mv-panel">${msgHtml(m.num)}${big(s, m, sel)}
@@ -419,6 +420,7 @@ window.BA = window.BA || {};
       if (d.mvSel != null) { S.mvSel = { num, key: String(d.mvSel), open: true }; S.mvEdit = null; return open(b.id); }
       if (d.mvFree != null) { S.mvSel = { num, key: "f" + d.mvFree, open: true }; S.mvAdd = null; return open(b.id); }
       if (d.mvRm != null) { S.mvSel = null; S.mvEdit = null; redraw(); return U.removeDialog(num, d.mvRm, d.lot); }   // la fenêtre du tiroir se ferme, la fenêtre « Retirer » s'ouvre seule
+      if (d.mvMove != null) { S.mvSel = null; S.mvEdit = null; redraw(); return U.moveDialog(num, d.mvMove, d.lot); }   // même fenêtre « Déplacer » que dans le tableau
       if (d.mvKeep != null) { S.mvSel = null; S.mvEdit = null; redraw(); return A.keepLot(num, d.mvKeep, d.lot); }
       if (d.mvxSave != null) return save(Number(d.mvxSave));
       if (d.mvxDel != null) return del(Number(d.mvxDel));
