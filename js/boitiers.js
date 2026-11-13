@@ -445,7 +445,7 @@ window.BA = window.BA || {};
         else if (!c) corps = `<p class="petit">⏳</p>`;
         else if (c.err) corps = `<p class="petit">⚠️ ${E(t("bx_error", { e: c.err }))}</p>`;
         else {
-          const jr = (c.j.jours || []).slice(0, 7), tot = jr.reduce((a, x) => a + (x.ko || 0), 0);
+          const jr = (c.j.jours || []).filter(x => /^\d{4}-\d{2}-\d{2}$/.test(x.date)).slice(0, 7), tot = jr.reduce((a, x) => a + (x.ko || 0), 0);
           corps = (jr.length ? `<table class="tbl"><thead><tr><th>${E(t("bx_conso_day"))}</th><th>${E(t("bx_conso_total"))}</th><th>↓</th><th>↑</th></tr></thead><tbody>${jr.map(x => `<tr><td>${E(x.date.split("-").reverse().join("/"))}</td><td>${E(ko(x.ko))}</td><td>${E(ko(x.rx))}</td><td>${E(ko(x.tx))}</td></tr>`).join("")}</tbody><tfoot><tr><th>${E(t("bx_conso_sum", { k: "" }).replace(/:\s*$/, ""))}</th><th>${E(ko(tot))}</th><th></th><th></th></tr></tfoot></table>` : `<p class="petit">${E(t("bx_conso_none"))}</p>`)
             + (c.j.restantKo != null ? `<p class="petit"><b>${E(t("bx_conso_left", { k: ko(c.j.restantKo) }))}</b>${c.j.totalKo != null ? " / " + E(ko(c.j.totalKo)) : ""}</p>` : "");
         }
