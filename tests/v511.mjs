@@ -132,7 +132,7 @@ const etat = {
 
   console.log("== 4. Page Technique en onglets (v5.12 : avant, page Connexion RS232)");
   await go("technique");
-  ok("6 onglets : Boîtiers 4G, Machines, Câble et clé USB, Journal, Système, Flux brut", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())) === "boxes,machines,cable,journal,system,raw");
+  ok("7 onglets : Boîtiers 4G, Machines, Câble et clé USB, Journal, Système, Flux brut", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())) === "boxes,machines,cable,journal,system,raw,usage");
   await p.click("[data-tq-tab=cable]"); await sleep(400);
   ok("onglet Câble : Connecter et Lire maintenant visibles, réglages et journal repliés", (await p.isVisible("#btn-rs-connecter")) && (await p.isVisible("#btn-rs-lire")) && !(await p.isVisible("#rs-vitesse")) && !(await p.isVisible("#rs-journal")));
   await shot("v511-04-technique-cable");

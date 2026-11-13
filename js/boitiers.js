@@ -426,18 +426,41 @@ window.BA = window.BA || {};
   }
   // v5.27 : consommation EXACTE de la carte 1NCE (fonction conso-1nce), en Ko
   const ko = v => v == null ? "—" : new Intl.NumberFormat((BA.I18n && typeof BA.I18n.lang === "string" ? BA.I18n.lang : "fr"), { maximumFractionDigits: 1 }).format(v) + " Ko";
-  async function consoCarte(id) {
-    const out = () => document.querySelector('[data-bxconso-out="' + id + '"]');
-    const w = out(); if (w) w.textContent = "⏳";
+  const cache = new Map();   // n° du boîtier → dernier résultat de conso-1nce
+  async function chargerConso(id) {
     try {
       const r = await sb().functions.invoke("conso-1nce", { body: { device: id } });
       const j = r.data;
       if (r.error || !j || j.ok !== true) throw new Error((j && j.error) || (r.error && r.error.message) || "?");
-      const jr = (j.jours || []).slice(0, 7);
-      const txt = jr.length ? jr.map(x => x.date.slice(5).split("-").reverse().join("/") + " : " + ko(x.ko)).join(" · ") : t("bx_conso_none");
-      const tot = jr.reduce((a, x) => a + (x.ko || 0), 0);
-      const w2 = out(); if (w2) w2.textContent = txt + (jr.length ? " — " + t("bx_conso_sum", { k: ko(tot) }) : "") + (j.restantKo != null ? " — " + t("bx_conso_left", { k: ko(j.restantKo) }) : "");
-    } catch (e) { const w2 = out(); if (w2) w2.textContent = "⚠️ " + t("bx_error", { e: e.message }); }
+      cache.set(id, { j, at: Date.now() });
+    } catch (e) { cache.set(id, { err: e.message, at: Date.now() }); }
+  }
+  function htmlUsage() {
+    if (!devices.length) return `<p class="note">${E(t("bx_none"))}</p>`;
+    return `<p class="note">${E(t("bx_conso_note"))}</p>
+      <div class="bx-conso-list">${devices.map(d => {
+        const c = cache.get(d.id);
+        let corps;
+        if (!d.iccid) corps = `<p class="petit">${E(t("bx_conso_noiccid"))}</p>`;
+        else if (!c) corps = `<p class="petit">⏳</p>`;
+        else if (c.err) corps = `<p class="petit">⚠️ ${E(t("bx_error", { e: c.err }))}</p>`;
+        else {
+          const jr = (c.j.jours || []).slice(0, 7), tot = jr.reduce((a, x) => a + (x.ko || 0), 0);
+          corps = (jr.length ? `<table class="tbl"><thead><tr><th>${E(t("bx_conso_day"))}</th><th>${E(t("bx_conso_total"))}</th><th>↓</th><th>↑</th></tr></thead><tbody>${jr.map(x => `<tr><td>${E(x.date.split("-").reverse().join("/"))}</td><td>${E(ko(x.ko))}</td><td>${E(ko(x.rx))}</td><td>${E(ko(x.tx))}</td></tr>`).join("")}</tbody><tfoot><tr><th>${E(t("bx_conso_sum", { k: "" }).replace(/:\s*$/, ""))}</th><th>${E(ko(tot))}</th><th></th><th></th></tr></tfoot></table>` : `<p class="petit">${E(t("bx_conso_none"))}</p>`)
+            + (c.j.restantKo != null ? `<p class="petit"><b>${E(t("bx_conso_left", { k: ko(c.j.restantKo) }))}</b>${c.j.totalKo != null ? " / " + E(ko(c.j.totalKo)) : ""}</p>` : "");
+        }
+        return `<div class="card bx-conso"><h4>📶 ${E(d.name)} <span class="petit">${E(d.iccid || "")}</span></h4>${corps}</div>`;
+      }).join("")}</div>
+      <button class="btn petit" data-bxconso-refresh>🔄 ${E(t("bx_conso_refresh"))}</button>`;
+  }
+  // Onglet « Consommation » de la page Technique (v5.27) : consommation EXACTE de chaque carte 1NCE, en Ko
+  async function usage(el) {
+    if (!el) return;
+    const draw = () => { el.innerHTML = htmlUsage(); const b = el.querySelector("[data-bxconso-refresh]"); if (b) b.onclick = () => usage(el); };
+    if (!devices.length) await refresh(true).catch(() => 0);
+    cache.clear(); draw();
+    await Promise.all(devices.filter(d => d.iccid).map(d => chargerConso(d.id)));
+    draw();
   }
   // v5.26 : enregistre le n° de carte SIM (ICCID) d'un boîtier ; vide = on l'enlève
   async function saveIccid(id, v) {
@@ -495,8 +518,7 @@ window.BA = window.BA || {};
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
     return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(etatTxt(d))}</span>
       ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span>
-      <div class="petit bx-iccid">📶 ${E(t("bx_iccid"))} <input class="txt-in" data-bxiccid="${E(d.id)}" inputmode="numeric" maxlength="30" placeholder="89882280…" value="${E(d.iccid || "")}"> <button class="btn petit" data-bxiccid-save="${E(d.id)}">💾</button> ${d.iccid ? "⚡" : ""}
-        ${d.iccid ? `<button class="btn petit" data-bxconso="${E(d.id)}">📊 ${E(t("bx_conso"))}</button> <span class="petit" data-bxconso-out="${E(d.id)}"></span>` : ""}</div></div>`;
+      <div class="petit bx-iccid">📶 ${E(t("bx_iccid"))} <input class="txt-in" data-bxiccid="${E(d.id)}" inputmode="numeric" maxlength="30" placeholder="89882280…" value="${E(d.iccid || "")}"> <button class="btn petit" data-bxiccid-save="${E(d.id)}">💾</button> ${d.iccid ? "⚡" : ""}</div></div>`;
   }
 
   // ---------------- Bouton « 📡 Lire toutes les machines » (v5.3) ----------------
@@ -699,8 +721,6 @@ window.BA = window.BA || {};
     document.addEventListener("click", e => {
       const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
       if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
-      const cb = e.target && e.target.closest && e.target.closest("button[data-bxconso]");
-      if (cb) consoCarte(cb.dataset.bxconso);
       const sv = e.target && e.target.closest && e.target.closest("button[data-bxiccid-save]");
       if (sv) { const inp = document.querySelector('input[data-bxiccid="' + sv.dataset.bxiccidSave + '"]'); saveIccid(sv.dataset.bxiccidSave, inp && inp.value).then(ok => { if (ok) showDem(); }); }
       // « Lire toutes les machines » : Commander, Dashboard, onglet Boîtiers 4G
@@ -1135,7 +1155,7 @@ window.BA = window.BA || {};
   }
 
   BA.Boitiers = {
-    SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, readNow, readAll, allCard,
+    SQL, SQL_DEM, start, refresh, mount, redraw, tag, detail, usage, readNow, readAll, allCard,
     // v5.12 : page « Connexion RS232 » (boîtiers et leur état seulement), redessinée au plus toutes les 30 s
     summary, tickSummary() { if (Date.now() - sumAt > 30000) drawSummary(); },
     // v5.15 (onglet Flux brut) : liste des boîtiers, en ligne ?, dernière demande d'un boîtier, délai affiché

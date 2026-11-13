@@ -104,7 +104,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
 
   console.log("\n== 2. Technique → Boîtiers 4G : détail de chaque boîtier, données estimées");
   ok("menu : « Technique » juste après « Connexion RS232 »", (await p.$$eval("#app-nav button[data-view]", b => b.map(x => x.dataset.view).join())).includes("rs232,technique"));
-  ok("6 onglets dans l'ordre (Flux brut après Système)", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())) === "boxes,machines,cable,journal,system,raw");
+  ok("7 onglets dans l'ordre (Flux brut après Système)", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())) === "boxes,machines,cable,journal,system,raw,usage");
   await p.waitForSelector("#rs-boitiers details.bx-more", { timeout: 15000 });
   ok("3 boîtiers : détails repliés (ouvert seulement quand il n'y a qu'un boîtier)", (await p.$$eval("#rs-boitiers details.bx-more", d => d.map(x => x.open).join())) === "false,false,false");
   await p.click(`#rs-boitiers details.bx-more[data-bxmore="${DEV.A}"] > summary`); await sleep(300);
@@ -191,7 +191,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   await shot("v512-07-technique-systeme");
 
   console.log("\n== 7. Clavier, langues, lien « machines hors ligne »");
-  await p.click("[data-tq-tab=raw]"); await sleep(300); await p.keyboard.press("ArrowRight"); await sleep(400);
+  await p.click("[data-tq-tab=usage]"); await sleep(300); await p.keyboard.press("ArrowRight"); await sleep(400);
   ok("flèche droite sur le dernier onglet → retour au premier (Boîtiers 4G)", await p.evaluate(() => BA.Technique.current() === "boxes" && document.activeElement.dataset.tqTab === "boxes"));
   for (const lang of ["nl", "en"]) {
     await p.evaluate(l => { BA.I18n.set(l, "admin"); BA.Shell.build(); }, lang); await sleep(500);
@@ -201,7 +201,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
       await go("technique"); await tab(tb); await sleep(300);
       raw = raw.concat(await rawKeys(p));
     }
-    ok(`${lang} : Connexion RS232 et les 6 onglets de Technique sans texte manquant`, raw.length === 0, raw);
+    ok(`${lang} : Connexion RS232 et les 7 onglets de Technique sans texte manquant`, raw.length === 0, raw);
     ok(`${lang} : titre de la page traduit`, (await p.innerText("#view-technique h2")).trim() === (lang === "nl" ? "Techniek" : "Technical"));
   }
   await p.evaluate(() => { BA.I18n.set("fr", "admin"); BA.Shell.build(); }); await sleep(500);
@@ -218,7 +218,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   ok("téléphone, Connexion RS232 : pas de défilement horizontal", (await wide()) <= 1, await wide());
   await shot("v512-08-tel-connexion", tel);
   await go("technique", tel);
-  ok("téléphone : les 6 onglets passent à la ligne", await tel.$eval(".tq-tabs", x => getComputedStyle(x).flexWrap === "wrap"));
+  ok("téléphone : les 7 onglets passent à la ligne", await tel.$eval(".tq-tabs", x => getComputedStyle(x).flexWrap === "wrap"));
   for (const tb of ["boxes", "machines", "cable", "journal", "system", "raw"]) {
     await tab(tb, tel); await sleep(400);
     ok(`téléphone, Technique « ${tb} » : pas de défilement horizontal`, (await wide()) <= 1, await wide());
