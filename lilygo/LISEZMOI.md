@@ -37,6 +37,12 @@ Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il e
   affiché. Les relevés partent toujours en HTTPS, filtrés, comme avant. Dans Broodautomate, la version s'affiche « v1.5 1NCE ».
 - Un message qui arrive pendant un envoi HTTPS n'est pas perdu ; si le modem ferme la liaison UDP, elle est rouverte (1 min).
 
+### v1.5.2 : « lire N » (bouton « Lire maintenant » de Broodautomate, instantané)
+Le message UDP peut maintenant être **`lire 42`** (ou `lire 42 b` pour le relevé complet) : le boîtier lit la machine tout de suite
+et rend le résultat à la demande n° 42 de Broodautomate (au lieu de la chercher au prochain passage). Un simple `lire` marche toujours.
+Tout autre texte après le nombre = simple `lire`. Dans Broodautomate : Technique → Boîtiers 4G → saisir le **n° ICCID** de la carte 1NCE ;
+la fonction `lire-1nce` (Supabase) envoie alors l'ordre par l'API 1NCE. Si l'ordre se perd, la demande reste en attente et le boîtier la prend à son passage habituel.
+
 ### v1.5.1 : correction de l'écoute 1NCE (le « lire » n'arrivait pas)
 Constaté sur un vrai boîtier : après l'envoi de `OUVERT` à 1NCE, le modem « collait » la liaison d'écoute à l'adresse de 1NCE
 (`10.60.8.90:4445`, visible avec `AT+CIPOPEN?`) et refusait le `lire` du Device Controller, qui arrive d'une autre adresse

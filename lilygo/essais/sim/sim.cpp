@@ -230,6 +230,9 @@ void simTick() {
   if (a == 30) modemSim.udpRecoit("Hello world");
   if (a == 31) modemSim.udpRecoit("lire");
   if (a == 33) modemSim.udpRecoit("LIRE\r\n");
+  if (a == 34) modemSim.udpRecoit("lire 77");        // v1.5.2 : la demande n°77 de Broodautomate, par 1NCE
+  if (a == 35) modemSim.udpRecoit("lire 78 b");      // … n°78, avec le relevé complet (flux brut)
+  if (a == 36) modemSim.udpRecoit("lire 99x");       // … pas une demande valable : seulement affiché
   if (a == 32) { modemSim.udpOuvert = false; modemSim.rep("\r\n+CIPEVENT: NETWORK CLOSED UNEXPECTEDLY\r\n"); }
   if (a == 3) modemSim.reseau = false;
   if (a == 4) modemSim.reseau = true;
@@ -256,6 +259,7 @@ int main(int argc, char** argv) {
   if (scen.compare(0, 3, "udp") == 0) {
     machineSim.rapport = inventerEva();
     if (scen == "udp") { evenements[10UL * 60000UL] = 31; evenements[25UL * 60000UL] = 30; evenements[30UL * 60000UL] = 32; evenements[33UL * 60000UL] = 33; modemSim.udpPendantHttp = 12; duree = 50UL * 60000UL; }
+    else if (scen == "udp_dem") { evenements[10UL * 60000UL] = 34; evenements[20UL * 60000UL] = 35; evenements[30UL * 60000UL] = 36; duree = 40UL * 60000UL; }
     else if (scen == "udp_repli") { modemSim.liaison1Impossible = true; evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; }
     else { evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; modemSim.udpFormat = scen == "udp_ipd" ? 1 : scen == "udp_ipd_seul" ? 2 : scen == "udp_brut" ? 3 : 4; }
   }

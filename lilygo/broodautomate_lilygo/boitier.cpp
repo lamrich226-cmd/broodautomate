@@ -29,7 +29,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.5.1"
+#define FW_VERSION "1.5.2"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
@@ -433,8 +433,22 @@ static void ecouteUdp() {
     for (auto& c : m) if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
     std::string vu = d.substr(0, 60); for (auto& c : vu) if ((unsigned char)c < 0x20) c = ' ';   // affichage sur une ligne
     Serial.printf("[UDP] ✔✔ MESSAGE REÇU n°%u (après %lu s de marche) de %s : « %s » (%u octets)\n", (unsigned)udpNbRecus, (unsigned long)(millis() / 1000), de.empty() ? "1NCE" : de.c_str(), vu.c_str(), (unsigned)d.size());
-    if (m == "lire" || m == "read" || m == "lees") {
-      if (MODE == 0) { udpLire = true; lectureDemandee = true; Serial.println(F("[UDP] → Lecture de la machine tout de suite, puis envoi du relevé à Supabase.")); }
+    // v1.5.2 : « lire » seul = lecture tout de suite ; « lire 42 » = la demande n°42 de Broodautomate (le bouton « Lire maintenant »
+    // l'a écrite dans ba_demandes) : le résultat lui est rendu tout de suite ; « lire 42 b » = avec le relevé complet (flux brut)
+    size_t mot = m.compare(0, 4, "lire") == 0 || m.compare(0, 4, "read") == 0 || m.compare(0, 4, "lees") == 0 ? 4 : 0;
+    if (mot && (m.size() == 4 || m[4] == ' ')) {
+      uint32_t numero = 0; bool brut = false; size_t i = 4;
+      while (i < m.size() && m[i] == ' ') i++;
+      while (i < m.size() && m[i] >= '0' && m[i] <= '9' && numero < 100000000UL) numero = numero * 10 + (uint32_t)(m[i++] - '0');
+      while (i < m.size() && m[i] == ' ') i++;
+      if (numero && i < m.size() && m[i] == 'b') { brut = true; i++; }
+      while (i < m.size() && m[i] == ' ') i++;
+      if (i != m.size()) { numero = 0; brut = false; }               // autre chose derrière : pas une demande de Broodautomate (lecture simple)
+      if (MODE == 0) {
+        udpLire = true; lectureDemandee = true;
+        if (numero) nouvelleDemande(numero, brut);
+        Serial.println(F("[UDP] → Lecture de la machine tout de suite, puis envoi du relevé à Supabase."));
+      }
       else Serial.println(F("[UDP] (mode essai : le boîtier ne lit pas la machine)"));
     }
     udpEnvoyerTexte(String("RECU ") + String(m.substr(0, 40).c_str()));

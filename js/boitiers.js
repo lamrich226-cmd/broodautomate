@@ -124,7 +124,9 @@ window.BA = window.BA || {};
 
   // ---------------- Lecture de Supabase ----------------
   async function loadDevices() {
-    const res = await sb().from("devices").select("id, name, machine_id, last_seen, info, created_at").order("created_at", { ascending: true });
+    let res = await sb().from("devices").select("id, name, machine_id, last_seen, info, created_at, iccid").order("created_at", { ascending: true });
+    // v5.26 : colonne « iccid » pas encore créée (v526.sql pas passé) → on relit sans elle, tout marche comme avant
+    if (res.error && /iccid/i.test(res.error.message || "")) res = await sb().from("devices").select("id, name, machine_id, last_seen, info, created_at").order("created_at", { ascending: true });
     if (res.error) {
       if (missing(res.error)) { installed = false; devices = []; return false; }
       throw new Error(res.error.message);
@@ -406,10 +408,31 @@ window.BA = window.BA || {};
     if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return null; }
     const row = (res.data || [])[0] || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
     demandes.set(d.id, row);
-    U().toast("📡 " + t("bx_read_sent", { d: delai() }), 6000);
+    // v5.26 : boîtier à carte 1NCE (ICCID connu) → message « lire » envoyé tout de suite par la fonction lire-1nce ;
+    // si elle échoue, la demande reste en attente et le boîtier la prend à son passage habituel (rien n'est perdu).
+    if (d.iccid && row.id) {
+      U().toast("⚡ " + t("bx_read_sent_fast"), 6000);
+      instantane(d, row.id);
+    } else U().toast("📡 " + t("bx_read_sent", { d: delai() }), 6000);
     showDem();
     watch();
     return row;
+  }
+  async function instantane(d, demId) {
+    try {
+      const r = await sb().functions.invoke("lire-1nce", { body: { device: d.id, demande: demId } });
+      if (r.error || !r.data || r.data.ok !== true) throw new Error((r.data && r.data.error) || (r.error && r.error.message) || "?");
+    } catch (e) { U().toast("⚠️ " + t("bx_read_fast_ko", { d: delai() }), 8000); console.warn("lire-1nce :", e.message); }
+  }
+  // v5.26 : enregistre le n° de carte SIM (ICCID) d'un boîtier ; vide = on l'enlève
+  async function saveIccid(id, v) {
+    const iccid = String(v || "").replace(/\s+/g, "");
+    if (iccid && !/^\d{18,20}$/.test(iccid)) { U().toast("⚠️ " + t("bx_iccid_bad")); return false; }
+    const res = await sb().from("devices").update({ iccid: iccid || null }).eq("id", id);
+    if (res.error) { U().toast("⚠️ " + t("bx_error", { e: /iccid/i.test(res.error.message || "") ? t("bx_iccid_sql") : res.error.message })); return false; }
+    const d = devices.find(x => x.id === id); if (d) d.iccid = iccid || null;
+    U().toast("✅ " + t("bx_iccid_saved"));
+    return true;
   }
   // Texte d'état de la dernière demande d'un boîtier
   function demText(d) {
@@ -456,7 +479,8 @@ window.BA = window.BA || {};
     if (!list.length) return "";
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
     return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(etatTxt(d))}</span>
-      ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>`;
+      ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span>
+      <div class="petit bx-iccid">📶 ${E(t("bx_iccid"))} <input class="txt-in" data-bxiccid="${E(d.id)}" inputmode="numeric" maxlength="30" placeholder="89882280…" value="${E(d.iccid || "")}"> <button class="btn petit" data-bxiccid-save="${E(d.id)}">💾</button> ${d.iccid ? "⚡" : ""}</div></div>`;
   }
 
   // ---------------- Bouton « 📡 Lire toutes les machines » (v5.3) ----------------
@@ -659,6 +683,8 @@ window.BA = window.BA || {};
     document.addEventListener("click", e => {
       const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
       if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
+      const sv = e.target && e.target.closest && e.target.closest("button[data-bxiccid-save]");
+      if (sv) { const inp = document.querySelector('input[data-bxiccid="' + sv.dataset.bxiccidSave + '"]'); saveIccid(sv.dataset.bxiccidSave, inp && inp.value).then(ok => { if (ok) showDem(); }); }
       // « Lire toutes les machines » : Commander, Dashboard, onglet Boîtiers 4G
       const a = e.target && e.target.closest && e.target.closest("button[data-bxreadall]");
       if (a && !a.disabled) { a.disabled = true; readAll().catch(err => U().toast("⚠️ " + t("bx_error", { e: err.message }))).finally(() => showDem()); }
@@ -858,6 +884,7 @@ window.BA = window.BA || {};
     return `<div class="add-sel-row rs-form">
       <label>${E(t("bx_name"))} <input id="bx-name" class="txt-in" value="${E(t("bx_name_def", { n: devices.length + 1 }))}"></label>
       ${BA.Programme ? `<label>📶 ${E(t("bx_sim"))} <select id="bx-sim" class="auto-w">${Object.keys(BA.Programme.SIMS).map(k => `<option value="${E(k)}">${E(BA.Programme.SIMS[k].nom)}</option>`).join("")}</select></label>` : ""}
+      <label>📶 ${E(t("bx_iccid"))} <input id="bx-iccid" class="txt-in" inputmode="numeric" maxlength="30" placeholder="89882280… (${E(t("bx_iccid_opt"))})"></label>
       <label>${E(t("machine"))} <select id="bx-machine" class="auto-w"><option value="">➕ ${E(t("bx_new_machine"))}</option>${ms.map(m => `<option value="${E(m.id)}">${E(nomM(m))}</option>`).join("")}</select></label>
       <span id="bx-new" class="bx-new">
         <label>${E(t("bx_m_street"))} <input id="bx-street" class="txt-in" placeholder="${E(t("rs_street_ph"))}"></label>
@@ -897,7 +924,7 @@ window.BA = window.BA || {};
     if (busy && !force) { clearTimeout(redrawT); redrawT = setTimeout(() => redraw(), 600); return; }   // un peu plus tard
     clearTimeout(redrawT);
     // v5.18 : ce qui est déjà tapé dans le formulaire « Ajouter un boîtier » est gardé quand la page est redessinée
-    const FORM = ["bx-name", "bx-sim", "bx-machine", "bx-street", "bx-city", "bx-plate"];
+    const FORM = ["bx-name", "bx-sim", "bx-iccid", "bx-machine", "bx-street", "bx-city", "bx-plate"];
     const saved = {}; FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f) saved[i] = f.value; });
     _el.innerHTML = html();
     FORM.forEach(i => { const f = _el.querySelector("#" + i); if (f && saved[i] != null) f.value = saved[i]; });
@@ -1014,10 +1041,14 @@ window.BA = window.BA || {};
     let mid = (document.getElementById("bx-machine") || {}).value;
     const sim = (document.getElementById("bx-sim") || {}).value || "digi";
     if (!name) { U().toast("⚠️ " + t("bx_err_fields")); return; }
+    const iccid = String((document.getElementById("bx-iccid") || {}).value || "").replace(/\s+/g, "");
+    if (iccid && !/^\d{18,20}$/.test(iccid)) { U().toast("⚠️ " + t("bx_iccid_bad")); return; }
     if (!mid) { mid = await creerMachine(); if (!mid) return; }
     const key = newKey();
     try {
-      const res = await sb().from("devices").insert({ name, machine_id: mid, key_hash: await sha256(key) }).select("id");
+      const ligne = { name, machine_id: mid, key_hash: await sha256(key) };
+      let res = await sb().from("devices").insert(iccid ? Object.assign({ iccid }, ligne) : ligne).select("id");
+      if (res.error && iccid && /iccid/i.test(res.error.message || "")) { res = await sb().from("devices").insert(ligne).select("id"); U().toast("⚠️ " + t("bx_iccid_sql"), 8000); }
       if (res.error) throw new Error(res.error.message);
     } catch (e) { U().toast("⚠️ " + t("bx_error", { e: e.message })); return; }
     lastKey = key;
