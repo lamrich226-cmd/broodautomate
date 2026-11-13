@@ -37,6 +37,14 @@ Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il e
   affiché. Les relevés partent toujours en HTTPS, filtrés, comme avant. Dans Broodautomate, la version s'affiche « v1.5 1NCE ».
 - Un message qui arrive pendant un envoi HTTPS n'est pas perdu ; si le modem ferme la liaison UDP, elle est rouverte (1 min).
 
+### v1.5.1 : correction de l'écoute 1NCE (le « lire » n'arrivait pas)
+Constaté sur un vrai boîtier : après l'envoi de `OUVERT` à 1NCE, le modem « collait » la liaison d'écoute à l'adresse de 1NCE
+(`10.60.8.90:4445`, visible avec `AT+CIPOPEN?`) et refusait le `lire` du Device Controller, qui arrive d'une autre adresse
+(`10.60.11.35:4445`). Après `AT+CIPCLOSE=0` puis `AT+CIPOPEN=0,"UDP",,,3000` (sans envoyer), le `lire` est arrivé.
+**v1.5.1** : la liaison 0 ne fait qu'**écouter** le port 3000 ; les messages vers 1NCE partent par la liaison 1 (port local 3001).
+Si la liaison 1 ne s'ouvre pas, le boîtier le dit dans le Moniteur série et revient à l'ancien fonctionnement.
+Pour une carte Digi (`ECOUTE_UDP 0`), rien ne change.
+
 ### Essai avec la carte 1NCE
 1. Portail 1NCE : **Configuration → Internet Breakout** → **Europe (Frankfurt)** (1NCE OS ne marche qu'avec Frankfurt,
    N. Virginia ou Tokyo ; en mode automatique, une carte en Belgique devrait déjà passer par Frankfurt). À faire AVANT

@@ -86,9 +86,9 @@ const etat = {
   ok("page opérateur : pas de fabrication de programme (zip.js, programme.js absents)", !/zip\.js|programme\.js/.test(opx));
   const cfgDepot = fs.readFileSync(path.join(LILY, "config.h"), "utf8");
   ok("dépôt : config.h sans vraie clé (COLLE_ICI…), MODE 1 par défaut, ECOUTE_UDP 0", /#define DEVICE_KEY\s+"COLLE_ICI_LA_CLE_DU_BOITIER"/.test(cfgDepot) && /^#define MODE\s+1\b/m.test(cfgDepot) && /^#define ECOUTE_UDP 0\b/m.test(cfgDepot) && !/"[0-9a-f]{32}"/.test(cfgDepot));
-  ok("dépôt : programme du boîtier v1.5", /#define FW_VERSION "1\.5"/.test(fs.readFileSync(path.join(LILY, "boitier.cpp"), "utf8")));
+  ok("dépôt : programme du boîtier v1.5.x", /#define FW_VERSION "1\.5(\.\d+)?"/.test(fs.readFileSync(path.join(LILY, "boitier.cpp"), "utf8")));
   const gen = lireZip(path.join(ROOT, "lilygo", "broodautomate_lilygo.zip"));
-  ok("dépôt : broodautomate_lilygo.zip = exactement les fichiers du dossier (v1.5)", gen.test === null && FICHIERS.every(f => gen.sha["broodautomate_lilygo/" + f] === sha(fs.readFileSync(path.join(LILY, f)))) && Object.keys(gen.sha).length === FICHIERS.length, Object.keys(gen.sha));
+  ok("dépôt : broodautomate_lilygo.zip = exactement les fichiers du dossier (v1.5.x)", gen.test === null && FICHIERS.every(f => gen.sha["broodautomate_lilygo/" + f] === sha(fs.readFileSync(path.join(LILY, f)))) && Object.keys(gen.sha).length === FICHIERS.length, Object.keys(gen.sha));
 
   await new Promise(r => srv.listen(0, r));
   const URL0 = "http://127.0.0.1:" + srv.address().port + "/";
