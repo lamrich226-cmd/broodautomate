@@ -9,8 +9,8 @@
 // Supabase → Edge Functions → Deploy a new function → nom « lire-1nce » → coller ce code → Deploy.
 // « Verify JWT » reste ACTIVÉ (l'appli envoie le jeton du compte connecté).
 // Secrets (Edge Functions → Secrets), à créer par Amor lui-même (jamais envoyés dans un chat) :
-//   NCE_API_USER      = nom d'utilisateur des « API credentials » du portail 1NCE
-//   NCE_API_PASSWORD  = mot de passe de ces « API credentials »
+//   NCE_API_USER      = « Client ID » créé dans le portail 1NCE (Account → Management API Access)
+//   NCE_API_PASSWORD  = « Client secret » de ce même couple
 // ============================================================
 import { createClient } from "jsr:@supabase/supabase-js@2";
 
@@ -59,7 +59,7 @@ const enBasic = (u: string, p: string) => "Basic " + btoa(u + ":" + p);
 async function envoyerUdp(fetchFn: typeof fetch, user: string, pass: string, iccid: string, texte: string): Promise<{ ok: boolean; id?: string; erreur?: string }> {
   let jeton = "";
   try {
-    const r = await fetchFn(API_NCE + "/oauth/token", { method: "POST", headers: { Authorization: enBasic(user, pass), "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ grant_type: "client_credentials" }) });
+    const r = await fetchFn(API_NCE + "/oauth/token", { method: "POST", headers: { Authorization: enBasic(user, pass), "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: "grant_type=client_credentials" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || typeof j.access_token !== "string") return { ok: false, erreur: "jeton 1NCE refusé (" + r.status + ")" };
     jeton = j.access_token;
