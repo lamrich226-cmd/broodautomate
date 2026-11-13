@@ -5,6 +5,7 @@
 (function () {
   const D = BA.I18n.dicts;
   Object.assign(D.fr, {
+    mv_ok: "OK",
     mv_close: "Fermer", mv_table_title: "Stock en tableau (modifier ici aussi)",
     ml_machine: "Machine", ml_address: "Adresse", ml_drawers: "Tiroirs (n° · pains)", ml_alerts: "À faire", ml_info: "Dernière info", ml_state: "Connexion",
     ml_layout_aria: "Façon d'afficher les machines", ml_cards: "Cartes", ml_list: "Liste",
@@ -32,6 +33,7 @@
     mv_full: "plein", mv_full_sel: "Ce tiroir est plein.", mv_after: "La machine maintenant"
   });
   Object.assign(D.nl, {
+    mv_ok: "OK",
     mv_close: "Sluiten", mv_table_title: "Voorraad in tabel (hier ook wijzigen)",
     ml_machine: "Automaat", ml_address: "Adres", ml_drawers: "Laden (nr · broden)", ml_alerts: "Te doen", ml_info: "Laatste info", ml_state: "Verbinding",
     ml_layout_aria: "Hoe de automaten worden getoond", ml_cards: "Kaarten", ml_list: "Lijst",
@@ -59,6 +61,7 @@
     mv_full: "vol", mv_full_sel: "Deze lade is vol.", mv_after: "De automaat nu"
   });
   Object.assign(D.en, {
+    mv_ok: "OK",
     mv_close: "Close", mv_table_title: "Stock as a table (edit here too)",
     ml_machine: "Machine", ml_address: "Address", ml_drawers: "Drawers (no. · breads)", ml_alerts: "To do", ml_info: "Last info", ml_state: "Connection",
     ml_layout_aria: "How machines are shown", ml_cards: "Cards", ml_list: "List",

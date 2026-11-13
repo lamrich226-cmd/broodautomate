@@ -40,9 +40,10 @@ window.BA = window.BA || {};
     return on() ? `<details class="mv-fold" data-fold="${key}"${folded(key) ? " open" : ""}><summary>${title}</summary>${html}</details>` : html;
   }
   // Fenêtre pop-up (par-dessus la page : rien ne s'élargit, rien ne descend)
-  function pop(inner) {
+  function pop(inner, ok) {
     return `<div class="mv-pop-back" data-mv-backdrop="1"><div class="mv-pop" role="dialog" aria-modal="true">
-      <button type="button" class="mv-pop-x btn secondary" id="mv-pop-x" data-mv-close="1" aria-label="${E(t("mv_close"))}">✖ ${t("mv_close")}</button>${inner}</div></div>`;
+      <button type="button" class="mv-pop-x btn secondary" id="mv-pop-x" data-mv-close="1" aria-label="${E(t("mv_close"))}">✖ ${t("mv_close")}</button>${inner}
+      ${ok === false ? "" : `<button type="button" class="btn mv-pop-ok" id="mv-pop-ok" data-mv-close="1">✔ ${t("mv_ok")}</button>`}</div></div>`;
   }
 
   // ---------------- Plan de la machine ----------------
@@ -186,6 +187,12 @@ window.BA = window.BA || {};
       <span class="mv-st ${stt.k}">${stt.txt}</span></${tag}>`;
   }
 
+  // Le tiroir en grand, en haut de la fenêtre : mêmes pains, mêmes heures et dates ; il se met à jour quand on change un nombre (+ colore la case vide)
+  function big(s, m, sel, list, stat) {
+    const l = list ? list(sel) : items.view(s, m, sel);
+    return `<div class="mv-big">${tile(m, sel, l, (stat || ((x, y) => status.view(x, y)))(sel, l), { ro: true })}</div>`;
+  }
+
   function freeTile(m, n, o) {
     const tag = o.ro ? "div" : "button";
     return `<${tag}${o.ro ? "" : ` type="button" data-mv-free="${n}" id="mvf-${m.num}-${n}" aria-pressed="${!!o.on}"`} class="mv-d-box mv-free${o.on ? " sel" : ""}${o.ro ? " ro" : ""}">
@@ -219,7 +226,8 @@ window.BA = window.BA || {};
       if (c.free) return `<span class="mv-c st-free" title="${E(t("mv_unused"))}"><small>${c.n}</small><b>–</b></span>`;
       const B = breads(s, m, c.sel), stt = status.view(c.sel, B).k, q = B.length;
       const flag = stt === "must" ? "⛔" : stt === "old" ? "⚠" : stt === "kept" ? "⏳" : "";
-      return `<span class="mv-c st-${stt}" title="${E(t("mv_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><small>${c.sel.n}</small><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span>`;
+      const fill = q <= 0 ? "none" : q >= c.sel.cap ? "full" : "part";     // vide : rouge · plein : vert · entre les deux : orange
+      return `<span class="mv-c st-${stt} fill-${fill}" title="${E(t("mv_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><small>${c.sel.n}</small><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span>`;
     }).join("")}</div>`).join("")}</div>`;
   }
 
@@ -268,7 +276,7 @@ window.BA = window.BA || {};
           <button type="button" class="btn petit ${old || must ? "" : "secondary"}" data-mv-rm="${sel.n}" data-lot="${l.id}" title="${E(t("btn_rm_tip"))}">➖ ${t("btn_withdraw")}</button></span></div>`;
     }).join("");
     const id = k => `mvx-${k}-${m.num}`;
-    return `<div class="mv-panel">${msgHtml(m.num)}
+    return `<div class="mv-panel">${msgHtml(m.num)}${big(s, m, sel)}
       <div class="mv-ph"><h4>${t("mv_sel", { n: sel.n })} · ${U.prod(sel.type)}</h4><b class="mv-price-big">${F.eur(sel.price)}</b></div>
       <div class="mv-kv"><span>${t("mv_inside")}</span><b>${q} / ${sel.cap}</b></div>
       ${lots || `<div class="petit">${t("mv_empty")}</div>`}
@@ -315,7 +323,7 @@ window.BA = window.BA || {};
     const cell = key != null ? cells.find(c => c.key === key) : null;
     const panel = !cell ? "" : cell.free ? panelFree(s, m, cell.n) : panelSel(s, m, cell.sel);
     const g = grid(s, m, { key, free: true, freeClick: true });
-    return `<div class="mv-machine"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${cell ? pop(panel) : ""}`;
+    return `<div class="mv-machine"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${cell ? pop(panel, !cell.free) : ""}`;
   }
 
   // Bloc complet (Détail machine, Produits / Stock)
@@ -410,8 +418,8 @@ window.BA = window.BA || {};
       if (d.mvClose != null) return close();
       if (d.mvSel != null) { S.mvSel = { num, key: String(d.mvSel), open: true }; S.mvEdit = null; return open(b.id); }
       if (d.mvFree != null) { S.mvSel = { num, key: "f" + d.mvFree, open: true }; S.mvAdd = null; return open(b.id); }
-      if (d.mvRm != null) return U.removeDialog(num, d.mvRm, d.lot);
-      if (d.mvKeep != null) return A.keepLot(num, d.mvKeep, d.lot);
+      if (d.mvRm != null) { S.mvSel = null; S.mvEdit = null; redraw(); return U.removeDialog(num, d.mvRm, d.lot); }   // la fenêtre du tiroir se ferme, la fenêtre « Retirer » s'ouvre seule
+      if (d.mvKeep != null) { S.mvSel = null; S.mvEdit = null; redraw(); return A.keepLot(num, d.mvKeep, d.lot); }
       if (d.mvxSave != null) return save(Number(d.mvxSave));
       if (d.mvxDel != null) return del(Number(d.mvxDel));
       if (d.mvaGo != null) return add();
@@ -444,5 +452,5 @@ window.BA = window.BA || {};
     });
   }
 
-  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop };
+  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop, big };
 })();

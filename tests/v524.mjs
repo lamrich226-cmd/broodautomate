@@ -90,9 +90,14 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
     await shot(a, "v524-00c-popup-pc");
     await a.click(".mv-pop [data-mv-rm]"); await sleep(400);
     ok("« Retirer » d'un lot ouvre la fenêtre habituelle de retrait (par-dessus)", !!(await a.$("#modal-root .modal")));
+    ok("la fenêtre du tiroir s'est fermée quand la fenêtre « Retirer » s'ouvre", !(await a.$(".mv-pop")));
     await a.keyboard.press("Escape"); await sleep(200);
-    ok("Échap ferme la fenêtre de retrait, la fenêtre du tiroir reste", !(await a.$("#modal-root .modal")) && !!(await a.$(".mv-pop")));
-    await a.keyboard.press("Escape"); await sleep(200);
+    ok("Échap ferme la fenêtre de retrait", !(await a.$("#modal-root .modal")));
+    await a.click(`#mvt-105-${bad}`); await sleep(250);
+    ok("bouton « OK » en bas de la fenêtre du tiroir", !!(await a.$(".mv-pop #mv-pop-ok")));
+    await a.click("#mv-pop-ok"); await sleep(250);
+    ok("« OK » ferme la fenêtre", !(await a.$(".mv-pop")));
+    await a.click(`#mvt-105-${bad}`); await sleep(250); await a.keyboard.press("Escape"); await sleep(200);
     ok("Échap ferme la fenêtre du tiroir", !(await a.$(".mv-pop")));
     await a.click(`#mvt-105-${bad}`); await sleep(250); await a.mouse.click(5, 5); await a.mouse.move(800, 450); await sleep(450);
     ok("un clic à côté ferme aussi la fenêtre", !(await a.$(".mv-pop")));
@@ -121,6 +126,13 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   // étape 1 : un tiroir compté avec un pain de moins
   const inv = await S(o, n => { const s = BA.Store.get(), M = BA.Model, m = M.machine(s, n); const sel = m.sels.find(z => M.qty(z) >= 2); M.sortLots(sel); return { n: sel.n, q: M.qty(sel), first: { id: sel.lots[0].id, qty: sel.lots[0].qty } }; }, num);
   const h0 = await o.$eval("#wz-mv .mv-glass", e => e.getBoundingClientRect().height);
+  await o.evaluate(() => { const b = document.querySelector(".modal-back"); b.scrollTop = b.scrollHeight; }); await sleep(250);
+  const lastSel = await o.$$eval("#wz-mv [data-mv-sel]", l => l[l.length - 1].dataset.mvSel);
+  await o.click(`#mvt-${num}-${lastSel}`); await sleep(300);
+  const pr = await o.$eval(".mv-pop", e => { const r = e.getBoundingClientRect(), bk = document.querySelector(".mv-pop-back").getBoundingClientRect(); return { top: r.top, bottom: r.bottom, vh: innerHeight, bk: [bk.top, bk.height] }; });
+  ok("page défilée vers le bas : la fenêtre du tiroir s'ouvre au milieu de l'écran (pas tout en haut de la page)", pr.top >= 0 && pr.bottom <= pr.vh && pr.bk[0] === 0 && pr.bk[1] === pr.vh, pr);
+  await o.click("#mv-pop-ok"); await sleep(250);
+  await o.evaluate(() => { document.querySelector(".modal-back").scrollTop = 0; }); await sleep(200);
   await o.click(`#mvt-${num}-${inv.n}`); await sleep(250);
   ok("téléphone : le panneau s'ouvre en fenêtre pop-up (rien ne descend)", !!(await o.$(".mv-pop .mv-panel")) && !(await o.$(".mv-inline, .mv-side")) && Math.abs((await o.$eval("#wz-mv .mv-glass", e => e.getBoundingClientRect().height)) - h0) < 1);
   await shot(o, "v524-02b-popup-tel");
@@ -143,6 +155,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await o.click(`#mvt-${num}-${keep.sel}`); await sleep(250);
   await shot(o, "v524-04-retrait-tel");
   await o.click(`#mvr-k-${keep.sel}-${keep.lotId}`); await sleep(250);
+  ok("« Encore bon » : le choix est fait et la fenêtre du tiroir se ferme (elle ne se rouvre pas)", !(await o.$(".mv-pop")));
   ok("« Encore bon » : le tiroir montre les pains gardés (⏳)", (await o.$$(`#mvt-${num}-${keep.sel} .mv-loaf.k-keep`)).length === keep.qty);
   await shot(o, "v524-05-retrait-garder-tel");
   await o.keyboard.press("Escape"); await sleep(250);

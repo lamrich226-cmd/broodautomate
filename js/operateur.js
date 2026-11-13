@@ -482,7 +482,7 @@
       if (w.mvOpen && !sel) w.mvOpen = false;
       const key = sel ? String(sel.n) : null;
       const grid = V.grid(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false });
-      return `<div class="mv-machine"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${sel ? V.pop(o.panel(sel)) : ""}${o.footer}`;
+      return `<div class="mv-machine"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${sel ? V.pop(V.big(s, m, sel, o.list, o.stat) + o.panel(sel)) : ""}${o.footer}`;
     },
 
     // compteur − / + (grands boutons pour le doigt)
@@ -654,6 +654,7 @@
           if (!r || r.mandatory) return;
           const R = w.rmd || (w.rmd = {}), v0 = this.rmDraft(r);
           R[k] = Math.max(0, Math.min(r.qty, d.mvrSet != null ? Number(d.v) : v0 + Number(d.d)));
+          if (d.mvrSet != null) { w.mvOpen = false; return this.mRefresh("mvt-" + m.num + "-" + r.sel); }   // « Tout retirer » / « Encore bon » : choix fait, la fenêtre se ferme
           return this.mRefresh(b.id);
         }
         // étape 3 : pains chargés (une ou plusieurs dates de livraison par tiroir, comme dans le tableau)
