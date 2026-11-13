@@ -217,9 +217,15 @@ class Modem {
   // message (ex. « lire ») sans que le boîtier ait rien demandé. Un message qui arrive pendant une autre commande
   // du modem (envoi HTTPS…) est gardé de côté : il n'est pas perdu. Tout est affiché dans le Moniteur série.
   bool udpPret = false;
+  // v1.5.1 : DEUX liaisons. La liaison 0 ne fait QU'ÉCOUTER le port 3000 : si on envoie avec elle, le modem la « colle »
+  // à l'adresse de 1NCE (10.60.8.90:4445) et refuse ensuite le « lire » du Device Controller, qui vient d'une autre
+  // adresse (constaté sur un vrai boîtier : « lire » reçu seulement après AT+CIPCLOSE=0 + AT+CIPOPEN, sans envoi).
+  // Les messages vers 1NCE partent par la liaison 1 (port local 3001). Si la liaison 1 ne s'ouvre pas, repli sur la 0.
+  int udpLienEnvoi = 0;
   bool udpOuvrir(int portLocal) {
-    udpPret = false; udpBuf_.clear(); udpLigne_.clear(); udpDepuis_ = 0; udpManuel_ = false;
+    udpPret = false; udpBuf_.clear(); udpLigne_.clear(); udpDepuis_ = 0; udpManuel_ = false; udpLienEnvoi = 0;
     at("AT+CIPCLOSE=0", "OK", 3000);                                   // ancienne liaison éventuelle (une erreur ici est normale)
+    at("AT+CIPCLOSE=1", "OK", 3000);
     at("AT+CSOCKSETPN=1", "OK", 3000);                                 // contexte de données n°1 (celui de l'APN)
     at("AT+CIPRXGET=0", "OK", 2000);                                   // les messages reçus sont donnés tout seuls
     at("AT+CIPSRIP=1", "OK", 2000);                                    // avec l'adresse de l'expéditeur (« RECV FROM: »)
@@ -230,6 +236,9 @@ class Modem {
     atLigne(String("AT+CIPOPEN=0,\"UDP\",,,") + String(portLocal), "+CIPOPEN:", 15000);
     Serial.println("[UDP] CIPOPEN → " + nettoie(rep_));
     if (rep_.indexOf("+CIPOPEN: 0,0") < 0) { derniereErreur = "CIPOPEN : " + nettoie(rep_); return false; }
+    atLigne(String("AT+CIPOPEN=1,\"UDP\",,,") + String(portLocal + 1), "+CIPOPEN:", 15000);   // liaison d'envoi vers 1NCE
+    if (rep_.indexOf("+CIPOPEN: 1,0") >= 0) udpLienEnvoi = 1;
+    else Serial.println("[UDP] ⚠ Liaison d'envoi (1) impossible : " + nettoie(rep_) + " — repli : envoi par la liaison d'écoute (le « lire » pourra être refusé après le premier envoi).");
     udpPret = true;
     return true;
   }
@@ -248,7 +257,7 @@ class Modem {
   // Envoie un petit message UDP (508 octets au plus chez 1NCE)
   bool udpEnvoyer(const String& ip, int port, const String& texte) {
     if (!udpPret) return false;
-    if (!at(String("AT+CIPSEND=0,") + String((unsigned)texte.length()) + ",\"" + ip + "\"," + String(port), ">", 5000)) { derniereErreur = "CIPSEND : " + nettoie(rep_); return false; }
+    if (!at(String("AT+CIPSEND=") + String(udpLienEnvoi) + "," + String((unsigned)texte.length()) + ",\"" + ip + "\"," + String(port), ">", 5000)) { derniereErreur = "CIPSEND : " + nettoie(rep_); return false; }
     s_.print(texte);
     if (!attendreTexte("+CIPSEND:", 10000, true)) { derniereErreur = "CIPSEND (pas de confirmation)"; return false; }
     return rep_.indexOf("ERROR") < 0;

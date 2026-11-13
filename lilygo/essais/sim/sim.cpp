@@ -34,12 +34,13 @@ struct FauxModem : Port {
   }
   bool ntpFait = false; uint32_t demandeSuivante = 7;
   // v1.5 : UDP (essai 1NCE)
-  bool udpMode = false, netOuvert = false, udpOuvert = false; std::vector<std::string> udpEnvois; int udpRecus = 0;
+  bool liaison1Impossible = false; bool udpMode = false, netOuvert = false, udpOuvert = false, lien1Ouvert = false, lien0Colle = false; int lienEnvoi = 0; std::vector<std::string> udpEnvois; int udpRecus = 0, udpRefuses = 0;
   // format des messages reçus (on ne sait pas encore lequel le vrai modem donne : les cinq sont essayés)
   //   0 = RECV FROM + +RECEIVE,0,n ; 1 = RECV FROM + +IPDn ; 2 = +IPDn seul ; 3 = RECV FROM puis le message seul ; 4 = +CIPRXGET: 1,0 (à demander)
   int udpFormat = 0, udpPendantHttp = 0; std::string udpGarde, udpTexteHttp = "lire";
   void udpRecoit(const std::string& s) {
     if (!udpOuvert) return;
+    if (lien0Colle) { udpRefuses++; return; }          // vrai modem constaté : une liaison qui a envoyé est « collée » à 1NCE (10.60.8.90:4445) et refuse le « lire » venu d'une autre adresse
     udpRecus++;
     const std::string de = "RECV FROM:3.120.5.9:4445\r\n", n = std::to_string(s.size());
     if (udpFormat == 0) rep("\r\n" + de + "+RECEIVE,0," + n + "\r\n" + s + "\r\n", 5);
@@ -50,7 +51,7 @@ struct FauxModem : Port {
   }
   void recu(const uint8_t* b, size_t n) override {
     for (size_t i = 0; i < n; i++) {
-      if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; if (udpMode) { udpMode = false; udpEnvois.push_back(corps); rep("\r\n+CIPSEND: 0," + std::to_string(corps.size()) + "," + std::to_string(corps.size()) + "\r\n\r\nOK\r\n", 20); } else { envois.push_back(corps); rep("\r\nOK\r\n", 20); } } continue; }
+      if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; if (udpMode) { udpMode = false; udpEnvois.push_back(corps); rep("\r\n+CIPSEND: " + std::to_string(lienEnvoi) + "," + std::to_string(corps.size()) + "," + std::to_string(corps.size()) + "\r\n\r\nOK\r\n", 20); } else { envois.push_back(corps); rep("\r\nOK\r\n", 20); } } continue; }
       ligne += (char)b[i];
       if (ligne.size() >= 2 && ligne.substr(ligne.size() - 2) == "\r\n") { std::string c = ligne.substr(0, ligne.size() - 2); ligne.clear(); commande(c); }
     }
@@ -59,13 +60,16 @@ struct FauxModem : Port {
     auto commence = [&](const char* p) { return c.compare(0, strlen(p), p) == 0; };
     if (commence("AT+HTTPPARA=\"URL\",\"")) { url = c.substr(19, c.size() - 20); rep("\r\nOK\r\n"); return; }
     if (commence("AT+HTTPPARA=\"USERDATA\",\"")) { entete = c.substr(24, c.size() - 25); rep("\r\nOK\r\n"); return; }
-    if (c == "AT+CIPCLOSE=0") { rep(udpOuvert ? (udpOuvert = false, "\r\nOK\r\n\r\n+CIPCLOSE: 0,0\r\n") : "\r\n+CIPCLOSE: 0,2\r\n\r\nERROR\r\n"); return; }
+    if (c == "AT+CIPCLOSE=0") { rep(udpOuvert ? (udpOuvert = false, lien0Colle = false, "\r\nOK\r\n\r\n+CIPCLOSE: 0,0\r\n") : "\r\n+CIPCLOSE: 0,2\r\n\r\nERROR\r\n"); return; }
+    if (c == "AT+CIPCLOSE=1") { rep(lien1Ouvert ? (lien1Ouvert = false, "\r\nOK\r\n\r\n+CIPCLOSE: 1,0\r\n") : "\r\n+CIPCLOSE: 1,2\r\n\r\nERROR\r\n"); return; }
+    if (commence("AT+CIPOPEN=1,\"UDP\",,,")) { if (liaison1Impossible) { rep("\r\n+CIPOPEN: 1,4\r\n\r\nERROR\r\n", 50); return; } lien1Ouvert = true; rep("\r\nOK\r\n\r\n+CIPOPEN: 1,0\r\n", 50); return; }
+    if (commence("AT+CIPSEND=1,")) { attendus = (size_t)atol(c.c_str() + 13); corps.clear(); data = true; udpMode = true; lienEnvoi = 1; rep("\r\n>", 5); return; }
     if (commence("AT+CGSOCKCONT") || c == "AT+CSOCKSETPN=1" || c == "AT+CIPRXGET=0" || c == "AT+CIPSRIP=1" || c == "AT+CIPHEAD=1") { rep("\r\nOK\r\n"); return; }
     if (c == "AT+CIPRXGET=2,0,1400") { rep("\r\n+CIPRXGET: 2,0," + std::to_string(udpGarde.size()) + ",0\r\n" + udpGarde + "\r\nOK\r\n", 5); udpGarde.clear(); return; }
     if (c == "AT+NETOPEN") { if (netOuvert) rep("\r\n+IP ERROR: Network is already opened\r\n"); else { netOuvert = true; rep("\r\nOK\r\n\r\n+NETOPEN: 0\r\n", 300); } return; }
-    if (commence("AT+CIPOPEN=0,\"UDP\",,,")) { udpOuvert = true; rep("\r\nOK\r\n\r\n+CIPOPEN: 0,0\r\n", 50); return; }
+    if (commence("AT+CIPOPEN=0,\"UDP\",,,")) { udpOuvert = true; lien0Colle = false; rep("\r\nOK\r\n\r\n+CIPOPEN: 0,0\r\n", 50); return; }
     if (commence("AT+CDNSGIP=")) { rep("\r\nOK\r\n\r\n+CDNSGIP: 1,\"udp.os.1nce.com\",\"3.120.1.2\"\r\n", 200); return; }
-    if (commence("AT+CIPSEND=0,")) { attendus = (size_t)atol(c.c_str() + 13); corps.clear(); data = true; udpMode = true; rep("\r\n>", 5); return; }
+    if (commence("AT+CIPSEND=0,")) { attendus = (size_t)atol(c.c_str() + 13); corps.clear(); data = true; udpMode = true; lienEnvoi = 0; lien0Colle = true; rep("\r\n>", 5); return; }
     if (c == "AT" || c == "ATE0" || commence("AT+CMEE") || commence("AT+CTZU") || commence("AT+CFUN") || commence("AT+CDNSCFG") || commence("AT+COPS=") || commence("AT+CNMP") || commence("AT+CEREG=") || commence("AT+CGDCONT") || commence("AT+CSSLCFG") || commence("AT+HTTPPARA")) rep("\r\nOK\r\n");
     else if (c == "AT+CGMR") rep("\r\n+CGMR: A011B07A7670M7_F\r\n\r\nOK\r\n");
     else if (c == "AT+CPIN?") rep("\r\n+CPIN: READY\r\n\r\nOK\r\n");
@@ -252,6 +256,7 @@ int main(int argc, char** argv) {
   if (scen.compare(0, 3, "udp") == 0) {
     machineSim.rapport = inventerEva();
     if (scen == "udp") { evenements[10UL * 60000UL] = 31; evenements[25UL * 60000UL] = 30; evenements[30UL * 60000UL] = 32; evenements[33UL * 60000UL] = 33; modemSim.udpPendantHttp = 12; duree = 50UL * 60000UL; }
+    else if (scen == "udp_repli") { modemSim.liaison1Impossible = true; evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; }
     else { evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; modemSim.udpFormat = scen == "udp_ipd" ? 1 : scen == "udp_ipd_seul" ? 2 : scen == "udp_brut" ? 3 : 4; }
   }
   if (scen == "cle") modemSim.code = 401;
@@ -282,6 +287,7 @@ int main(int argc, char** argv) {
   for (auto& e : modemSim.appelsRpc) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
   o = fopen("udp.txt", "w");
+  fprintf(stderr, "udpRefuses=%d\n", modemSim.udpRefuses);
   for (auto& e : modemSim.udpEnvois) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
   fprintf(stderr, "RESUME scen=%s envois=%zu lectures=%d sessionsMachine=%d restarts=%d http=%d rpc=%zu rpcSansCle=%d\n", scen.c_str(), modemSim.envois.size(), machineSim.lectures, machineSim.sessionsMachine, g_restarts, modemSim.actions, modemSim.appelsRpc.size(), modemSim.rpcSansCle);

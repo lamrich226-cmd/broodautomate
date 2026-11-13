@@ -29,7 +29,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.5"
+#define FW_VERSION "1.5.1"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC

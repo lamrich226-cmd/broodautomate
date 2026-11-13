@@ -21,6 +21,11 @@ done
 ok "udp : « lire » reçu PENDANT un envoi HTTPS n'est pas perdu (lecture à 18 min)" $(grep -q "^\[18:2.\] \[UDP\] ✔✔ MESSAGE REÇU" build_udp/console.txt && echo 1) "$(grep 'MESSAGE REÇU' build_udp/console.txt | tr '\n' '|')"
 ok "udp : liaison fermée par le modem → réouverte" $(grep -q "a fermé la liaison UDP" build_udp/console.txt && [ "$(grep -c '✔ Le boîtier écoute le port 3000' build_udp/console.txt)" = 2 ] && echo 1) "$(grep -c 'écoute le port' build_udp/console.txt)"
 ok "udp : un autre message (« Hello world ») est seulement affiché, sans lecture" $(grep -q "^RECU hello world" build_udp/udp.txt && echo 1) "$(tr '\n' '|' < build_udp/udp.txt)"
-ok "udp : la version annoncée à Supabase dit « 1NCE »" $(grep -q '"fw":"1.5 1NCE"' build_udp/envois.txt && echo 1) "$(head -c 160 build_udp/envois.txt)"
-rm -rf build_udp build_udp_ipd build_udp_ipd_seul build_udp_brut build_udp_manuel
+ok "udp : la version annoncée à Supabase dit « 1NCE »" $(grep -q '"fw":"1.5.1 1NCE"' build_udp/envois.txt && echo 1) "$(head -c 160 build_udp/envois.txt)"
+# v1.5.1 : le vrai modem « colle » une liaison qui a envoyé à 1NCE et refuse ensuite le « lire » : les envois partent par la liaison 1
+ok "udp : aucun message refusé par le modem (envois par une liaison à part)" $(grep -q "^udpRefuses=0" /tmp/essai_udp_udp.txt && echo 1) "$(grep udpRefuses /tmp/essai_udp_udp.txt)"
+ok "udp : liaison d'envoi (1) ouverte, aucun repli" $(! grep -q "Liaison d'envoi (1) impossible" build_udp/console.txt && echo 1)
+UDP=1 RELEVE=/dev/null bash lancer.sh udp_repli 0 > /dev/null 2> /tmp/essai_udp_repli.txt || ok "udp_repli : simulation lancée" 0 "$(tail -3 /tmp/essai_udp_repli.txt)"
+ok "udp_repli : liaison 1 impossible → avertissement et repli sur la liaison 0, rien ne plante" $(grep -q "Liaison d'envoi (1) impossible" build_udp_repli/console.txt && grep -q "restarts=0" /tmp/essai_udp_repli.txt && echo 1) "$(tail -2 /tmp/essai_udp_repli.txt)"
+rm -rf build_udp_repli build_udp build_udp_ipd build_udp_ipd_seul build_udp_brut build_udp_manuel
 if [ $KO = 0 ]; then echo "Essai UDP : TOUT EST OK"; else echo "Essai UDP : $KO ÉCHEC(S)"; exit 1; fi
