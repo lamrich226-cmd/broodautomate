@@ -98,6 +98,21 @@ const ICCID = "89882280666680646327";
   const n1 = appels.length; const e = await p.evaluate(() => BA.Boitiers.readNow("dev-B")); await sleep(800);
   ok("ensuite : « Lire maintenant » de ce boîtier est instantané aussi", appels.length === n1 + 1 && appels[n1].device === "dev-B", appels);
 
+  console.log("== 4b. Bouton « 📊 Consommation » (exacte, en Ko)");
+  let conso = 0;
+  await ctx.route(/functions\/v1\/conso-1nce/, async r => {
+    if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*" } });
+    conso++;
+    return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ ok: true, jours: [{ date: "2026-11-13", ko: 52.1, rx: 20, tx: 32.1 }, { date: "2026-11-12", ko: 10, rx: 4, tx: 6 }], restantKo: 499900, totalKo: 500000 }) });
+  });
+  await p.evaluate(() => { document.body.insertAdjacentHTML("beforeend", '<div id="zc">' + BA.Boitiers.detail({ id: "FAS-526000001" }) + "</div>"); });
+  ok("bouton « 📊 Consommation » visible pour un boîtier avec ICCID", !!(await p.$('#zc button[data-bxconso="dev-A"]')));
+  await p.evaluate(() => { BA.Boitiers.devices && 0; });
+  await p.click('#zc button[data-bxconso="dev-A"]'); await sleep(800);
+  const cTxt = await p.innerText('#zc [data-bxconso-out="dev-A"]');
+  ok("fonction appelée une fois, affichage : jour par jour en Ko, total 7 jours, reste", conso === 1 && /13\/11 : 52,1 Ko/.test(cTxt) && /12\/11 : 10 Ko/.test(cTxt) && /62,1 Ko/.test(cTxt) && /499\s?900 Ko/.test(cTxt), cTxt);
+  await p.screenshot({ path: path.join(OUT, "v526-conso.png") });
+
   console.log("== 5. Formulaire « Ajouter un boîtier »");
   const f = "";
   await p.evaluate(() => { BA.Technique && BA.Technique.tab("boxes"); BA.Shell.go("technique"); }); await p.waitForSelector("#view-technique.active"); await sleep(800);

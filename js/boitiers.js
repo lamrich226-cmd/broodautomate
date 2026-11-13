@@ -424,6 +424,21 @@ window.BA = window.BA || {};
       if (r.error || !r.data || r.data.ok !== true) throw new Error((r.data && r.data.error) || (r.error && r.error.message) || "?");
     } catch (e) { U().toast("⚠️ " + t("bx_read_fast_ko", { d: delai() }), 8000); console.warn("lire-1nce :", e.message); }
   }
+  // v5.27 : consommation EXACTE de la carte 1NCE (fonction conso-1nce), en Ko
+  const ko = v => v == null ? "—" : new Intl.NumberFormat((BA.I18n && typeof BA.I18n.lang === "string" ? BA.I18n.lang : "fr"), { maximumFractionDigits: 1 }).format(v) + " Ko";
+  async function consoCarte(id) {
+    const out = () => document.querySelector('[data-bxconso-out="' + id + '"]');
+    const w = out(); if (w) w.textContent = "⏳";
+    try {
+      const r = await sb().functions.invoke("conso-1nce", { body: { device: id } });
+      const j = r.data;
+      if (r.error || !j || j.ok !== true) throw new Error((j && j.error) || (r.error && r.error.message) || "?");
+      const jr = (j.jours || []).slice(0, 7);
+      const txt = jr.length ? jr.map(x => x.date.slice(5).split("-").reverse().join("/") + " : " + ko(x.ko)).join(" · ") : t("bx_conso_none");
+      const tot = jr.reduce((a, x) => a + (x.ko || 0), 0);
+      const w2 = out(); if (w2) w2.textContent = txt + (jr.length ? " — " + t("bx_conso_sum", { k: ko(tot) }) : "") + (j.restantKo != null ? " — " + t("bx_conso_left", { k: ko(j.restantKo) }) : "");
+    } catch (e) { const w2 = out(); if (w2) w2.textContent = "⚠️ " + t("bx_error", { e: e.message }); }
+  }
   // v5.26 : enregistre le n° de carte SIM (ICCID) d'un boîtier ; vide = on l'enlève
   async function saveIccid(id, v) {
     const iccid = String(v || "").replace(/\s+/g, "");
@@ -480,7 +495,8 @@ window.BA = window.BA || {};
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
     return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(etatTxt(d))}</span>
       ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span>
-      <div class="petit bx-iccid">📶 ${E(t("bx_iccid"))} <input class="txt-in" data-bxiccid="${E(d.id)}" inputmode="numeric" maxlength="30" placeholder="89882280…" value="${E(d.iccid || "")}"> <button class="btn petit" data-bxiccid-save="${E(d.id)}">💾</button> ${d.iccid ? "⚡" : ""}</div></div>`;
+      <div class="petit bx-iccid">📶 ${E(t("bx_iccid"))} <input class="txt-in" data-bxiccid="${E(d.id)}" inputmode="numeric" maxlength="30" placeholder="89882280…" value="${E(d.iccid || "")}"> <button class="btn petit" data-bxiccid-save="${E(d.id)}">💾</button> ${d.iccid ? "⚡" : ""}
+        ${d.iccid ? `<button class="btn petit" data-bxconso="${E(d.id)}">📊 ${E(t("bx_conso"))}</button> <span class="petit" data-bxconso-out="${E(d.id)}"></span>` : ""}</div></div>`;
   }
 
   // ---------------- Bouton « 📡 Lire toutes les machines » (v5.3) ----------------
@@ -683,6 +699,8 @@ window.BA = window.BA || {};
     document.addEventListener("click", e => {
       const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
       if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
+      const cb = e.target && e.target.closest && e.target.closest("button[data-bxconso]");
+      if (cb) consoCarte(cb.dataset.bxconso);
       const sv = e.target && e.target.closest && e.target.closest("button[data-bxiccid-save]");
       if (sv) { const inp = document.querySelector('input[data-bxiccid="' + sv.dataset.bxiccidSave + '"]'); saveIccid(sv.dataset.bxiccidSave, inp && inp.value).then(ok => { if (ok) showDem(); }); }
       // « Lire toutes les machines » : Commander, Dashboard, onglet Boîtiers 4G

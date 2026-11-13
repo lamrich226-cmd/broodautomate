@@ -6,6 +6,10 @@
   const D = BA.I18n.dicts;
 
   Object.assign(D.fr, {
+    bx_conso: "Consommation",
+    bx_conso_none: "Pas encore de chiffre pour les 7 derniers jours.",
+    bx_conso_sum: "7 jours : {k}",
+    bx_conso_left: "reste {k}",
     bx_iccid: "N° de la carte SIM (ICCID)",
     bx_iccid_opt: "carte 1NCE, facultatif",
     bx_iccid_bad: "Le n° de la carte SIM (ICCID) doit contenir 18 à 20 chiffres (il est écrit sur la carte et dans le portail 1NCE).",
@@ -15,6 +19,10 @@
     bx_read_fast_ko: "L'ordre instantané n'est pas parti : le boîtier lira la machine à son prochain passage ({d} au plus)."
   });
   Object.assign(D.nl, {
+    bx_conso: "Verbruik",
+    bx_conso_none: "Nog geen cijfer voor de laatste 7 dagen.",
+    bx_conso_sum: "7 dagen: {k}",
+    bx_conso_left: "over: {k}",
     bx_iccid: "Nr. van de simkaart (ICCID)",
     bx_iccid_opt: "1NCE-kaart, facultatief",
     bx_iccid_bad: "Het nr. van de simkaart (ICCID) moet 18 tot 20 cijfers bevatten (staat op de kaart en in het 1NCE-portaal).",
@@ -24,6 +32,10 @@
     bx_read_fast_ko: "Het directe bevel is niet vertrokken: de module leest de automaat bij zijn volgende contact (hoogstens {d})."
   });
   Object.assign(D.en, {
+    bx_conso: "Usage",
+    bx_conso_none: "No figure yet for the last 7 days.",
+    bx_conso_sum: "7 days: {k}",
+    bx_conso_left: "left: {k}",
     bx_iccid: "SIM card number (ICCID)",
     bx_iccid_opt: "1NCE card, optional",
     bx_iccid_bad: "The SIM card number (ICCID) must have 18 to 20 digits (printed on the card and in the 1NCE portal).",
