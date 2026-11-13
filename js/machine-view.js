@@ -331,6 +331,9 @@ window.BA = window.BA || {};
   // Bloc complet (Détail machine, Produits / Stock)
   function block(s, m, o) {
     o = o || {};
+    // position de la fenêtre lue juste avant que la page soit redessinée (l'événement « scroll » peut arriver trop tard)
+    const S = st(), old = document.querySelector(`.mv-wrap[data-mv-num="${m.num}"] .mv-pop`);
+    if (old && S.mvSel && S.mvSel.open && S.mvSel.num === m.num) S.mvPopTop = old.scrollTop;
     return `<div class="mv-wrap" data-mv-num="${m.num}">
       ${o.title === false ? "" : `<h3>🧩 ${t("vm_title")}</h3>`}<p class="note">${t("vm_note")}</p>
       <div class="mv-area">${area(s, m)}</div></div>`;

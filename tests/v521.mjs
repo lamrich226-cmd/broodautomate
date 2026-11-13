@@ -82,7 +82,7 @@ const etat = {
   ok("version 5.25.0 dans config.js", version === "5.25.0", version);
   const pos = s => idx.indexOf(s);
   ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.25.0") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
-  ok("les deux pages chargent i18n-v521.js juste après i18n-v520.js", /i18n-v520\.js\?v=5\.23\.0"><\/script>\s*<script src="js\/i18n-v521\.js\?v=5\.23\.0"/.test(idx) && /i18n-v520\.js\?v=5\.23\.0"><\/script>\s*<script src="js\/i18n-v521\.js\?v=5\.23\.0"/.test(opx));
+  ok("les deux pages chargent i18n-v521.js juste après i18n-v520.js", /i18n-v520\.js\?v=5\.25\.0"><\/script>\s*<script src="js\/i18n-v521\.js\?v=5\.25\.0"/.test(idx) && /i18n-v520\.js\?v=5\.25\.0"><\/script>\s*<script src="js\/i18n-v521\.js\?v=5\.25\.0"/.test(opx));
   ok("page opérateur : pas de fabrication de programme (zip.js, programme.js absents)", !/zip\.js|programme\.js/.test(opx));
   const cfgDepot = fs.readFileSync(path.join(LILY, "config.h"), "utf8");
   ok("dépôt : config.h sans vraie clé (COLLE_ICI…), MODE 1 par défaut, ECOUTE_UDP 0", /#define DEVICE_KEY\s+"COLLE_ICI_LA_CLE_DU_BOITIER"/.test(cfgDepot) && /^#define MODE\s+1\b/m.test(cfgDepot) && /^#define ECOUTE_UDP 0\b/m.test(cfgDepot) && !/"[0-9a-f]{32}"/.test(cfgDepot));
