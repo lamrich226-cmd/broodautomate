@@ -1,4 +1,4 @@
-# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.5)
+# Boîtier 4G Broodautomate — LILYGO T-A7670E (programme v1.6)
 
 Le boîtier reste branché sur la prise RS232 de la machine FAS. Il fait trois choses :
 
@@ -16,6 +16,33 @@ les plus anciens, stock, porte, température, coupures, erreurs de la machine da
 
 **Sécurité** : le boîtier ne fait que lire. Il n'envoie jamais de commande d'écriture ni d'effacement :
 toute autre trame est bloquée avant l'envoi (même liste de sécurité que le logiciel).
+
+---
+
+## v1.6 : essai d'une machine ancienne (`MODE 3`, à tester)
+
+Pour les anciennes FAS (480 TOP, logiciel 1.x) dont la commande 90 n'a pas la valeur 6 (DEX). D'après le manuel FAS
+480 TOP (commande 90), ces machines envoient un **texte** (1 = totaux, 2 = + ventes par sélection, 3 = + températures
+24 h, coupures, erreurs), à 9600 bauds, seulement si la **broche 7** de leur prise est « haute » (le lecteur est branché)
+et quand on appuie sur le bouton d'envoi des données. Avec le câble, la machine répondait au bouton de la carte mère.
+
+Ce mode ne sert qu'à **essayer** : pas de 4G, rien n'est envoyé à Supabase, tout s'affiche dans le Moniteur série.
+
+1. **Fils** : les 3 habituels (machine **2** → trou **3** du module, machine **3** → trou **2**, machine **5** → trou **5** ;
+   module VCC → 3V3, GND → GND, TXD → 18, RXD → 19) + un **4e fil** Dupont : broche **21** (ou **22**) du LILYGO →
+   broche **7** de la prise de la machine (rangée du bas, juste entre les broches 2 et 3).
+2. **Machine** : commande **90** sur **3** (le plus complet). Ne touche **jamais** à la commande **92** (remise à zéro des ventes).
+3. **Programme** : `#define MODE  3` dans config.h (aucune clé ni carte SIM nécessaire), Téléverser, Moniteur série à **115200**.
+   Le LILYGO peut rester alimenté par le PC (pas de 4G dans ce mode).
+4. **Ne touche à rien pendant 2 min 30** : le boîtier écoute, allume et coupe la broche 7 (la machine envoie-t-elle
+   toute seule ?), pose les questions DEX et DDCMP (lecture seule). Puis le message **« Étape 5 / 7 : À TOI ! »** :
+   appuie sur le bouton de la carte mère. Au message **« Étape 6 / 7 »**, rappuie (cette fois la broche 7 est coupée :
+   on saura si le 4e fil est nécessaire).
+5. Le **BILAN** dit ce qui a marché. Copie tout le texte du Moniteur série et envoie-le. Commandes : `bilan`, `7on`,
+   `7off`, `vitesse 4800` (ou 9600, 2400, 19200, 1200).
+6. Après l'essai, remets le programme normal (Broodautomate → « Télécharger le programme complet »).
+
+Le boîtier n'envoie à la machine que des questions de lecture (ENQ du DEX, START du DDCMP) : rien ne peut effacer.
 
 ---
 
@@ -287,6 +314,11 @@ Pour une carte avec très peu de données (1NCE : 500 Mo pour 10 ans), dans conf
 `DEMANDE_EVERY_SEC 0` (bouton désactivé) ou `600` (réponse en 10 minutes), et `HEARTBEAT_MIN 60`.
 
 ## Ce qui a été vérifié
+- **Sur ordinateur (v1.6)** : compilation pour l'ESP32 (esp32 2.0.9, « ESP32 Dev Module ») sans avertissement, modes 0 et 3 ;
+  simulateur, `MODE 3` : machine qui n'envoie qu'avec le bouton et la broche 7, même broche 7 coupée, toute seule quand
+  la broche 7 s'allume, à 4800 bauds, muette, 480/5 (DEX) et Power Lift (DDCMP) ; le boîtier n'envoie à la machine que
+  ENQ et START, modem éteint (`essais/sim/essai_ancienne.sh`, texte inventé). Modes 0, 1 et 2 identiques à la v1.5 sur
+  14 scénarios. **Pas encore vérifié** : sur une vraie machine ancienne (le texte exact, la broche 7 à 3,3 V).
 - **Sur ordinateur (v1.5)** : compilation pour l'ESP32 (esp32 2.0.9, « ESP32 Dev Module ») sans avertissement, en version
   Digi et 1NCE, et le programme complet tel qu'il sort de Broodautomate ; simulateur : écoute UDP avec les 5 façons
   possibles dont le modem peut donner un message reçu (la vraie n'est pas encore connue), `lire` reçu pendant un envoi

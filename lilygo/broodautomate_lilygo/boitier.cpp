@@ -1,7 +1,11 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.5)
+// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.6)
 // Lit la machine FAS en RS232 (lecture seule, comme le câble de Broodautomate) et envoie
 // les relevés à Supabase par la 4G (HTTPS).
+//   • v1.6 : MODE 3 = essai d'une machine ancienne (FAS 480 TOP, logiciel 1.x, sans DEX) : sans 4G, le boîtier écoute
+//     la machine, allume / coupe la broche 7 de sa prise (4e fil) pour voir si elle envoie toute seule, essaie DEX et
+//     DDCMP (lecture seule), attend l'appui sur le bouton d'envoi de la carte mère et affiche tout ce qui arrive + un bilan.
+//     Les modes 0, 1 et 2 ne changent pas.
 //   • v1.5 : carte 1NCE (ECOUTE_UDP 1) : le boîtier écoute un port UDP ; le Device Controller de 1NCE lui envoie « lire »
 //     → lecture et envoi tout de suite (« Lire maintenant » instantané). Sans ECOUTE_UDP (Digi…) : tout est comme en v1.4.
 //   • v1.4 : UN SEUL programme pour deux familles de machines, reconnues toutes seules au branchement :
@@ -29,7 +33,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.5"
+#define FW_VERSION "1.6"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
@@ -57,6 +61,15 @@
 #endif
 #ifndef UDP_VIVANT_MIN
 #define UDP_VIVANT_MIN 0         // petit message « vivant » vers 1NCE toutes les N minutes (0 = jamais : le signal de vie HTTPS suffit)
+#endif
+
+// v1.6 : MODE 3 (machine ancienne) : broche de l'ESP32 reliée par un 4e fil à la broche 7 (DTR) de la prise de la machine.
+// Si ton config.h date d'avant la v1.6, cette valeur est prise. -1 = pas de 4e fil.
+#ifndef BROCHE7_PIN
+#define BROCHE7_PIN 21
+#endif
+#ifndef BROCHE7_PIN_BIS
+#define BROCHE7_PIN_BIS 22       // même rôle (le 4e fil peut aller sur l'une ou l'autre) ; -1 = pas utilisée
 #endif
 
 using namespace ba;
@@ -192,7 +205,7 @@ static Ecoute ecoute;
 static MoteurDdcmp::Reglages reglagesDdcmp() { MoteurDdcmp::Reglages r; r.identifiantPc = "00000001"; r.utilisateur = "BA"; return r; }
 static MoteurDdcmp moteur(machineIo, ecoute, reglagesDdcmp());
 // En DEX, c'est le boîtier qui interroge la machine : le moteur DDCMP ne doit pas lire les octets à sa place
-static void pompe() { if (proto != PROTO_DEX) moteur.poll(); }
+static void pompe() { if (MODE != 3 && proto != PROTO_DEX) moteur.poll(); }   // v1.6 : en MODE 3, l'essai lit lui-même
 
 // Relevé reçu : gardé pour l'envoi (les relevés de contrôle identiques au précédent ne sont pas renvoyés,
 // sauf celui d'une lecture demandée avec « Lire maintenant » : Broodautomate attend sa réponse)
@@ -392,6 +405,235 @@ static void essaiBoucle() {
   else Serial.println("[Essai] ✖ PAS DE RETOUR, reçu : '" + r + "'");
 }
 
+// ---------------- v1.6 : essai d'une machine ancienne (MODE 3) ----------------
+// Manuel FAS 480 TOP (commande 90) : en 1, 2 ou 3, la machine envoie un TEXTE (1 = totaux, 2 = + ventes par sélection,
+// 3 = + températures 24 h, coupures, erreurs) à 9600 bauds, 8 bits, sans parité ; l'envoi est « réglé par le signal DTR
+// (actif haut) donné par l'appareil qui relève » = broche 7 de sa prise ; il part quand on appuie sur « envoi des données ».
+// L'essai : 1) écoute, broche 7 coupée ; 2) broche 7 allumée ; 3) broche 7 coupée puis rallumée (3 fois) ;
+// 4) questions DEX (ENQ) et DDCMP (START), les seules choses que le boîtier envoie : rien ne peut effacer ;
+// 5) l'utilisateur appuie sur le bouton (broche 7 allumée) ; 6) il rappuie, broche 7 coupée ; 7) écoute libre.
+// Tout ce qui arrive est affiché dans le Moniteur série, puis un bilan. Pas de 4G dans ce mode (modem éteint).
+static const uint32_t ANC_VITESSES[] = {9600, 4800, 2400, 19200, 1200};
+static const int ANC_NB_VITESSES = 5;
+static const char* const ANC_NOMS[8] = {"",
+  "1 / 7 : j'écoute la machine, broche 7 COUPÉE (20 s)",
+  "2 / 7 : broche 7 ALLUMÉE, comme un lecteur branché (45 s)",
+  "3 / 7 : broche 7 coupée 3 s puis rallumée, 3 fois (70 s)",
+  "4 / 7 : questions DEX et DDCMP, lecture seule (15 s)",
+  "5 / 7 : À TOI ! Appuie sur le bouton d'envoi des données de la carte mère",
+  "6 / 7 : rappuie sur le bouton : cette fois la broche 7 est COUPÉE (90 s)",
+  "7 / 7 : écoute libre, broche 7 allumée (appuie quand tu veux)"};
+struct AncResultat { bool recu = false; bool lisible = false; uint32_t octets = 0; uint32_t vitesse = 0; };
+static AncResultat ancRes[8];
+static int ancEtape = 0, ancVitesse = 0, ancEssaisVitesse = 0, ancActions = 0;
+static uint32_t ancDebutEtape = 0, ancDernierOctet = 0, ancDebutCap = 0, ancRappel = 0;
+static bool ancBroche7 = false, ancDex = false, ancDdcmp = false, ancConseilsDonnes = false;
+static std::string ancCap;
+static int ancCapEtape = 0;
+static bool ancCapBroche7 = false;
+static uint32_t ancRallumer = 0;                    // étape 7 : rallumer la broche 7 à cette heure (0 = rien de prévu)
+
+static void ancBroche(bool on) {
+  ancBroche7 = on;
+  if (BROCHE7_PIN >= 0) digitalWrite(BROCHE7_PIN, on ? HIGH : LOW);
+  if (BROCHE7_PIN_BIS >= 0) digitalWrite(BROCHE7_PIN_BIS, on ? HIGH : LOW);
+  Serial.printf("[Ancienne] Broche 7 %s.\n", on ? "ALLUMÉE (3,3 V)" : "COUPÉE (0 V)");
+}
+static void ancRegleVitesse(int i) {
+  ancVitesse = i;
+  MachineSerial.updateBaudRate(ANC_VITESSES[i]);
+  Serial.printf("[Ancienne] Vitesse d'écoute : %u bauds.\n", (unsigned)ANC_VITESSES[i]);
+}
+static void ancAller(int e) {
+  ancEtape = e; ancDebutEtape = millis(); ancActions = 0; ancRappel = millis();
+  Serial.println();
+  Serial.printf("[Ancienne] ===== Étape %s =====\n", ANC_NOMS[e]);
+  if (e == 5) {
+    Serial.println(F("[Ancienne] → Appuie MAINTENANT sur le bouton d'envoi des données de la carte mère (comme avec le câble)."));
+    Serial.println(F("[Ancienne]   J'attends le texte de la machine. Ne touche pas au boîtier."));
+  }
+  if (e == 6) Serial.println(F("[Ancienne] → Rappuie sur le bouton de la carte mère. J'attends 90 s."));
+}
+static bool ancContient(const std::string& d, uint8_t a, uint8_t b) {
+  for (size_t i = 0; i + 1 < d.size(); i++) if ((uint8_t)d[i] == a && (uint8_t)d[i + 1] == b) return true;
+  return false;
+}
+static std::string ancCol(const char* nom) {         // nom complété par des espaces (largeur en lettres, accents compris)
+  std::string t(nom); size_t n = 0;
+  for (unsigned char c : t) if ((c & 0xC0) != 0x80) n++;
+  while (n < 34) { t += ' '; n++; }
+  return t;
+}
+static void ancResultatLigne(const char* nom, int e) {
+  const AncResultat& r = ancRes[e];
+  std::string c = ancCol(nom);
+  if (ancEtape < e && !r.recu) { Serial.printf("  %s : pas encore essayé\n", c.c_str()); return; }
+  if (!r.recu) Serial.printf("  %s : rien reçu\n", c.c_str());
+  else Serial.printf("  %s : REÇU %u octets (%s, %u bauds)\n", c.c_str(), (unsigned)r.octets, r.lisible ? "texte lisible" : "illisible", (unsigned)r.vitesse);
+}
+static void ancBilan() {
+  Serial.println();
+  Serial.println(F("[Ancienne] ===================== BILAN ====================="));
+  ancResultatLigne("Toute seule, broche 7 coupée", 1);
+  ancResultatLigne("Broche 7 allumée", 2);
+  ancResultatLigne("Broche 7 coupée puis rallumée", 3);
+  Serial.printf("  %s : %s\n", ancCol("Questions DEX / DDCMP").c_str(), ancEtape < 4 ? "pas encore essayé" : ancDex ? "RÉPOND au DEX" : ancDdcmp ? "RÉPOND au DDCMP" : "pas de réponse");
+  ancResultatLigne("Bouton, broche 7 allumée", 5);
+  ancResultatLigne("Bouton, broche 7 coupée", 6);
+  if (ancRes[7].recu) ancResultatLigne("Écoute libre", 7);
+  bool seule = ancRes[1].lisible || ancRes[2].lisible || ancRes[3].lisible;
+  if (seule) {
+    int e = ancRes[1].lisible ? 1 : ancRes[2].lisible ? 2 : 3;
+    Serial.printf("  ★ La machine envoie SANS bouton (étape %d) : le boîtier pourra la lire tout seul.\n", e);
+    Serial.println(F("    Envoie-moi tout ce texte : je prépare la lecture automatique de ces machines."));
+  }
+  if (ancDex) Serial.println(F("  ★ La machine répond au DEX : remets MODE 0, le boîtier la lira tout seul (comme la 480/5)."));
+  else if (ancDdcmp) Serial.println(F("  ★ La machine répond au DDCMP : remets MODE 0, le boîtier la lira tout seul (comme la Power Lift)."));
+  if (!seule && !ancDex && !ancDdcmp) {
+    if (ancRes[5].lisible || ancRes[7].lisible) {
+      Serial.println(F("  → La machine n'envoie qu'avec le bouton : le boîtier peut recevoir ce texte, mais il faudra appuyer à chaque visite."));
+      if (ancEtape >= 7) {
+        if (ancRes[6].lisible) Serial.println(F("  → Même broche 7 coupée, le texte arrive : le 4e fil n'est pas nécessaire."));
+        else Serial.println(F("  → Broche 7 coupée, rien n'arrive (si tu as bien rappuyé à l'étape 6) : le 4e fil (broche 7) est nécessaire."));
+      }
+      Serial.println(F("    Envoie-moi tout ce texte : je verrai ce qu'on peut en tirer (ventes par sélection…)."));
+    } else if (ancEtape >= 5 && (ancRes[5].recu || ancRes[7].recu)) {
+      Serial.println(F("  → Texte reçu mais illisible : la vitesse n'est pas la bonne. Envoie-moi ces lignes."));
+    } else if (ancEtape >= 5) {
+      Serial.println(F("  → Rien reçu pour l'instant. Si tu as déjà appuyé sur le bouton :"));
+      Serial.println(F("    1) vérifie les 3 fils : machine 2 → trou 3 du module, machine 3 → trou 2, machine 5 → trou 5 ;"));
+      Serial.println(F("    2) essaie en échangeant les deux fils des broches 2 et 3 de la machine ;"));
+      Serial.println(F("    3) vérifie la commande 90 de la machine (1, 2 ou 3) et le 4e fil : broche 7 de la machine → broche 21 (ou 22) du LILYGO."));
+    }
+  }
+  Serial.println(F("[Ancienne] Copie tout le texte du Moniteur série et envoie-le-moi. Commandes : bilan, 7on, 7off, vitesse 4800, aide"));
+  Serial.println(F("[Ancienne] ==================================================="));
+}
+static void ancAfficher(const std::string& d) {
+  Serial.println(F("[Ancienne] ----- début du texte reçu -----"));
+  std::string ligne; size_t nb = 0;
+  auto sortir = [&]() { Serial.printf("│ %s\n", ligne.c_str()); ligne.clear(); nb++; };
+  for (size_t i = 0; i < d.size() && nb < 400; i++) {
+    uint8_t c = (uint8_t)d[i];
+    if (c == '\r') { if (i + 1 < d.size() && d[i + 1] == '\n') continue; sortir(); }
+    else if (c == '\n') sortir();
+    else if (c == '\t') ligne += ' ';
+    else if (c >= 32 && c < 127) ligne += (char)c;
+    else { char h[8]; snprintf(h, sizeof h, "<%02X>", c); ligne += h; }
+    if (ligne.size() >= 160) sortir();
+  }
+  if (!ligne.empty()) sortir();
+  if (nb >= 400) Serial.println(F("│ … (texte coupé : plus de 400 lignes)"));
+  Serial.println(F("[Ancienne] ----- fin du texte reçu -----"));
+  std::string hex; char h[4];
+  for (size_t i = 0; i < d.size() && i < 48; i++) { snprintf(h, sizeof h, "%02X ", (uint8_t)d[i]); hex += h; }
+  Serial.printf("[Ancienne] Premiers octets : %s\n", hex.c_str());
+}
+static void ancCaptureFinie() {
+  std::string d; d.swap(ancCap);
+  int e = ancCapEtape;
+  size_t lis = 0;
+  for (unsigned char c : d) if ((c >= 32 && c < 127) || c == '\r' || c == '\n' || c == '\t') lis++;
+  int pct = d.empty() ? 0 : (int)(lis * 100 / d.size());
+  bool lisible = d.size() >= 20 && pct >= 85;
+  bool dex = ancContient(d, 0x10, '0'), ddcmp = ancContient(d, ddcmp::ENQ, ddcmp::STACK);
+  Serial.println();
+  Serial.printf("[Ancienne] ✔ REÇU pendant l'étape %d : %u octets en %.1f s, à %u bauds, broche 7 %s — lisible à %d %%\n",
+                e, (unsigned)d.size(), (ancDernierOctet - ancDebutCap) / 1000.0, (unsigned)ANC_VITESSES[ancVitesse], ancCapBroche7 ? "allumée" : "coupée", pct);
+  if (e == 4 && dex) { ancDex = true; Serial.println(F("[Ancienne] ★ La machine répond au DEX (DLE 0).")); uint8_t eot = 4; MachineSerial.write(&eot, 1); }
+  if (e == 4 && ddcmp) { ancDdcmp = true; Serial.println(F("[Ancienne] ★ La machine répond au DDCMP (STACK).")); }
+  if (d.find("DXS*") != std::string::npos) Serial.println(F("[Ancienne] Le texte commence comme un relevé EVA-DTS / DEX (DXS…)."));
+  ancAfficher(d);
+  if (e >= 1 && e <= 7) {
+    AncResultat& r = ancRes[e];
+    r.recu = true; r.octets += (uint32_t)d.size(); r.vitesse = ANC_VITESSES[ancVitesse];
+    if (lisible && !(e == 4 && (dex || ddcmp))) r.lisible = true;
+  }
+  // Étape 5 : texte illisible → autre vitesse ; texte lisible → étape 6 (même essai, broche 7 coupée)
+  if (e == 5 && ancEtape == 5) {
+    if (lisible) { ancBroche(false); ancAller(6); }
+    else if (d.size() >= 10 && ancEssaisVitesse < ANC_NB_VITESSES - 1) {
+      ancEssaisVitesse++;
+      ancRegleVitesse((ancVitesse + 1) % ANC_NB_VITESSES);
+      Serial.println(F("[Ancienne] Texte illisible : j'essaie une autre vitesse. → Rappuie sur le bouton de la carte mère."));
+    }
+  }
+  if (e == 6 && ancEtape == 6) { ancBroche(true); ancAller(7); ancBilan(); }
+  else if (e == 7 || (e == 5 && !lisible)) ancBilan();
+  if (e == 7 && ancEtape == 7 && ancBroche7) {
+    Serial.println(F("[Ancienne] Comme un lecteur qu'on débranche : broche 7 coupée 5 s (la machine peut quitter le message « débrancher »)."));
+    ancBroche(false); ancRallumer = millis() + 5000;
+  }
+}
+static void ancienneBoucle() {
+  uint32_t now = millis();
+  while (MachineSerial.available()) {
+    int c = MachineSerial.read();
+    if (c < 0) break;
+    if (ancCap.empty()) { ancDebutCap = now; ancCapEtape = ancEtape; ancCapBroche7 = ancBroche7; }
+    if (ancCap.size() < 20000) ancCap += (char)c;
+    ancDernierOctet = now;
+  }
+  if (!ancCap.empty() && now - ancDernierOctet >= 2500) ancCaptureFinie();
+  if (!ancCap.empty()) return;                      // un texte arrive : on ne change rien tant qu'il n'est pas fini
+  uint32_t t = now - ancDebutEtape;
+  switch (ancEtape) {
+    case 1: if (t >= 20000) { ancBroche(true); ancAller(2); } break;
+    case 2: if (t >= 45000) ancAller(3); break;
+    case 3: {                                       // 3 fois : coupée 3 s, puis allumée 20 s
+      uint32_t c = t % 23000;
+      if (t >= 3UL * 23000UL) { ancAller(4); break; }
+      if (c < 3000 && ancBroche7) ancBroche(false);
+      else if (c >= 3000 && !ancBroche7) ancBroche(true);
+      break;
+    }
+    case 4: {                                       // ENQ à 0, 2 et 4 s ; START à 6, 8 et 10 s ; réponse attendue jusqu'à 15 s
+      if (ancActions < 6 && t >= (uint32_t)ancActions * 2000UL) {
+        if (ancActions < 3) { uint8_t enq = ddcmp::ENQ; MachineSerial.write(&enq, 1); Serial.println(F("[Ancienne] → question DEX (ENQ)")); }
+        else { ddcmp::Octets st = ddcmp::start(1); MachineSerial.write(st.data(), st.size()); Serial.println(F("[Ancienne] → question DDCMP (START)")); }
+        MachineSerial.flush();
+        ancActions++;
+      }
+      if (t >= 15000) { ancBilan(); ancAller(5); }
+      break;
+    }
+    case 5:
+      if (now - ancRappel >= 60000UL) {
+        ancRappel = now;
+        Serial.printf("[Ancienne] J'attends le texte de la machine (broche 7 allumée, %u bauds). Appuie sur le bouton de la carte mère.\n", (unsigned)ANC_VITESSES[ancVitesse]);
+        if (t >= 300000UL && !ancConseilsDonnes) { ancConseilsDonnes = true; ancBilan(); }
+      }
+      break;
+    case 6: if (t >= 90000UL) { Serial.println(F("[Ancienne] Rien reçu avec la broche 7 coupée.")); ancBroche(true); ancAller(7); ancBilan(); } break;
+    case 7: if (ancRallumer && (int32_t)(now - ancRallumer) >= 0) { ancRallumer = 0; ancBroche(true); } break;
+    default: break;
+  }
+}
+static void ancDemarrer() {
+  if (BROCHE7_PIN >= 0) { pinMode(BROCHE7_PIN, OUTPUT); digitalWrite(BROCHE7_PIN, LOW); }
+  if (BROCHE7_PIN_BIS >= 0) { pinMode(BROCHE7_PIN_BIS, OUTPUT); digitalWrite(BROCHE7_PIN_BIS, LOW); }
+  Serial.println(F("[Ancienne] Essai d'une machine ancienne (480 TOP, logiciel 1.x) : pas de 4G, rien n'est envoyé à Supabase."));
+  Serial.println(F("[Ancienne] Fils : machine 2 → trou 3 du module, machine 3 → trou 2, machine 5 → trou 5 (comme d'habitude)."));
+  if (BROCHE7_PIN >= 0 && BROCHE7_PIN_BIS >= 0) Serial.printf("[Ancienne] 4e fil : broche 7 de la machine → broche %d (ou %d) du LILYGO (sans lui, les étapes 2, 3 et 6 ne changent rien).\n", BROCHE7_PIN, BROCHE7_PIN_BIS);
+  else if (BROCHE7_PIN >= 0) Serial.printf("[Ancienne] 4e fil : broche 7 de la machine → broche %d du LILYGO (sans lui, les étapes 2, 3 et 6 ne changent rien).\n", BROCHE7_PIN);
+  else Serial.println(F("[Ancienne] Pas de 4e fil (BROCHE7_PIN -1) : les étapes 2, 3 et 6 ne changent rien."));
+  Serial.println(F("[Ancienne] Machine : commande 90 sur 1, 2 ou 3 (3 = le plus complet). Ne touche JAMAIS à la commande 92."));
+  Serial.println(F("[Ancienne] Le boîtier n'envoie à la machine que des questions de lecture (ENQ, START) : rien ne peut effacer."));
+  Serial.println(F("[Ancienne] ⚠ N'appuie PAS sur le bouton de la carte mère avant le message « Étape 5 / 7 : À TOI ! » (dans 2 min 30 environ)."));
+  ancRegleVitesse(0);
+  ancAller(1);
+}
+static void ancConsole(const String& m) {
+  if (m == "bilan" || m == "etat" || m == "état" || m == "aide" || m == "help") ancBilan();
+  else if (m == "7on") ancBroche(true);
+  else if (m == "7off") ancBroche(false);
+  else if (m.startsWith("vitesse")) {
+    long v = m.substring(7).toInt(); int i = -1;
+    for (int k = 0; k < ANC_NB_VITESSES; k++) if ((long)ANC_VITESSES[k] == v) i = k;
+    if (i >= 0) ancRegleVitesse(i); else Serial.println(F("[Console] Vitesses possibles : 9600, 4800, 2400, 19200, 1200."));
+  } else Serial.println(F("[Console] Commandes du mode 3 : bilan, 7on, 7off, vitesse 4800 (ou 9600, 2400, 19200, 1200)."));
+}
+
 // ---------------- v1.5 : écoute UDP (carte 1NCE, ECOUTE_UDP 1) ----------------
 // Le boîtier ouvre un port UDP et l'écoute. Le Device Controller de 1NCE peut lui envoyer « lire » : le boîtier lit
 // la machine tout de suite et envoie le relevé à Supabase (comme « Lire maintenant », sans attendre). Un autre message
@@ -449,7 +691,7 @@ static void ecouteUdp() {
 // ---------------- Moniteur série : commandes de dépannage ----------------
 static void afficherEtat() {
   Serial.println(F("------------------------------------------------------------"));
-  Serial.printf("Broodautomate boîtier 4G v%s — mode %d (%s)\n", FW_VERSION, MODE, MODE == 0 ? "normal" : MODE == 1 ? "essai 4G" : "essai liaison RS232");
+  Serial.printf("Broodautomate boîtier 4G v%s — mode %d (%s)\n", FW_VERSION, MODE, MODE == 0 ? "normal" : MODE == 1 ? "essai 4G" : MODE == 2 ? "essai liaison RS232" : "essai machine ancienne");
   Serial.printf("Modem : %s ; réseau : %s ; signal %d/31 ; opérateur %s\n", modem.pret ? "prêt" : "non", modem.reseau ? "oui" : "non", modem.csq, modem.operateur.c_str());
   if (horlogeOk) { HeureLocale h = horloge::bruxelles(utcMaintenant()); Serial.printf("Heure belge : %02u/%02u/20%02u %02u:%02u:%02u\n", h.jour, h.mois, h.annee2, h.heure, h.minute, h.seconde); }
   else Serial.println(F("Heure : pas encore connue"));
@@ -474,6 +716,7 @@ static void console() {
     String cmd = ligne; ligne = ""; cmd.trim();
     if (!cmd.length()) continue;
     String m = cmd; m.toLowerCase();
+    if (MODE == 3) { ancConsole(m); continue; }       // v1.6 : essai machine ancienne
     if (m == "etat" || m == "état" || m == "aide" || m == "help") afficherEtat();
     else if (m == "lire") { lectureDemandee = true; Serial.println(F("[Console] Lecture de la machine demandée.")); }
     else if (m == "envoi") { dernierPing = 0; prochainEssaiEnvoi = 0; dernierEnvoiOk = millis() - (uint32_t)HEARTBEAT_MIN * 60000UL - 1; Serial.println(F("[Console] Signal de vie demandé.")); }
@@ -494,8 +737,8 @@ void setup() {
   Serial.println();
   Serial.println(F("============================================================"));
   Serial.printf("Broodautomate — boîtier 4G LILYGO v%s\n", FW_VERSION);
-  Serial.printf("Mode %d : %s\n", MODE, MODE == 0 ? "NORMAL (lecture de la machine + envoi)" : MODE == 1 ? "ESSAI 4G sans machine" : "ESSAI de la liaison RS232 (sans 4G)");
-  if (ECOUTE_UDP && MODE != 2) Serial.printf("Carte 1NCE : le boîtier écoute le port UDP %d (« lire » envoyé par le Device Controller = lecture tout de suite)\n", UDP_PORT_ECOUTE);
+  Serial.printf("Mode %d : %s\n", MODE, MODE == 0 ? "NORMAL (lecture de la machine + envoi)" : MODE == 1 ? "ESSAI 4G sans machine" : MODE == 2 ? "ESSAI de la liaison RS232 (sans 4G)" : "ESSAI d'une machine ancienne (sans 4G)");
+  if (ECOUTE_UDP && MODE != 2 && MODE != 3) Serial.printf("Carte 1NCE : le boîtier écoute le port UDP %d (« lire » envoyé par le Device Controller = lecture tout de suite)\n", UDP_PORT_ECOUTE);
   if (MODE == 0) Serial.printf("Surveillance de la machine toutes les %d s (0 = non) ; relevé de contrôle au moins chaque %d min ; « Lire maintenant » vérifié toutes les %d s\n", SURVEILLE_VENTES_SEC, READ_EVERY_MIN, DEMANDE_EVERY_SEC);
   Serial.println(F("============================================================"));
   MachineSerial.setRxBufferSize(4096);
@@ -504,6 +747,7 @@ void setup() {
     Serial.println(F("[Essai] Pont entre les broches 18 et 19 (ou entre les broches 2 et 3 de la prise du module) : « OK » doit s'afficher."));
     return;
   }
+  if (MODE == 3) { ancDemarrer(); return; }          // v1.6 : essai machine ancienne (modem éteint)
   if (strstr(DEVICE_KEY, "COLLE_ICI") || strlen(DEVICE_KEY) < 16)
     Serial.println(F("[Config] ⚠ DEVICE_KEY n'est pas remplie dans config.h : Supabase refusera les envois."));
   if (MODE == 0) choisirProtocole("démarrage");      // avant le modem : la machine est tranquille
@@ -518,6 +762,7 @@ void loop() {
   pompe();
   console();
   if (MODE == 2) { essaiBoucle(); delay(1); return; }
+  if (MODE == 3) { ancienneBoucle(); delay(1); return; }
   uint32_t now = millis();
 
   // Réseau : reconnexion (1 min, puis de plus en plus espacé jusqu'à 10 min)

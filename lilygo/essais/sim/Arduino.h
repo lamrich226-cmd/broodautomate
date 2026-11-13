@@ -17,8 +17,9 @@ extern uint32_t g_millis;
 void simTick();                                   // fait avancer les appareils simulés d'1 ms
 inline uint32_t millis() { return g_millis; }
 inline void delay(uint32_t ms) { for (uint32_t i = 0; i < ms; i++) { g_millis++; simTick(); } }
+extern int g_pins[64];                            // v1.6 : état des broches (essai machine ancienne : broche 7)
 inline void pinMode(int, int) {}
-inline void digitalWrite(int, int) {}
+inline void digitalWrite(int p, int v) { if (p >= 0 && p < 64) g_pins[p] = v; }
 
 class String {
  public:
@@ -67,7 +68,9 @@ class HardwareSerial {
  public:
   int num; Port* port = nullptr; std::string console;
   explicit HardwareSerial(int n) : num(n) {}
-  void begin(unsigned long, uint32_t = 0, int = -1, int = -1) {}
+  unsigned long baud = 0;                         // v1.6 : vitesse réglée (la fausse machine ancienne en tient compte)
+  void begin(unsigned long b, uint32_t = 0, int = -1, int = -1) { baud = b; }
+  void updateBaudRate(unsigned long b) { baud = b; }
   void setRxBufferSize(size_t) {}
   int available() { if (!port) return (int)console.size(); int n = 0; for (auto& p : port->sortie) { if (p.first > g_millis) break; n++; } return n; }
   int read() {

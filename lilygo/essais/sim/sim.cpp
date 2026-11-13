@@ -2,6 +2,7 @@
 // modem A7670 simulé (commandes AT, réseau, heure, HTTPS) et machine FAS simulée (DDCMP).
 #include "Arduino.h"
 uint32_t g_millis = 0;
+int g_pins[64] = {0};
 HardwareSerial Serial(0);
 EspClass ESP;
 static int g_restarts = 0;
@@ -18,7 +19,7 @@ static std::string g_releve;
 struct FauxModem : Port {
   std::string ligne; bool data = false; size_t attendus = 0; std::string corps;
   bool nitz = true, ntp = true, reseau = true, serveur = true; int code = 200;
-  std::vector<std::string> envois; int httpOuverts = 0; int actions = 0;
+  std::vector<std::string> envois; int httpOuverts = 0; int actions = 0; size_t nbCommandes = 0;   // v1.6 : nbCommandes = octets reçus du boîtier
   std::string reponse, url, entete;
   // fonction ba_boitier (bouton « Lire maintenant ») : demandes en attente, appels reçus
   bool brutImpair = false; std::deque<uint32_t> demandes; std::vector<std::string> appelsRpc; bool rpcAbsente = false; int rpcSansCle = 0;
@@ -49,6 +50,7 @@ struct FauxModem : Port {
     else { udpGarde = s; rep("\r\n+CIPRXGET: 1,0\r\n", 5); }
   }
   void recu(const uint8_t* b, size_t n) override {
+    nbCommandes += n;
     for (size_t i = 0; i < n; i++) {
       if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; if (udpMode) { udpMode = false; udpEnvois.push_back(corps); rep("\r\n+CIPSEND: 0," + std::to_string(corps.size()) + "," + std::to_string(corps.size()) + "\r\n\r\nOK\r\n", 20); } else { envois.push_back(corps); rep("\r\nOK\r\n", 20); } } continue; }
       ligne += (char)b[i];
@@ -186,6 +188,36 @@ static std::string inventerDex(int ventes, bool erreurNouvelle) {
   return "DXS*1234567890*VA*V1/1\r\n" + z + "G85*" + g + "\r\nSE*" + std::to_string(l.size() + 1) + "*0001\r\nDXE*1*1\r\n";
 }
 static FausseMachineDex machineDex;
+
+// ---------------- v1.6 : ancienne FAS 480 TOP simulée (commande 90 = 3 : texte) ----------------
+// Envoie un texte INVENTÉ (aucune donnée réelle) quand on appuie sur le bouton de la carte mère (si la broche 7 est
+// allumée, sauf réglage « sans DTR ») ou, réglage « front », toute seule quand la broche 7 s'allume.
+// À une autre vitesse que la sienne, le boîtier ne reçoit que des octets illisibles.
+struct FausseMachineAncienne : Port {
+  bool besoinDtr = true, surFrontDtr = false, muette = false;
+  unsigned long vitesse = 9600;
+  std::string texte, recuOctets;
+  int envois = 0, appuis = 0; bool dtrAvant = false;
+  void recu(const uint8_t* b, size_t n) override { recuOctets.append((const char*)b, n); }
+  bool dtr() const { return BROCHE7_PIN >= 0 && g_pins[BROCHE7_PIN] == HIGH; }
+  void envoyerTexte() {
+    if (muette) return;
+    envois++;
+    if (MachineSerial.baud == vitesse) envoyer(texte, 40);
+    else { std::string g; for (size_t i = 0; i < texte.size(); i += 2) g += (char)(0x80 | (((unsigned char)texte[i] * 7 + i) & 0x7F)); envoyer(g, 40); }
+  }
+  void bouton() { appuis++; if (besoinDtr && !dtr()) return; envoyerTexte(); }
+  void tick() { bool d = dtr(); if (d && !dtrAvant && surFrontDtr) envoyerTexte(); dtrAvant = d; }
+};
+static std::string inventerTexteAncienne() {
+  std::string t = "Model TOP\r\nCodice macchina : 00000000\r\nSoftware ver. V.1.8\r\nData 13/11/26 Ora 10:15\r\n\r\nTOTALI\r\nValore : 1234,50\r\nVendite : 525\r\nINTERIM\r\nValore : 1234,50\r\nVendite : 525\r\n\r\nVENDITE PER SELEZIONE (prezzo pieno)\r\n";
+  for (int i = 1; i <= 12; i++) { char b[48]; snprintf(b, sizeof b, "Sel. %02d : %d\r\n", 10 + i, 20 + 3 * i); t += b; }
+  t += "\r\nTEMPERATURE\r\n";
+  for (int h = 0; h < 24; h++) { char b[32]; snprintf(b, sizeof b, "%02d:00  %d C\r\n", h, 3 + h % 3); t += b; }
+  t += "\r\nSPEGNIMENTI\r\n01/11/26 03:12 - 01/11/26 03:40\r\n\r\nERRORI\r\n\r\n";
+  return t;
+}
+static FausseMachineAncienne machineAnc;
 static void refaireG85(std::string& r);
 // relevé Power Lift INVENTÉ (aucune donnée réelle) pour les essais UDP
 static std::string inventerEva() {
@@ -223,6 +255,9 @@ void simTick() {
   if (a == 21) machineDex.releve = inventerDex(1, true);
   if (a == 22) machineDex.active = false;
   if (a == 23) machineDex.active = true;
+  if (a == 40) machineAnc.bouton();                            // v1.6 : appui sur le bouton de la carte mère
+  if (a == 41) Serial.console += "bilan\n";
+  if (a == 42) Serial.console += "vitesse 4800\n";
   if (a == 30) modemSim.udpRecoit("Hello world");
   if (a == 31) modemSim.udpRecoit("lire");
   if (a == 33) modemSim.udpRecoit("LIRE\r\n");
@@ -233,7 +268,7 @@ void simTick() {
   if (a == 6) Serial.console += "AT+CSQ\n";
   if (a == 7) Serial.console += "etat\n";
 }
-static void simMachineTick() { if (machineSim.envoiPrevu && g_millis >= machineSim.envoiPrevu) { machineSim.envoiPrevu = 0; machineSim.ouvrirSession(); } }
+static void simMachineTick() { if (machineSim.envoiPrevu && g_millis >= machineSim.envoiPrevu) { machineSim.envoiPrevu = 0; machineSim.ouvrirSession(); } machineAnc.tick(); }
 
 int main(int argc, char** argv) {
   std::ifstream f(argv[1], std::ios::binary); std::stringstream ss; ss << f.rdbuf();
@@ -271,7 +306,18 @@ int main(int argc, char** argv) {
   if (scen == "rafale") { machineSim.evenement = EV; machineSim.envoiApresLecture = true; duree = 140UL * 60000UL; }
   // v1.4 : FAS 480 (DEX) : vente à 20 min, erreur nouvelle à 35 min, machine muette de 50 à 58 min
   if (scen == "dex") { evenements[20UL * 60000UL] = 20; evenements[35UL * 60000UL] = 21; evenements[50UL * 60000UL] = 22; evenements[58UL * 60000UL] = 23; duree = 75UL * 60000UL; machineDex.releve = inventerDex(0, false); }
-  ModemSerial.port = &modemSim; MachineSerial.port = (scen == "dex") ? (Port*)&machineDex : (Port*)&machineSim;
+  // v1.6 : MODE 3, machine ancienne. L'essai automatique dure ~2 min 30 (étapes 1 à 4) avant « À TOI » (étape 5).
+  bool anc = scen.compare(0, 4, "anc_") == 0 && scen != "anc_dex" && scen != "anc_pl";
+  if (anc) machineAnc.texte = inventerTexteAncienne();
+  if (scen == "anc_bouton") { evenements[180000] = 40; evenements[240000] = 40; evenements[360000] = 40; evenements[420000] = 41; duree = 8UL * 60000UL; }
+  if (scen == "anc_sansdtr") { machineAnc.besoinDtr = false; evenements[180000] = 40; evenements[240000] = 40; duree = 6UL * 60000UL; }
+  if (scen == "anc_front") { machineAnc.surFrontDtr = true; duree = 3UL * 60000UL; }
+  if (scen == "anc_4800") { machineAnc.vitesse = 4800; evenements[180000] = 40; evenements[210000] = 40; evenements[270000] = 40; duree = 7UL * 60000UL; }
+  if (scen == "anc_muette") { machineAnc.muette = true; evenements[180000] = 40; duree = 9UL * 60000UL; }
+  if (scen == "anc_dex") { machineDex.releve = inventerDex(0, false); duree = 3UL * 60000UL; }
+  if (scen == "anc_pl") { duree = 3UL * 60000UL; }
+  ModemSerial.port = &modemSim;
+  MachineSerial.port = anc ? (Port*)&machineAnc : (scen == "dex" || scen == "anc_dex") ? (Port*)&machineDex : (Port*)&machineSim;
   setup();
   while (g_millis < duree) loop();
   // Résumé pour le script d'essai
@@ -281,9 +327,12 @@ int main(int argc, char** argv) {
   o = fopen("rpc.txt", "w");
   for (auto& e : modemSim.appelsRpc) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
+  o = fopen("machine_recu.hex", "w");                          // v1.6 : ce que le boîtier a envoyé à la machine ancienne
+  for (unsigned char c : machineAnc.recuOctets) fprintf(o, "%02X ", c);
+  fclose(o);
   o = fopen("udp.txt", "w");
   for (auto& e : modemSim.udpEnvois) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
-  fprintf(stderr, "RESUME scen=%s envois=%zu lectures=%d sessionsMachine=%d restarts=%d http=%d rpc=%zu rpcSansCle=%d\n", scen.c_str(), modemSim.envois.size(), machineSim.lectures, machineSim.sessionsMachine, g_restarts, modemSim.actions, modemSim.appelsRpc.size(), modemSim.rpcSansCle);
+  fprintf(stderr, "RESUME scen=%s envois=%zu lectures=%d sessionsMachine=%d restarts=%d http=%d rpc=%zu rpcSansCle=%d ancAppuis=%d ancEnvois=%d atModem=%zu\n", scen.c_str(), modemSim.envois.size(), machineSim.lectures, machineSim.sessionsMachine, g_restarts, modemSim.actions, modemSim.appelsRpc.size(), modemSim.rpcSansCle, machineAnc.appuis, machineAnc.envois, modemSim.nbCommandes);
   return 0;
 }

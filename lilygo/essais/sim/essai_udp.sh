@@ -6,6 +6,7 @@
 cd "$(dirname "$0")"
 if ! command -v g++ > /dev/null; then echo "g++ absent : essai UDP sauté"; exit 0; fi
 KO=0
+V=$(grep -o '#define FW_VERSION "[0-9.]*"' ../../broodautomate_lilygo/boitier.cpp | grep -o '[0-9][0-9.]*')   # v1.6 : version lue dans le programme
 ok() { if [ "$2" = "1" ]; then echo "  OK     $1"; else echo "  ÉCHEC  $1 → $3"; KO=$((KO+1)); fi; }
 compte() { grep -c "$2" "build_$1/console.txt"; }
 for s in udp udp_ipd udp_ipd_seul udp_brut udp_manuel; do
@@ -15,12 +16,12 @@ for s in udp udp_ipd udp_ipd_seul udp_brut udp_manuel; do
   ok "$s : $attendu_recus message(s) reçu(s)" $([ "$r" = "$attendu_recus" ] && echo 1) "$r"
   ok "$s : $attendu_lus lecture(s) faite(s) à la demande « lire »" $([ "$l" = "$attendu_lus" ] && echo 1) "$l"
   ok "$s : relevés bien reçus par Supabase (≥ $((attendu_lus+1)))" $([ "$e" -ge $((attendu_lus+1)) ] && echo 1) "$e"
-  ok "$s : le boîtier répond à 1NCE (« OUVERT », « RECU lire »)" $(grep -q "^OUVERT v1.5" build_$s/udp.txt && grep -q "^RECU lire" build_$s/udp.txt && echo 1) "$(tr '\n' '|' < build_$s/udp.txt)"
+  ok "$s : le boîtier répond à 1NCE (« OUVERT », « RECU lire »)" $(grep -q "^OUVERT v$V" build_$s/udp.txt && grep -q "^RECU lire" build_$s/udp.txt && echo 1) "$(tr '\n' '|' < build_$s/udp.txt)"
   ok "$s : aucun redémarrage, aucune trame interdite" $(grep -q "restarts=0" /tmp/essai_udp_$s.txt && ! grep -q "INTERDITE" build_$s/console.txt && echo 1) "$(tail -1 /tmp/essai_udp_$s.txt)"
 done
 ok "udp : « lire » reçu PENDANT un envoi HTTPS n'est pas perdu (lecture à 18 min)" $(grep -q "^\[18:2.\] \[UDP\] ✔✔ MESSAGE REÇU" build_udp/console.txt && echo 1) "$(grep 'MESSAGE REÇU' build_udp/console.txt | tr '\n' '|')"
 ok "udp : liaison fermée par le modem → réouverte" $(grep -q "a fermé la liaison UDP" build_udp/console.txt && [ "$(grep -c '✔ Le boîtier écoute le port 3000' build_udp/console.txt)" = 2 ] && echo 1) "$(grep -c 'écoute le port' build_udp/console.txt)"
 ok "udp : un autre message (« Hello world ») est seulement affiché, sans lecture" $(grep -q "^RECU hello world" build_udp/udp.txt && echo 1) "$(tr '\n' '|' < build_udp/udp.txt)"
-ok "udp : la version annoncée à Supabase dit « 1NCE »" $(grep -q '"fw":"1.5 1NCE"' build_udp/envois.txt && echo 1) "$(head -c 160 build_udp/envois.txt)"
+ok "udp : la version annoncée à Supabase dit « 1NCE »" $(grep -q "\"fw\":\"$V 1NCE\"" build_udp/envois.txt && echo 1) "$(head -c 160 build_udp/envois.txt)"
 rm -rf build_udp build_udp_ipd build_udp_ipd_seul build_udp_brut build_udp_manuel
 if [ $KO = 0 ]; then echo "Essai UDP : TOUT EST OK"; else echo "Essai UDP : $KO ÉCHEC(S)"; exit 1; fi

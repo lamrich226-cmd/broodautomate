@@ -9,6 +9,9 @@
 //   1 = ESSAI 4G : sans machine, envoie seulement un « signal de vie » toutes les 2 minutes
 //   2 = ESSAI LIAISON RS232 : sans 4G, envoie « TEST » sur les fils de la machine et regarde s'il revient
 //       (pont entre les broches 18 et 19, ou entre les broches 2 et 3 de la prise du module MAX3232)
+//   3 = ESSAI MACHINE ANCIENNE (v1.6) : sans 4G, pour les anciennes FAS (480 TOP, logiciel 1.x, sans DEX) : écoute la
+//       machine, allume / coupe la broche 7 de sa prise (4e fil), attend l'appui sur le bouton de la carte mère et
+//       affiche tout ce qui arrive + un bilan (Moniteur série à 115200)
 #define MODE  1
 
 // ---------- 2. Clé secrète de CE boîtier ----------
@@ -55,3 +58,6 @@
 // Module MAX3232 (fils Dupont) : VCC → 3V3, GND → GND, TXD → 18, RXD → 19
 #define MACHINE_RX_PIN     18     // reçoit le « TXD » du module MAX3232
 #define MACHINE_TX_PIN     19     // envoie vers le « RXD » du module MAX3232
+// v1.6, MODE 3 seulement : 4e fil (Dupont) de cette broche du LILYGO vers la broche 7 (DTR) de la prise de la machine
+#define BROCHE7_PIN        21     // -1 = pas de 4e fil
+#define BROCHE7_PIN_BIS    22     // même rôle : le 4e fil peut aller sur la broche 21 OU sur la 22 ; -1 = pas utilisée

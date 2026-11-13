@@ -1,5 +1,5 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G pour distributeur FAS (LILYGO T-A7670E) — v1.5
+// BROODAUTOMATE — Boîtier 4G pour distributeur FAS (LILYGO T-A7670E) — v1.6
 //
 // Ce fichier ne contient que ce mode d'emploi : le programme est dans les
 // autres onglets. LE SEUL ONGLET À MODIFIER EST « config.h ».
@@ -18,6 +18,8 @@
 //   envoi.h         préparation des envois
 //   filtre.h        v1.3 : retire du relevé les lignes inutiles avant l'envoi 4G (moins de data)
 //
+// v1.6 : MODE 3 = essai d'une machine ancienne (480 TOP, logiciel 1.x, sans DEX) : sans 4G ; 4e fil vers la broche 7
+//        de la machine (BROCHE7_PIN) ; affiche tout ce que la machine envoie et un bilan.
 // v1.5 : carte 1NCE : écoute UDP (« Lire maintenant » instantané par le Device Controller de 1NCE).
 //        Broodautomate (Technique → Boîtiers 4G → « Ajouter un boîtier ») donne le programme COMPLET, déjà
 //        rempli (clé, carte SIM, mode 0) : il suffit de l'ouvrir et de téléverser.
