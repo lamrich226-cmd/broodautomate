@@ -67,6 +67,7 @@ const KEY = "0123456789abcdef0123456789abcdef";
   const browser = await chromium.launch();
   const errs = [];
   const ctx = await browser.newContext({ locale: "fr-BE", timezoneId: "Europe/Brussels", viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem("ba_mv_mode", "classic"); } catch (e) { /* */ } });   // v5.25 : ces essais vérifient l'affichage « Classique » (comme avant)
   for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
   await fake.attach(ctx, "pc");
   const p = await ctx.newPage();

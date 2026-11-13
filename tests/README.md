@@ -11,7 +11,7 @@ un **faux câble RS232** et un **faux Firebase**. Rien n'est envoyé sur Interne
 | `run.js` | tout le logiciel : PC + téléphone, hors ligne, câble, commandes, prévisions, opérateur, cloche… |
 | `run4g.mjs` | boîtiers 4G : relevés, « Lire maintenant », clés, fonction « ingest » |
 | `v511.mjs` | v5.11 : machine « en ligne » seulement si elle est lue, alertes regroupées / archivées, profils sans historique, page Technique en onglets, thèmes nuit / clair |
-| `v524.mjs` | v5.24 (design-test, mode démo) : vue machine (prix, places « Non utilisé », ajout / prix / suppression d'une sélection), « Remplir » en touchant les tiroirs (inventaire, retrait, chargement), bouton Machine / Tableau, aucune requête vers Supabase |
+| `v524.mjs` | v5.24 (design-test, mode démo) : vue machine (prix, places « Non utilisé », ajout / prix / suppression d'une sélection), « Remplir » en touchant les tiroirs (inventaire, retrait, chargement), Dashboard en nombres et en liste, fenêtre pop-up, bouton Machine / Classique, aucune requête vers Supabase |
 | `v512.mjs` | v5.12 : page « Technique » (boîtiers en détail, données 4G estimées, machines et n° de plaque, câble et clé USB, journal des envois, système), page « Connexion RS232 » allégée, téléphone, opérateur |
 
 ## Lancer les tests (sur un ordinateur avec Node 22 ou plus)

@@ -117,6 +117,7 @@ const DEFAUTS = `() => {
   const errs = [], sitesOuverts = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels", permissions: ["clipboard-read", "clipboard-write"] }, opts));
+    await ctx.addInitScript(() => { try { localStorage.setItem("ba_mv_mode", "classic"); } catch (e) { /* */ } });   // v5.25 : ces essais vérifient l'affichage « Classique » (comme avant)
     for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
     // les vrais sites Claude / ChatGPT ne sont JAMAIS contactés : on note seulement l'adresse demandée
     await ctx.route(/^https:\/\/(claude\.ai|chatgpt\.com)\//, r => { sitesOuverts.push(r.request().url()); r.fulfill({ status: 200, contentType: "text/html", body: "<title>site IA (essai)</title>" }); });

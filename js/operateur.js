@@ -172,15 +172,16 @@
       <div class="carte-actions"><button class="btn big" id="fill-btn">🧺 ${t("btn_fill")}</button>
         <button class="btn big secondary" id="add-sel-go">➕ ${t("add_sel_title")}</button></div>
       <p class="note" data-aide="1">${t("op_sel_help")}</p>
-      ${BA.MachineView ? BA.MachineView.block(s, m) : ""}
-      ${U.stockTable(s, m, false)}
+      ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
+      ${BA.MachineView && BA.MachineView.on() ? BA.MachineView.block(s, m) : ""}
+      ${BA.MachineView ? BA.MachineView.foldOpen("stock", `🍞 ${t("mv_table_title")}`, U.stockTable(s, m, false)) : U.stockTable(s, m, false)}
       <p class="note">${t("products_op_note", { h: s.settings.thrHours })}</p>`;
     el.querySelector("#prod-machine").onchange = e => { st().machine = Number(e.target.value); renderProducts(el); };
     el.querySelector("#fill-btn").onclick = () => Wizard.open(m.num);
     // v5.11.1 : le formulaire d'ajout est en bas de la page : ce bouton y va directement
     el.querySelector("#add-sel-go").onclick = () => { const f = el.querySelector(".add-sel"); if (!f) return; f.scrollIntoView({ behavior: "smooth", block: "center" }); const n = f.querySelector("input"); if (n) setTimeout(() => n.focus({ preventScroll: true }), 350); };
     U.bindStockTable(el, m.num, false, () => renderProducts(el));
-    if (BA.MachineView) BA.MachineView.bind(el, m);
+    if (BA.MachineView && BA.MachineView.on()) BA.MachineView.bind(el, m);
   }
 
   // Cellule « sélection + type de pain » (compacte pour le téléphone)
@@ -224,19 +225,20 @@
       let body = "";
       // v5.24 (design-test) : « Machine » (on touche les tiroirs) ou « Tableau » (comme avant) ; mêmes actions derrière
       const mach = !!BA.MachineView && this.vue() === "machine";
+      if (w._ms !== w.step) { w._ms = w.step; w.mvOpen = false; }     // nouvelle étape : fenêtre du tiroir fermée
       if (w.step === 1) body = mach ? this.mStep(s, m) : this.step1(s, m);
       else if (w.step === 2) body = mach ? this.mStep(s, m) : this.step2(s, m);
       else if (w.step === 3) body = mach ? this.mStep(s, m) : this.step3(s, m);
       else body = this.summary(s, m) + (mach ? this.mAfter(s, m) : "");
       document.getElementById("modal-root").innerHTML = `
-        <div class="modal-back"><div class="modal${mach ? " wz-wide" : ""}" role="dialog" aria-modal="true">
+        <div class="modal-back"><div class="modal" role="dialog" aria-modal="true">
           <div class="modal-head">
             <div><h2>🧺 ${t("fill_title", { n: m.num })}</h2><div class="petit">${E(m.street)}, ${E(m.city)} · 🚪 ${t("door_open_now")}</div></div>
             ${w.step <= 3 ? `<button class="danger" id="wz-cancel">${w.cancelArmed ? "⚠️ " + t("btn_cancel_confirm") : "✖ " + t("btn_cancel")}</button>` : ""}
           </div>
           ${w.step <= 3 ? this.stepper(w.step) : ""}
           ${w.error ? `<div class="alert err">${w.error}</div>` : ""}
-          ${w.step <= 3 && BA.MachineView ? this.vueSwitch(mach ? "machine" : "table") : ""}
+          ${w.step <= 3 && BA.MachineView ? this.vueSwitch() : ""}
           ${body}
         </div></div>`;
       this.bind();
@@ -409,21 +411,20 @@
     // ================= v5.24 (design-test) : « Remplir » en touchant les tiroirs =================
     // Les trois étapes appellent les MÊMES actions qu'avec le tableau (applyInventory, applyRemoval, applyLoad),
     // avec les mêmes valeurs. Seule la façon de les saisir change : − / + sur chaque tiroir.
-    vue() { try { return localStorage.getItem("ba_wz_vue") === "table" ? "table" : "machine"; } catch (e) { return "machine"; } },
-    vueSwitch(cur) {
-      const b = (v, ico, k) => `<button type="button" data-wzvue="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${ico} ${t(k)}</button>`;
-      return `<div class="seg wz-vue" role="group" aria-label="${E(t("mv_vue_aria"))}">${b("machine", "🧩", "mv_vue_machine")}${b("table", "📋", "mv_vue_table")}</div>`;
-    },
-    // Passer d'une vue à l'autre sans perdre ce qui a déjà été saisi
-    setVue(v) {
-      const w = this.w; if (!w || v === this.vue()) return;
+    // Le choix « Machine / Classique » est le même partout (Dashboard, Détail, Produits, Remplir)
+    vue() { return BA.MachineView && BA.MachineView.on() ? "machine" : "table"; },
+    vueSwitch() { return `<div class="wz-vue">${BA.MachineView.modeSwitch()}</div>`; },
+    // Changer d'affichage sans perdre ce qui a déjà été saisi (le choix lui-même est déjà enregistré)
+    modeChanged(mode) {
+      const w = this.w; if (!w) return;
+      const v = mode === "classic" ? "table" : "machine";
       const s = BA.Store.get(), m = M.machine(s, w.num);
       if (v === "machine") this.syncFromTable();
       else if (m) {     // vers le tableau : les corrections faites sur la machine s'ouvrent en mode « modifier »
         if (w.step === 1 && w.inv && m.sels.some(sel => w.inv[sel.n] != null && w.inv[sel.n] !== M.qty(sel))) w.mode = "edit";
         if (w.step === 2 && (w.rows || []).some(r => !r.mandatory && this.rmDraft(r) !== r.qty)) w.mode = "edit";
       }
-      try { localStorage.setItem("ba_wz_vue", v); } catch (e) { /* préférence non gardée */ }
+      w.mvOpen = false;
       this.render();
     },
     rmKey(r) { return r.sel + "-" + r.lotId; },
@@ -473,15 +474,15 @@
       return `${head}<div id="wz-mv">${this.mInner(s, m)}</div>`;
     },
 
+    // Un tiroir touché ouvre une fenêtre pop-up (w.mvOpen) : la machine reste en place, rien ne s'élargit ni ne descend
     mInner(s, m) {
       const w = this.w, V = BA.MachineView;
       const o = w.step === 1 ? this.mInv(s, m) : w.step === 2 ? this.mRm(s, m) : this.mLoad(s, m);
-      const key = w.mvKey != null && M.sel(m, Number(w.mvKey)) ? String(w.mvKey) : (o.first != null ? String(o.first) : null);
-      w.mvKey = key;
-      const sel = key != null ? M.sel(m, Number(key)) : null;
-      const panel = sel ? o.panel(sel) : "", wide = V.isWide();
-      const grid = V.grid(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false, panel: wide ? "" : panel });
-      return `<div class="mv-cols wz-mv-cols"><div class="mv-machine"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${wide ? `<div class="mv-side">${panel}</div>` : ""}</div>${o.footer}`;
+      const sel = w.mvOpen && w.mvKey != null ? M.sel(m, Number(w.mvKey)) : null;
+      if (w.mvOpen && !sel) w.mvOpen = false;
+      const key = sel ? String(sel.n) : null;
+      const grid = V.grid(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false });
+      return `<div class="mv-machine"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${sel ? V.pop(o.panel(sel)) : ""}${o.footer}`;
     },
 
     // compteur − / + (grands boutons pour le doigt)
@@ -622,7 +623,7 @@
     mBind() {
       const w = this.w, box = document.getElementById("wz-mv"); if (!box) return;
       const A = BA.Actions;
-      const go = step => { w.step = step; w.mode = "view"; w.error = ""; w.mvKey = null; this.render(); };
+      const go = step => { w.step = step; w.mode = "view"; w.error = ""; w.mvKey = null; w.mvOpen = false; this.render(); };
       const all = document.getElementById("mvl-date");
       if (all) U.dateInput(all, val => {
         const v = F.fromInput(val); if (!v) return;
@@ -632,11 +633,13 @@
       });
       this.mBindInner();
       box.onclick = e => {
+        if (e.target.dataset && e.target.dataset.mvBackdrop != null) { w.mvOpen = false; return this.mRefresh(w.mvKey != null ? "mvt-" + w.num + "-" + w.mvKey : null); }
         const b = e.target.closest("button");
         if (!b || !box.contains(b) || b.disabled) return;
         const s = BA.Store.get(), m = M.machine(s, w.num); if (!m) return;
         const d = b.dataset;
-        if (d.mvSel != null) { w.mvKey = String(d.mvSel); this.mRefresh(b.id); return BA.MachineView.scrollPanel(box); }
+        if (d.mvClose != null) { w.mvOpen = false; return this.mRefresh(w.mvKey != null ? "mvt-" + m.num + "-" + w.mvKey : null); }
+        if (d.mvSel != null) { w.mvKey = String(d.mvSel); w.mvOpen = true; this.mRefresh("mv-pop-x"); return; }
         // étape 1 : nombre compté
         if (d.mvi != null || d.mviR != null) {
           const sel = M.sel(m, Number(d.mvi != null ? d.mvi : d.mviR)); if (!sel) return;
@@ -704,7 +707,6 @@
 
     bind() {
       const w = this.w, q = id => document.getElementById(id);
-      document.querySelectorAll(".modal [data-wzvue]").forEach(b => b.onclick = () => this.setVue(b.dataset.wzvue));
       const go = (step) => { w.step = step; w.mode = "view"; w.error = ""; this.render(); };
       // v5.19 : « Annuler » demande une confirmation pendant 4 s. Avant, le délai redessinait toute la fenêtre
       // (les chiffres tapés pas encore validés étaient effacés) et un délai d'un « Remplir » précédent pouvait

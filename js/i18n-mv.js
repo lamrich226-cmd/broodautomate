@@ -5,8 +5,11 @@
 (function () {
   const D = BA.I18n.dicts;
   Object.assign(D.fr, {
+    mv_close: "Fermer", mv_table_title: "Stock en tableau (modifier ici aussi)",
+    ml_machine: "Machine", ml_address: "Adresse", ml_drawers: "Tiroirs (n° · pains)", ml_alerts: "À faire", ml_info: "Dernière info", ml_state: "Connexion",
+    ml_layout_aria: "Façon d'afficher les machines", ml_cards: "Cartes", ml_list: "Liste",
     mv_title: "Vue de la machine", mv_floor: "Étage {n}", mv_empty: "Vide", mv_remove: "{n} à retirer", mv_must: "{n} obligatoire", mv_kept: "{n} gardé",
-    mv_note: "Chaque case est un tiroir : son numéro, le pain et son prix, puis sous chaque pain ses heures et sa date de livraison. Touchez un tiroir pour le détail ou pour le modifier, ou « Non utilisé » pour ajouter une sélection.",
+    mv_note: "Chaque case est un tiroir : son numéro, le pain et son prix, puis sous chaque pain ses heures et sa date de livraison. Touchez un tiroir : une fenêtre s'ouvre pour le détail ou pour le modifier. Touchez « Non utilisé » pour ajouter une sélection.",
     mv_pick: "Touchez un tiroir pour voir son détail.", mv_sel: "Sélection {n}", mv_inside: "Dans le tiroir", mv_lot: "Livraison du {d}", mv_ago: "{h} h", mv_n: "× {n}",
     mv_legend_old: "à retirer (≥ {h} h)", mv_legend_empty: "place vide", mv_lot_old: "à retirer", mv_lot_kept: "gardé une fois", mv_lot_must: "obligatoire",
     mv_demo: "Mode démo : 20 machines inventées. Rien n'est envoyé à Supabase, tout reste dans cette page.",
@@ -16,7 +19,7 @@
     mv_price_note: "Ce prix sert aux calculs de l'appli. Il ne change pas le prix dans la machine (commande 03 au clavier).",
     mv_lg_kept: "gardé une fois", mv_lg_miss: "compté en moins (sort du stock)", mv_lg_extra: "compté en plus", mv_lg_gone: "à retirer",
     mv_lg_keep: "reste (gardé une fois)", mv_lg_must: "à retirer obligatoirement", mv_lg_new: "nouveau pain",
-    mv_vue_machine: "Machine", mv_vue_table: "Tableau", mv_vue_aria: "Affichage",
+    mv_vue_machine: "Machine", mv_vue_table: "Classique", mv_vue_aria: "Affichage",
     mv_inv_help: "Comptez les pains de chaque tiroir. Si un nombre est faux, touchez le tiroir et corrigez-le avec − et +.",
     mv_inv_less: "{n} [pain|pains] en moins : [le plus ancien sort|les plus anciens sortent] du stock.", mv_inv_more: "{n} [pain|pains] en plus : [ajouté|ajoutés] à la dernière livraison.",
     mv_inv_reset_one: "C'est juste", mv_inv_changed: "{n} [tiroir corrigé|tiroirs corrigés]", mv_reset: "Annuler mes changements",
@@ -29,6 +32,9 @@
     mv_full: "plein", mv_full_sel: "Ce tiroir est plein.", mv_after: "La machine maintenant"
   });
   Object.assign(D.nl, {
+    mv_close: "Sluiten", mv_table_title: "Voorraad in tabel (hier ook wijzigen)",
+    ml_machine: "Automaat", ml_address: "Adres", ml_drawers: "Laden (nr · broden)", ml_alerts: "Te doen", ml_info: "Laatste info", ml_state: "Verbinding",
+    ml_layout_aria: "Hoe de automaten worden getoond", ml_cards: "Kaarten", ml_list: "Lijst",
     mv_title: "Overzicht van de automaat", mv_floor: "Rij {n}", mv_empty: "Leeg", mv_remove: "{n} te verwijderen", mv_must: "{n} verplicht", mv_kept: "{n} bewaard",
     mv_note: "Elk vak is een lade: nummer, brood en prijs, en onder elk brood de uren en de leverdatum. Tik op een lade voor de details of om ze te wijzigen, of op « Niet gebruikt » om een keuze toe te voegen.",
     mv_pick: "Tik op een lade om de details te zien.", mv_sel: "Keuze {n}", mv_inside: "In de lade", mv_lot: "Levering van {d}", mv_ago: "{h} u", mv_n: "× {n}",
@@ -40,7 +46,7 @@
     mv_price_note: "Deze prijs dient voor de berekeningen van de app. Hij verandert de prijs in de automaat niet (commando 03 op het toetsenbord).",
     mv_lg_kept: "eenmaal bewaard", mv_lg_miss: "minder geteld (gaat uit de voorraad)", mv_lg_extra: "meer geteld", mv_lg_gone: "te verwijderen",
     mv_lg_keep: "blijft (eenmaal bewaard)", mv_lg_must: "verplicht te verwijderen", mv_lg_new: "nieuw brood",
-    mv_vue_machine: "Automaat", mv_vue_table: "Tabel", mv_vue_aria: "Weergave",
+    mv_vue_machine: "Automaat", mv_vue_table: "Klassiek", mv_vue_aria: "Weergave",
     mv_inv_help: "Tel de broden in elke lade. Klopt een aantal niet? Tik op de lade en pas het aan met − en +.",
     mv_inv_less: "{n} [brood|broden] minder: [het oudste gaat|de oudste gaan] uit de voorraad.", mv_inv_more: "{n} [brood|broden] meer: toegevoegd aan de laatste levering.",
     mv_inv_reset_one: "Klopt", mv_inv_changed: "{n} [lade aangepast|laden aangepast]", mv_reset: "Mijn wijzigingen annuleren",
@@ -53,6 +59,9 @@
     mv_full: "vol", mv_full_sel: "Deze lade is vol.", mv_after: "De automaat nu"
   });
   Object.assign(D.en, {
+    mv_close: "Close", mv_table_title: "Stock as a table (edit here too)",
+    ml_machine: "Machine", ml_address: "Address", ml_drawers: "Drawers (no. · breads)", ml_alerts: "To do", ml_info: "Last info", ml_state: "Connection",
+    ml_layout_aria: "How machines are shown", ml_cards: "Cards", ml_list: "List",
     mv_title: "Machine view", mv_floor: "Shelf {n}", mv_empty: "Empty", mv_remove: "{n} to remove", mv_must: "{n} mandatory", mv_kept: "{n} kept",
     mv_note: "Each box is a drawer: its number, bread and price, then each bread's hours and delivery date. Tap a drawer for details or to edit it, or “Not used” to add a selection.",
     mv_pick: "Tap a drawer to see its details.", mv_sel: "Selection {n}", mv_inside: "In the drawer", mv_lot: "Delivery of {d}", mv_ago: "{h} h", mv_n: "× {n}",
@@ -64,7 +73,7 @@
     mv_price_note: "This price is used for the app's calculations. It does not change the price in the machine (command 03 on the keypad).",
     mv_lg_kept: "kept once", mv_lg_miss: "counted less (leaves the stock)", mv_lg_extra: "counted more", mv_lg_gone: "to remove",
     mv_lg_keep: "stays (kept once)", mv_lg_must: "must be removed", mv_lg_new: "new bread",
-    mv_vue_machine: "Machine", mv_vue_table: "Table", mv_vue_aria: "View",
+    mv_vue_machine: "Machine", mv_vue_table: "Classic", mv_vue_aria: "View",
     mv_inv_help: "Count the breads in each drawer. If a number is wrong, tap the drawer and fix it with − and +.",
     mv_inv_less: "{n} [bread|breads] less: the oldest [leaves|leave] the stock.", mv_inv_more: "{n} [bread|breads] more: added to the last delivery.",
     mv_inv_reset_one: "It's right", mv_inv_changed: "{n} [drawer|drawers] corrected", mv_reset: "Cancel my changes",

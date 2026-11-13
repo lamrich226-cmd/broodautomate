@@ -971,13 +971,7 @@ table.rs-machines .plaque-in { width: 130px; }
    15. Vue machine (design-test v5.24) : étages, tiroirs, prix, heures et date de chaque pain, places libres
    ============================================================ */
 :root { --bread-blanc: #e9cf9a; --bread-gris: #b9a58a; --bread-complet: #8a5a2b; --bread-maya: #d9a441; --bread-sandwich: #e8b9a0; --bread-x: #c9b99a; }
-.mv-cols { display: grid; grid-template-columns: minmax(0, 620px) minmax(260px, 1fr); gap: 18px; align-items: start; }
-.mv-side { position: sticky; top: 12px; min-width: 0; }
 .mv-machine { min-width: 0; }
-.modal.wz-wide { max-width: 1120px; }
-.wz-mv-cols { grid-template-columns: minmax(0, 1fr) 330px; }
-@media (max-width: 899px) { .mv-cols, .wz-mv-cols { grid-template-columns: minmax(0, 1fr); } }
-.mv-glass { background: var(--surface-3); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
 .mv-grid { display: grid; gap: 8px; }
 .mv-etage { display: grid; grid-template-columns: 20px repeat(var(--cols), minmax(0, 1fr)); gap: 6px; align-items: stretch; padding-bottom: 8px; border-bottom: 3px solid var(--line-strong); }
 .mv-etage.last { border-bottom: 0; padding-bottom: 0; }
@@ -1034,7 +1028,6 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .mv-lg-free { display: inline-block; width: 14px; height: 14px; border: 1.5px dashed var(--line-strong); border-radius: 4px; vertical-align: -2px; margin-right: 5px; }
 /* panneau du tiroir choisi (à droite sur ordinateur, sous l'étage sur téléphone) */
 .mv-panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 8px; min-width: 0; }
-.mv-inline .mv-panel { border: 2px solid var(--focus, #3b6fd8); box-shadow: var(--shadow); }
 .mv-panel h4 { margin: 0; font-size: 1.02rem; }
 .mv-panel .btn { margin: 0; }
 .mv-ph { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; flex-wrap: wrap; }
@@ -1060,12 +1053,42 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .mv-warn { color: var(--c-empty); font-weight: 650; }
 .wz-vue { margin: 0 0 14px; }
 #wz-mv .wz-actions { margin-top: 14px; }
-/* version réduite, pour les cartes du Dashboard */
-.mv-compact { display: grid; gap: 3px; margin: 2px 0; }
-.mv-crow { display: flex; gap: 3px; }
-.mv-c { flex: 1; height: 8px; border-radius: 3px; background: var(--bread-x); border: 1px solid rgba(0, 0, 0, .18); min-width: 0; }
-.mv-c.ty-blanc { background: var(--bread-blanc); } .mv-c.ty-gris { background: var(--bread-gris); } .mv-c.ty-complet { background: var(--bread-complet); } .mv-c.ty-maya { background: var(--bread-maya); } .mv-c.ty-sandwich { background: var(--bread-sandwich); }
-.mv-c.st-empty { background: transparent; border: 1.5px dashed var(--c-empty); }
-.mv-c.st-free { background: transparent; border: 1px dashed var(--line-strong); opacity: .7; }
-.mv-c.st-old { box-shadow: 0 0 0 1.5px var(--c-remove); } .mv-c.st-must { box-shadow: 0 0 0 1.5px var(--c-empty); }
+.mv-glass { background: var(--surface-3); border: 1px solid var(--line); border-radius: 14px; padding: 8px; }
+/* version réduite (Dashboard) : par tiroir, le numéro de sélection et le nombre de pains — des nombres, pas des couleurs */
+.mv-compact { display: grid; gap: 3px; margin: 4px 0; }
+.mv-crow { display: flex; gap: 3px; align-items: stretch; }
+.mv-cl { flex: none; width: 1.1em; display: grid; place-items: center; font-size: .62rem; font-weight: 700; color: var(--text-faint); }
+.mv-c { position: relative; flex: 1; min-width: 0; min-height: 34px; display: grid; place-items: center; align-content: center; line-height: 1.05; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); padding: 2px 1px; }
+.mv-c small { font-size: .6rem; font-weight: 650; color: var(--text-dim); }
+.mv-c b { font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums; } .mv-c b i { font-style: normal; font-size: .62rem; font-weight: 600; color: var(--text-dim); }
+.mv-c em { position: absolute; top: -5px; right: -3px; font-style: normal; font-size: .62rem; line-height: 1; }
+.mv-c.st-old b, .mv-c.st-must b { text-decoration: underline; text-underline-offset: 2px; }
+.mv-c.st-empty { border-style: dashed; } .mv-c.st-empty b { color: var(--text-faint); }
+.mv-c.st-free { border-style: dashed; border-color: var(--line); background: transparent; } .mv-c.st-free small, .mv-c.st-free b { color: var(--text-faint); font-weight: 500; }
+/* fenêtre pop-up d'un tiroir (Détail machine, Produits, Remplir) : par-dessus la page, rien ne s'élargit */
+.mv-pop-back { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8, 6, 4, .58); overscroll-behavior: contain; }
+.mv-pop { width: 100%; max-width: 480px; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; padding: 12px 16px 16px; box-shadow: var(--shadow-lg); display: grid; gap: 8px; animation: ba-pop .15s var(--ease); }
+.mv-pop .mv-panel { border: none; padding: 0; background: transparent; }
+#modal-root .modal-back { z-index: 70; }     /* les fenêtres « Retirer », confirmations… restent au-dessus d'une fenêtre de tiroir */
+.mv-pop-x { position: sticky; top: 0; justify-self: end; margin: 0; min-height: 38px; padding: 0 12px; z-index: 2; }
+/* tableaux repliés (ils répètent ce que montre la machine) */
+.mv-fold { margin: 16px 0; border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px 12px; background: var(--surface); }
+.mv-fold > summary { cursor: pointer; font-weight: 700; padding: 10px 0; list-style-position: inside; }
+.mv-fold[open] > summary { border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.mv-mode { margin: 6px 0 12px; }
+.toolbar .mv-mode, .toolbar .dash-layout { margin: 0; }
+/* Dashboard en liste */
+.machines-list { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.machines-list th { text-align: left; font-size: .74rem; text-transform: uppercase; letter-spacing: .04em; color: var(--text-dim); padding: 8px 10px; border-bottom: 2px solid var(--line-strong); white-space: nowrap; }
+.machines-list td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.ligne-machine { cursor: pointer; } .ligne-machine:hover, .ligne-machine:focus-visible { background: var(--surface-3); }
+.lm-num { font-weight: 800; font-size: 1.05rem; white-space: nowrap; } .lm-stock { min-width: 96px; } .lm-stock .gauge { margin-top: 4px; }
+@media (max-width: 720px) {     /* téléphone : une « fiche » par machine au lieu d'un tableau à faire défiler */
+  .machines-list thead { display: none; } .machines-list, .machines-list tbody { display: block; }
+  .ligne-machine { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px 10px; align-items: center; padding: 12px 4px; border-bottom: 1px solid var(--line); }
+  .machines-list td, .ligne-machine:hover td { display: block; border: 0; padding: 0; background: transparent; }
+  .lm-stock, .lm-sels, .lm-al { grid-column: 1 / -1; } .lm-sels { max-width: none; min-width: 0; }
+  .lm-old, .lm-temp, .lm-info, .lm-sales { display: none; }
+}
+.lm-sels { min-width: 190px; max-width: 260px; } .lm-sels .mv-compact { margin: 0; }
 .demo-banner { position: relative; z-index: 40; background: var(--c-info, #1d5fd6); color: #fff; font-weight: 650; font-size: .85rem; text-align: center; padding: 6px 12px; }

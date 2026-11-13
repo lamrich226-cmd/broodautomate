@@ -200,9 +200,40 @@ window.BA = window.BA || {};
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
       <div class="cm-row"><span>${x.total}/${x.cap} ${t("breads")}</span><span>${x.pct} %</span></div>
       <div class="chips">${chips.join("")}</div>
-      ${BA.MachineView ? BA.MachineView.grid(s, m, { compact: true }) : ""}
+      ${BA.MachineView && BA.MachineView.on() ? BA.MachineView.grid(s, m, { compact: true }) : ""}
       <div class="cm-foot"><span>${left}</span><span>${right}</span></div>
     </div>`;
+  }
+
+  // v5.24 (design-test) : le Dashboard peut aussi se lire en liste (une ligne par machine, comme « Détails » dans l'explorateur Windows)
+  const dashLayout = () => { try { return localStorage.getItem("ba_dash_layout") === "list" ? "list" : "cards"; } catch (e) { return "cards"; } };
+
+  function machineRow(s, m, x, admin) {
+    const M2 = BA.MachineView && BA.MachineView.on();
+    const today = (s.daily[M.dayKey(s.now)] || {})[m.num];
+    const alerts = [];
+    if (m.door) alerts.push("🚪 " + t("door_banner"));
+    if (x.toRemove) alerts.push("🟠 " + t("chip_remove", { n: x.toRemove }));
+    if (x.mandatory) alerts.push(t("chip_must", { n: x.mandatory }));
+    if (x.keptOnce) alerts.push(t("chip_kept", { n: x.keptOnce }));
+    const last = !m.online ? seenTxt(s, m) : m.door ? t("foot_door") : m.power ? t("foot_power") : x.total === 0 ? t("foot_empty") : seenTxt(s, m);
+    return `<tr class="ligne-machine st-${x.st}" tabindex="0" role="button" data-machine="${m.num}">
+      <td class="lm-num">#${m.num}</td>
+      <td class="lm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></td>
+      <td class="lm-st">${pill(x.st)}</td>
+      <td class="lm-stock"><b>${x.total}/${x.cap}</b> <span class="petit">${x.pct} %</span><div class="gauge"><span style="width:${x.pct}%"></span></div></td>
+      ${M2 ? `<td class="lm-sels">${BA.MachineView.grid(s, m, { compact: true })}</td>` : ""}
+      <td class="lm-al">${alerts.length ? alerts.map(a => `<div class="petit">${a}</div>`).join("") : "—"}</td>
+      <td class="lm-old">${x.oldest !== null ? F.age(s.now - x.oldest) : "—"}</td>
+      <td class="lm-temp ${tempBadOf(s, m) ? "c-error-t" : ""}">🌡 ${tempTxt(m)}</td>
+      <td class="lm-info petit">${last}</td>
+      <td class="lm-sales">${admin ? `🧾 ${today ? today.s : 0} · ${F.eur(today ? today.r : 0)}` : (m.online ? "🟢 " + t("online") : "⚪ " + t("offline"))}</td></tr>`;
+  }
+  function machineList(s, shown, admin) {
+    const M2 = BA.MachineView && BA.MachineView.on();
+    return `<div class="table-scroll"><table class="machines-list">
+      <thead><tr><th>${t("ml_machine")}</th><th>${t("ml_address")}</th><th>${t("lbl_status")}</th><th>${t("lbl_fill")}</th>${M2 ? `<th>${t("ml_drawers")}</th>` : ""}<th>${t("ml_alerts")}</th><th>${t("chip_oldest")}</th><th>${t("lbl_temp")}</th><th>${t("ml_info")}</th><th>${admin ? t("lbl_sales_today") : t("ml_state")}</th></tr></thead>
+      <tbody>${shown.map(o => machineRow(s, o.m, o.x, admin)).join("")}</tbody></table></div>`;
   }
 
   function renderDashboard(el, ctx) {
@@ -215,9 +246,16 @@ window.BA = window.BA || {};
         <div class="toolbar">
           <input id="dash-search" class="search" type="search" data-live="1" autocomplete="off" placeholder="${E(t("search_ph"))}">
           <div class="legend">${["door", "empty", "error", "remove", "low", "ok"].map(pill).join("")}</div>
+          <div class="seg dash-layout" role="group" aria-label="${E(t("ml_layout_aria"))}"></div>
+          ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
         </div>
         <div id="dash-body"></div>`;
       el.querySelector("#dash-search").addEventListener("input", () => renderDashboard(el, ctx));
+      el.querySelector(".dash-layout").addEventListener("click", e => {
+        const b = e.target.closest("[data-dl]"); if (!b) return;
+        try { localStorage.setItem("ba_dash_layout", b.dataset.dl); } catch (x) { /* préférence non gardée */ }
+        renderDashboard(el, ctx);
+      });
       // v4.8.9 : lignes « À faire aujourd'hui » (admin) — un seul écouteur, le bloc est redessiné chaque seconde
       el.querySelector("#dash-sum").addEventListener("click", e => {
         const b = e.target.closest("[data-todo]");
@@ -232,10 +270,12 @@ window.BA = window.BA || {};
     const shown = all
       .filter(({ m }) => !q || String(m.num).includes(q) || m.street.toLowerCase().includes(q) || m.city.toLowerCase().includes(q))
       .sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct || a.m.num - b.m.num);
+    const lay = dashLayout();
+    el.querySelector(".dash-layout").innerHTML = ["cards", "list"].map(v => `<button type="button" data-dl="${v}" class="${lay === v ? "active" : ""}" aria-pressed="${lay === v}">${v === "cards" ? "▦ " + t("ml_cards") : "☰ " + t("ml_list")}</button>`).join("");
     const body = el.querySelector("#dash-body");
     const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.machine : null;
     body.innerHTML = shown.length
-      ? `<div class="cards machines-grid">${shown.map(o => machineCard(s, o.m, o.x, ctx.admin)).join("")}</div>`
+      ? (lay === "list" ? machineList(s, shown, ctx.admin) : `<div class="cards machines-grid">${shown.map(o => machineCard(s, o.m, o.x, ctx.admin)).join("")}</div>`)
       : `<div class="alert info">${!all.length ? t(ctx.admin ? "no_machine_admin" : "no_machine_op") : t("no_match")}</div>`;
     if (focused) { const f = body.querySelector(`[data-machine="${focused}"]`); if (f) f.focus({ preventScroll: true }); }
   }
@@ -600,10 +640,10 @@ window.BA = window.BA || {};
         ${ctx.admin ? totalCards(m, today) : ""}
         <div class="card"><div class="label">${t("lbl_last_intervention")}</div><div class="value v-small">${lastIt ? F.dt(lastIt.end) : "—"}</div></div>
       </div>
-      ${BA.MachineView ? BA.MachineView.block(s, m) : ""}
-      <h3>🍞 ${t("lots_title")}</h3>
-      <p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>
-      ${lotsTable(s, m, ctx)}
+      ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
+      ${BA.MachineView && BA.MachineView.on() ? BA.MachineView.block(s, m) : ""}
+      ${BA.MachineView ? BA.MachineView.fold("lots", "🍞 " + t("lots_title"), `<p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>`, lotsTable(s, m, ctx))
+        : `<h3>🍞 ${t("lots_title")}</h3><p class="note">${t("lots_note", { h: s.settings.thrHours })}</p>${lotsTable(s, m, ctx)}`}
       <h3>🧾 ${t("det_last_moves")}</h3>
       ${BA.History.recent(s, m.num, ctx.admin, 8)}
       <h3>⚠️ ${t("machine_alerts")}</h3>
@@ -614,7 +654,7 @@ window.BA = window.BA || {};
     el.querySelector("#det-machine").onchange = e => { BA.Shell.state.machine = Number(e.target.value); renderDetails(el, ctx); };
     bindDetailAlerts(el, ctx, evs, () => renderDetails(el, ctx));
     bindLotActions(el, m.num);
-    if (BA.MachineView) BA.MachineView.bind(el, m);
+    if (BA.MachineView && BA.MachineView.on()) BA.MachineView.bind(el, m);
     BA.History.bindRecent(el, m.num);
   }
 

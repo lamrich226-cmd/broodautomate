@@ -64,6 +64,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   const browser = await chromium.launch();
   const errs = [];
   const ctx = await browser.newContext({ locale: "fr-BE", timezoneId: "Europe/Brussels", viewport: { width: 1440, height: 900 } });
+  await ctx.addInitScript(() => { try { localStorage.setItem("ba_mv_mode", "classic"); } catch (e) { /* */ } });   // v5.25 : ces essais vérifient l'affichage « Classique » (comme avant)
   for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
   await fake.attach(ctx, "pc");
   const p = await ctx.newPage();
@@ -103,6 +104,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   await shot("v513-01-porte-ouverte");
   { // même chose sur un téléphone (autre appareil, qui n'a rien ouvert : il reçoit la porte tout seul)
     const c2 = await browser.newContext({ locale: "fr-BE", timezoneId: "Europe/Brussels", viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await c2.addInitScript(() => { try { localStorage.setItem("ba_mv_mode", "classic"); } catch (e) { /* */ } });   // v5.25 : ces essais vérifient l'affichage « Classique » (comme avant)
     for (const [u, f] of Object.entries(LIB)) await c2.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
     await fake.attach(c2, "phone");
     const q = await c2.newPage(); q.on("pageerror", e => errs.push("phone : " + e.message));

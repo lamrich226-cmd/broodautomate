@@ -18,6 +18,33 @@ window.BA = window.BA || {};
   const MAXSLOTS = 4;     // jusqu'à 4 pains par tiroir : un dessin par pain ; au-delà : une barre et une puce par livraison
   const isWide = () => !!(window.matchMedia && window.matchMedia("(min-width: 900px)").matches);
 
+  // ---------------- Choix d'affichage : « Machine » (la maquette) ou « Classique » (l'ancien design, tel qu'il était) ----------------
+  const MODEKEY = "ba_mv_mode";
+  const mode = () => { try { return localStorage.getItem(MODEKEY) === "classic" ? "classic" : "machine"; } catch (e) { return "machine"; } };
+  const on = () => mode() === "machine";
+  function setMode(v) { try { localStorage.setItem(MODEKEY, v === "classic" ? "classic" : "machine"); } catch (e) { /* préférence non gardée */ } }
+  function modeSwitch() {
+    const cur = mode();
+    const b = (v, ico, k) => `<button type="button" data-mvmode="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${ico} ${t(k)}</button>`;
+    return `<div class="seg mv-mode" role="group" aria-label="${E(t("mv_vue_aria"))}">${b("machine", "🧩", "mv_vue_machine")}${b("classic", "📋", "mv_vue_table")}</div>`;
+  }
+  // Détail machine, Produits : les tableaux répètent ce que montre la machine → repliés (un clic pour les ouvrir ;
+  // l'état ouvert / fermé est gardé quand la page se redessine)
+  const folded = key => { const S = st(); return !!(S.mvFold && S.mvFold[key]); };
+  function fold(key, title, note, html) {
+    if (!on()) return `<h3>${title}</h3>${note || ""}${html}`;
+    return `<details class="mv-fold" data-fold="${key}"${folded(key) ? " open" : ""}><summary>${title}</summary>${note || ""}${html}</details>`;
+  }
+  // Tableau qui n'avait pas de titre avant (Produits / Stock) : replié en mode machine, inchangé en mode classique
+  function foldOpen(key, title, html) {
+    return on() ? `<details class="mv-fold" data-fold="${key}"${folded(key) ? " open" : ""}><summary>${title}</summary>${html}</details>` : html;
+  }
+  // Fenêtre pop-up (par-dessus la page : rien ne s'élargit, rien ne descend)
+  function pop(inner) {
+    return `<div class="mv-pop-back" data-mv-backdrop="1"><div class="mv-pop" role="dialog" aria-modal="true">
+      <button type="button" class="mv-pop-x btn secondary" id="mv-pop-x" data-mv-close="1" aria-label="${E(t("mv_close"))}">✖ ${t("mv_close")}</button>${inner}</div></div>`;
+  }
+
   // ---------------- Plan de la machine ----------------
   // Positions habituelles des tiroirs sur un étage de n tiroirs (FAS : 1-5-9, 1-4-6-9…)
   function pattern(n) {
@@ -169,7 +196,7 @@ window.BA = window.BA || {};
 
   // o : { list(sel) → pains, stat(sel, pains) → { k, txt }, key : case choisie (« 13 » ou « f61 »),
   //       free : montrer les places libres, freeClick : places libres cliquables, ro : lecture seule,
-  //       panel : panneau à glisser sous l'étage de la case choisie (téléphone), compact : version Dashboard }
+  //       compact : version Dashboard (nombres) }
   function grid(s, m, o) {
     o = o || {};
     if (o.compact) return compact(s, m);
@@ -181,16 +208,19 @@ window.BA = window.BA || {};
         const l = list(c.sel);
         return tile(m, c.sel, l, stat(c.sel, l), { on: o.key === c.key, ro: o.ro });
       }).join("")}</div>`;
-      return row + (o.panel && r.cells.some(c => c.key === o.key) ? `<div class="mv-inline">${o.panel}</div>` : "");
+      return row;
     }).join("")}</div>`;
   }
 
-  // Version réduite (cartes du Dashboard) : une case par tiroir, couleur du pain, contour selon l'état
+  // Version réduite (Dashboard) : pour chaque tiroir, le numéro de sélection et le nombre de pains (pas de couleurs de pain)
   function compact(s, m) {
     const L = layout(m, true);
-    return `<div class="mv-compact" aria-hidden="true">${L.rows.map(r => `<div class="mv-crow">${r.cells.map(c => c.free
-      ? `<span class="mv-c st-free"></span>`
-      : `<span class="mv-c st-${status.view(c.sel, breads(s, m, c.sel)).k} ty-${E(c.sel.type)}"></span>`).join("")}</div>`).join("")}</div>`;
+    return `<div class="mv-compact" role="group" aria-label="${E(t("mv_title"))}">${L.rows.map(r => `<div class="mv-crow"><span class="mv-cl">${r.e}</span>${r.cells.map(c => {
+      if (c.free) return `<span class="mv-c st-free" title="${E(t("mv_unused"))}"><small>${c.n}</small><b>–</b></span>`;
+      const B = breads(s, m, c.sel), stt = status.view(c.sel, B).k, q = B.length;
+      const flag = stt === "must" ? "⛔" : stt === "old" ? "⚠" : stt === "kept" ? "⏳" : "";
+      return `<span class="mv-c st-${stt}" title="${E(t("mv_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><small>${c.sel.n}</small><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span>`;
+    }).join("")}</div>`).join("")}</div>`;
   }
 
   function legend(s, mode) {
@@ -277,19 +307,15 @@ window.BA = window.BA || {};
       </div></div>`;
   }
 
+  // Un tiroir touché ouvre une fenêtre pop-up (S.mvSel = { num, key, open })
   function area(s, m) {
     const S = st(), L = layout(m, true), cells = L.rows.flatMap(r => r.cells);
-    let key = S.mvSel && S.mvSel.num === m.num ? S.mvSel.key : null;
+    let key = S.mvSel && S.mvSel.num === m.num && S.mvSel.open ? S.mvSel.key : null;
     if (key != null && !cells.some(c => c.key === key)) key = null;     // tiroir supprimé, place prise…
-    if (key == null) {     // par défaut : le premier tiroir avec un pain à retirer, sinon le premier tiroir
-      const bad = cells.find(c => !c.free && breads(s, m, c.sel).some(b => b.k === "old" || b.k === "must"));
-      key = (bad || cells.find(c => !c.free) || cells[0] || {}).key || null;
-    }
-    const cell = cells.find(c => c.key === key);
-    const panel = !cell ? `<div class="mv-panel petit">${t("mv_pick")}</div>` : cell.free ? panelFree(s, m, cell.n) : panelSel(s, m, cell.sel);
-    const wide = isWide();
-    const g = grid(s, m, { key, free: true, freeClick: true, panel: wide ? "" : panel });
-    return `<div class="mv-cols"><div class="mv-machine"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${wide ? `<div class="mv-side">${panel}</div>` : ""}</div>`;
+    const cell = key != null ? cells.find(c => c.key === key) : null;
+    const panel = !cell ? "" : cell.free ? panelFree(s, m, cell.n) : panelSel(s, m, cell.sel);
+    const g = grid(s, m, { key, free: true, freeClick: true });
+    return `<div class="mv-machine"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${cell ? pop(panel) : ""}`;
   }
 
   // Bloc complet (Détail machine, Produits / Stock)
@@ -367,17 +393,23 @@ window.BA = window.BA || {};
       if (!m || !f || f.num !== num) return;
       const price = f.priceSet ? f.price : priceFor(s, m, f.type);
       const err = A.addSelection(num, { n: f.n, type: f.type, newType: f.newType, cap: f.cap, price });
-      if (!err) { S.mvSel = { num, key: String(Number(f.n)) }; S.mvAdd = null; S.mvEdit = null; }
+      if (!err) { S.mvSel = { num, key: String(Number(f.n)), open: true }; S.mvAdd = null; S.mvEdit = null; }
       say(num, err, "added_sel");
       later();
     }
 
+    // ouvrir : on place le curseur dans la fenêtre ; fermer : on le remet sur le tiroir touché
+    let from = null;
+    function open(id) { from = id; redraw(); const x = document.getElementById("mv-pop-x"); if (x) x.focus({ preventScroll: true }); }
+    function close() { const k = S.mvSel && S.mvSel.key; S.mvSel = null; S.mvEdit = null; S.mvAdd = null; redraw(from || (k != null ? (String(k)[0] === "f" ? "mvf-" + num + "-" + String(k).slice(1) : "mvt-" + num + "-" + k) : null)); }
     wrap.addEventListener("click", e => {
+      if (e.target.dataset && e.target.dataset.mvBackdrop != null) return close();
       const b = e.target.closest("button");
       if (!b || !wrap.contains(b) || b.disabled) return;
       const d = b.dataset;
-      if (d.mvSel != null) { S.mvSel = { num, key: String(d.mvSel) }; S.mvEdit = null; redraw(b.id); return scrollPanel(wrap); }
-      if (d.mvFree != null) { S.mvSel = { num, key: "f" + d.mvFree }; S.mvAdd = null; redraw(b.id); return scrollPanel(wrap); }
+      if (d.mvClose != null) return close();
+      if (d.mvSel != null) { S.mvSel = { num, key: String(d.mvSel), open: true }; S.mvEdit = null; return open(b.id); }
+      if (d.mvFree != null) { S.mvSel = { num, key: "f" + d.mvFree, open: true }; S.mvAdd = null; return open(b.id); }
       if (d.mvRm != null) return U.removeDialog(num, d.mvRm, d.lot);
       if (d.mvKeep != null) return A.keepLot(num, d.mvKeep, d.lot);
       if (d.mvxSave != null) return save(Number(d.mvxSave));
@@ -386,12 +418,31 @@ window.BA = window.BA || {};
     });
   }
 
-  // Téléphone : le panneau s'ouvre sous l'étage touché ; on le fait apparaître s'il est caché
-  function scrollPanel(root) {
-    if (isWide()) return;
-    const p = root.querySelector(".mv-inline");
-    if (p && p.scrollIntoView) p.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  // (ancien) le panneau s'ouvrait sous l'étage ; maintenant c'est une fenêtre pop-up : rien à faire
+  function scrollPanel() { /* sans effet */ }
+
+  // Échap ferme la fenêtre du dessus ; un clic sur un bouton « Machine / Classique » change l'affichage de toute l'appli
+  if (!window.__mvGlobal) {
+    window.__mvGlobal = true;
+    document.addEventListener("keydown", e => {
+      if (e.key !== "Escape") return;
+      const xs = document.querySelectorAll(".mv-pop-x"); if (!xs.length) return;
+      const top = document.querySelector("#modal-root .modal-back");     // une fenêtre (Retirer, confirmation…) est par-dessus : Échap la ferme, elle
+      if (top && !top.contains(xs[xs.length - 1])) return;
+      e.preventDefault(); e.stopPropagation(); xs[xs.length - 1].click();
+    }, true);
+    document.addEventListener("toggle", e => {
+      const d = e.target; if (!d || !d.dataset || !d.dataset.fold) return;
+      const S = st(); (S.mvFold = S.mvFold || {})[d.dataset.fold] = d.open;
+    }, true);
+    document.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("[data-mvmode]"); if (!b || b.dataset.mvmode === mode()) return;
+      setMode(b.dataset.mvmode);
+      document.querySelectorAll("[data-mvmode]").forEach(x => { const a = x.dataset.mvmode === mode(); x.classList.toggle("active", a); x.setAttribute("aria-pressed", a); });
+      if (BA.Wizard && BA.Wizard.w && document.querySelector(".modal [data-mvmode]")) return BA.Wizard.modeChanged(mode());   // « Remplir » ouvert : on garde ce qui est saisi
+      if (BA.Shell && BA.Shell.renderView) BA.Shell.renderView();
+    });
   }
 
-  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs };
+  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop };
 })();

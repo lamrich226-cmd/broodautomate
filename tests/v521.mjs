@@ -103,6 +103,7 @@ const etat = {
   const errs = [], requetes = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels", acceptDownloads: true, permissions: ["clipboard-read", "clipboard-write"] }, opts));
+    await ctx.addInitScript(() => { try { localStorage.setItem("ba_mv_mode", "classic"); } catch (e) { /* */ } });   // v5.25 : ces essais vérifient l'affichage « Classique » (comme avant)
     for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
     await fake.attach(ctx, nom);
     ctx.on("request", r => requetes.push(r.url() + " " + (r.postData() || "")));

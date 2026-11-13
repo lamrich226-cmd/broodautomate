@@ -37,7 +37,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
     for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") }));
     // le mode démo ne doit jamais laisser partir une requête vers Supabase
     await ctx.route(/supabase\.co/, r => { sortis.push(r.request().url()); r.abort(); });
-    if (vue) await ctx.addInitScript(v => { try { localStorage.setItem("ba_wz_vue", v); } catch (e) { /* */ } }, vue);
+    if (vue) await ctx.addInitScript(v => { try { localStorage.setItem("ba_mv_mode", v); } catch (e) { /* */ } }, vue);
     const p = await ctx.newPage();
     p.on("pageerror", e => errs.push(name + " : " + e.message));
     p.on("console", m => { if (m.type() === "error" && !/Failed to load resource/.test(m.text())) errs.push(name + " : " + m.text()); });
@@ -52,6 +52,17 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   console.log("== 1. Admin (ordinateur) : Dashboard et Détail machine");
   const a = await device("pc", { viewport: { width: 1440, height: 900 } }, "index.html");
   ok("Dashboard : une petite machine sur chaque carte (20)", (await a.$$(".carte-machine .mv-compact")).length === 20);
+  const c0 = await a.$eval(".carte-machine .mv-compact", e => ({ cells: [...e.querySelectorAll(".mv-c:not(.st-free)")].map(x => x.querySelector("small").textContent + ":" + x.querySelector("b").textContent), colored: [...e.querySelectorAll(".mv-c")].some(x => /ty-/.test(x.className)) }));
+  ok("Dashboard : chaque tiroir montre son numéro et son nombre de pains (pas de couleurs de pain)", c0.cells.length >= 9 && c0.cells.every(x => /^\d+:\d+\/\d+/.test(x)) && !c0.colored, c0);
+  await shot(a, "v524-00-dashboard-cartes-pc");
+  await a.click('[data-dl="list"]'); await sleep(400);
+  ok("Dashboard : « Liste » = une ligne par machine (20), avec les tiroirs en nombres", (await a.$$("tr.ligne-machine")).length === 20 && (await a.$$("tr.ligne-machine .mv-compact")).length === 20 && !(await a.$(".carte-machine")));
+  await shot(a, "v524-00b-dashboard-liste-pc");
+  await a.click('.dash-layout [data-dl="cards"]'); await sleep(300);
+  ok("retour « Cartes »", (await a.$$(".carte-machine")).length === 20);
+  await a.click('.toolbar [data-mvmode="classic"]'); await sleep(400);
+  ok("« Classique » : le Dashboard redevient comme avant (pas de tiroirs en nombres)", !(await a.$(".mv-compact")) && (await a.$$(".carte-machine")).length === 20);
+  await a.click('.toolbar [data-mvmode="machine"]'); await sleep(300);
   await S(a, () => { BA.Shell.state.machine = 105; BA.Shell.go("details"); });
   await a.waitForSelector(".mv-wrap"); await sleep(400);
   ok("#105 (5 étages) : 15 tiroirs et 3 places « Non utilisé » (étage 6)", (await a.$$(".mv-wrap [data-mv-sel]")).length === 15 && (await a.$$(".mv-wrap [data-mv-free]")).length === 3);
@@ -65,22 +76,36 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await a.click("[data-mva-go]"); await sleep(700);
   let sel = await S(a, () => { const m = BA.Model.machine(BA.Store.get(), 105); const x = BA.Model.sel(m, 63); return x && { type: x.type, cap: x.cap, price: x.price }; });
   ok("sélection 63 ajoutée (Pain MAYA, 3 pains, 3,10 €)", sel && sel.type === "maya" && sel.cap === 3 && sel.price === 3.1, sel);
-  ok("le panneau montre la nouvelle sélection", /Sélection 63/.test(await a.innerText(".mv-side .mv-panel")));
+  ok("le panneau (dans la fenêtre) montre la nouvelle sélection", /Sélection 63/.test(await a.innerText(".mv-pop .mv-panel")));
   await a.fill("#mvx-price-105", "3.40"); await a.click("[data-mvx-save]"); await sleep(600);
   sel = await S(a, () => { const s = BA.Store.get(), x = BA.Model.sel(BA.Model.machine(s, 105), 63); const j = (s.journal || []).filter(e => e.k === "price" && e.n === 105 && e.s === 63).pop(); return { price: x.price, log: j ? [j.p0, j.p] : null }; });
   ok("prix changé dans le tiroir : 3,40 €, noté dans l'Historique (3,10 → 3,40)", sel.price === 3.4 && sel.log && sel.log[0] === 3.1 && sel.log[1] === 3.4, sel);
-  ok("message « Prix de la sélection 63 : 3,40 € »", /Prix de la sélection 63 : 3,40/.test(await a.innerText(".mv-side")));
+  ok("message « Prix de la sélection 63 : 3,40 € »", /Prix de la sélection 63 : 3,40/.test(await a.innerText(".mv-pop")));
   await a.click('[data-mvx-del="63"]'); await a.waitForSelector("#dlg-ok"); await a.click("#dlg-ok"); await sleep(600);
   ok("supprimer (avec confirmation) : la place redevient « Non utilisé »", !(await S(a, () => BA.Model.sel(BA.Model.machine(BA.Store.get(), 105), 63))) && !!(await a.$('[data-mv-free="63"]')));
   const bad = await S(a, () => { const s = BA.Store.get(), m = BA.Model.machine(s, 105); const sel = m.sels.find(x => x.lots.some(l => BA.Model.isOld(s, l))); return sel ? sel.n : null; });
   if (bad) {
     await a.click(`#mvt-105-${bad}`); await sleep(300);
-    await a.click(".mv-side [data-mv-rm]"); await sleep(400);
-    ok("« Retirer » d'un lot ouvre la fenêtre habituelle de retrait", !!(await a.$("#modal-root .modal")));
+    ok("toucher un tiroir ouvre une fenêtre pop-up (la page ne bouge pas)", !!(await a.$(".mv-pop .mv-panel")) && !(await a.$(".mv-side, .mv-inline")));
+    await shot(a, "v524-00c-popup-pc");
+    await a.click(".mv-pop [data-mv-rm]"); await sleep(400);
+    ok("« Retirer » d'un lot ouvre la fenêtre habituelle de retrait (par-dessus)", !!(await a.$("#modal-root .modal")));
     await a.keyboard.press("Escape"); await sleep(200);
+    ok("Échap ferme la fenêtre de retrait, la fenêtre du tiroir reste", !(await a.$("#modal-root .modal")) && !!(await a.$(".mv-pop")));
+    await a.keyboard.press("Escape"); await sleep(200);
+    ok("Échap ferme la fenêtre du tiroir", !(await a.$(".mv-pop")));
+    await a.click(`#mvt-105-${bad}`); await sleep(250); await a.mouse.click(5, 5); await a.mouse.move(800, 450); await sleep(450);
+    ok("un clic à côté ferme aussi la fenêtre", !(await a.$(".mv-pop")));
   }
   await S(a, () => BA.Shell.go("products")); await sleep(600);
-  ok("Produits / Stock : la vue machine est aussi là (avec le tableau)", !!(await a.$("#view-products .mv-wrap")) && !!(await a.$("#view-products .sel-table")));
+  ok("Produits / Stock : la vue machine est aussi là, le tableau est replié dessous", !!(await a.$("#view-products .mv-wrap")) && !!(await a.$("#view-products details.mv-fold .sel-table")) && !(await a.$("#view-products details.mv-fold[open]")));
+  await S(a, () => { BA.Shell.state.machine = 105; BA.Shell.go("details"); }); await a.waitForSelector(".mv-wrap"); await sleep(300);
+  ok("Détail machine : le tableau des lots (qui répète la machine) est replié", !!(await a.$("#view-details details.mv-fold")) && !(await a.$("#view-details details.mv-fold[open]")));
+  await a.click("#view-details details.mv-fold > summary"); await sleep(300);
+  ok("… et s'ouvre en un clic (il reste ouvert au redessin)", !!(await a.$("#view-details details.mv-fold[open] table")));
+  await a.click('#view-details [data-mvmode="classic"]'); await sleep(400);
+  ok("Détail machine « Classique » : comme avant (pas de machine dessinée, tableau des lots visible)", !(await a.$("#view-details .mv-wrap")) && !(await a.$("#view-details details.mv-fold")) && !!(await a.$("#view-details table")));
+  await a.click('#view-details [data-mvmode="machine"]'); await sleep(400);
 
   console.log("\n== 2. Opérateur (téléphone) : Remplir en touchant les tiroirs");
   const o = await device("tel", { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true }, "operateur.html");
@@ -91,19 +116,23 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
     return m.num;
   });
   await S(o, n => BA.Wizard.open(n), num); await o.waitForSelector("#wz-mv");
-  ok(`#${num} : la vue « Machine » est choisie par défaut (bouton Machine / Tableau)`, !!(await o.$('.wz-vue [data-wzvue="machine"].active')) && !(await o.$("#inv-yes")));
+  ok(`#${num} : la vue « Machine » est choisie par défaut (bouton Machine / Classique)`, !!(await o.$('.wz-vue [data-mvmode="machine"].active')) && !(await o.$("#inv-yes")));
   await shot(o, "v524-02-inventaire-tel");
   // étape 1 : un tiroir compté avec un pain de moins
   const inv = await S(o, n => { const s = BA.Store.get(), M = BA.Model, m = M.machine(s, n); const sel = m.sels.find(z => M.qty(z) >= 2); M.sortLots(sel); return { n: sel.n, q: M.qty(sel), first: { id: sel.lots[0].id, qty: sel.lots[0].qty } }; }, num);
+  const h0 = await o.$eval("#wz-mv .mv-glass", e => e.getBoundingClientRect().height);
   await o.click(`#mvt-${num}-${inv.n}`); await sleep(250);
-  ok("téléphone : le panneau s'ouvre sous l'étage touché", !!(await o.$(".mv-inline .mv-panel")) && !(await o.$(".mv-side")));
+  ok("téléphone : le panneau s'ouvre en fenêtre pop-up (rien ne descend)", !!(await o.$(".mv-pop .mv-panel")) && !(await o.$(".mv-inline, .mv-side")) && Math.abs((await o.$eval("#wz-mv .mv-glass", e => e.getBoundingClientRect().height)) - h0) < 1);
+  await shot(o, "v524-02b-popup-tel");
   await o.click("#mvi-m"); await sleep(250);
   ok("le tiroir affiche la correction (✏ q → q−1) et un pain barré", (await o.innerText(`#mvt-${num}-${inv.n} .mv-st`)).includes(`${inv.q} → ${inv.q - 1}`) && (await o.$$(`#mvt-${num}-${inv.n} .k-miss`)).length >= 1);
   await shot(o, "v524-03-inventaire-correction-tel");
+  await o.keyboard.press("Escape"); await sleep(250);
+  ok("Échap ferme la fenêtre du tiroir (la correction reste)", !(await o.$(".mv-pop")) && (await o.innerText(`#mvt-${num}-${inv.n} .mv-st`)).includes("→"));
   // aller-retour vers le tableau : la correction suit
-  await o.click('[data-wzvue="table"]'); await sleep(300);
+  await o.click('[data-mvmode="classic"]'); await sleep(300);
   ok("bouton « Tableau » : le tableau reprend la correction (mode modifier)", await o.$eval(`#inv-${inv.n}`, i => Number(i.value)) === inv.q - 1);
-  await o.click('[data-wzvue="machine"]'); await sleep(300);
+  await o.click('[data-mvmode="machine"]'); await sleep(300);
   ok("retour « Machine » : la correction est toujours là", (await o.innerText(`#mvt-${num}-${inv.n} .mv-st`)).includes("→"));
   await o.click("#mvw-inv-ok"); await o.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
   const after1 = await S(o, a => { const s = BA.Store.get(), M = BA.Model, m = M.machine(s, a.num), sel = M.sel(m, a.n); const it = s.interventions.find(x => x.num === a.num && x.status === "open"); const l = sel.lots.find(x => x.id === a.first.id); return { q: M.qty(sel), real: it.inv.find(r => r.sel === a.n).real, lot: l ? l.qty : 0 }; }, Object.assign({ num }, inv));
@@ -116,6 +145,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await o.click(`#mvr-k-${keep.sel}-${keep.lotId}`); await sleep(250);
   ok("« Encore bon » : le tiroir montre les pains gardés (⏳)", (await o.$$(`#mvt-${num}-${keep.sel} .mv-loaf.k-keep`)).length === keep.qty);
   await shot(o, "v524-05-retrait-garder-tel");
+  await o.keyboard.press("Escape"); await sleep(250);
   await o.click("#mvw-rm-ok"); await o.waitForSelector("#mvw-ld-ok");
   const after2 = await S(o, a => {
     const s = BA.Store.get(), M = BA.Model, m = M.machine(s, a.num), it = s.interventions.find(x => x.num === a.num && x.status === "open");
@@ -130,6 +160,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await o.click(`#mvl-${ld.n}-0-p`); await sleep(150); await o.click(`#mvl-${ld.n}-0-p`); await sleep(250);
   ok("chargement : 2 nouveaux pains dessinés (＋) et le total suit", (await o.$$(`#mvt-${num}-${ld.n} .mv-loaf.k-new`)).length === 2 && /2 pain/.test(await o.innerText("#mvl-total")));
   await shot(o, "v524-06-chargement-tel");
+  await o.keyboard.press("Escape"); await sleep(250);
   await o.click("#mvw-ld-ok"); await o.waitForSelector("#wz-close");
   const after3 = await S(o, a => { const s = BA.Store.get(), M = BA.Model, sel = M.sel(M.machine(s, a.num), a.n); const it = s.interventions.find(x => x.num === a.num); const l = sel.lots.find(x => x.date === a.delivery); return { q: M.qty(sel), load: it.load.find(r => r.sel === a.n).qty, status: it.status, lot: l ? l.qty : 0 }; }, Object.assign({ num }, ld));
   ok("chargement enregistré : +2 pains avec la date de livraison, intervention terminée", after3.q === ld.q + 2 && after3.load === 2 && after3.status === "done" && after3.lot >= 2, after3);
@@ -138,7 +169,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await o.click("#wz-close"); await sleep(300);
 
   console.log("\n== 3. Vue « Tableau » : le chemin d'avant fonctionne toujours");
-  const t2 = await device("tel-tableau", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "operateur.html", "table");
+  const t2 = await device("tel-tableau", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "operateur.html", "classic");
   const n2 = await S(t2, () => BA.Store.get().machines.find(m => !m.door && !m.power).num);
   await S(t2, n => BA.Wizard.open(n), n2);
   await t2.waitForSelector("#inv-yes"); await t2.click("#inv-yes");
@@ -146,12 +177,15 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await t2.waitForSelector("#ld-validate"); await t2.click("#ld-validate"); await t2.waitForSelector("#wz-close");
   ok("tableau : inventaire → retrait → chargement, comme avant", await S(t2, n => BA.Store.get().interventions.find(x => x.num === n).status === "done", n2));
 
-  console.log("\n== 4. Ordinateur : Remplir avec le panneau à droite");
+  console.log("\n== 4. Ordinateur : Remplir avec la fenêtre pop-up");
   const p2 = await device("pc-op", { viewport: { width: 1440, height: 900 } }, "operateur.html", "machine");
   const n3 = await S(p2, () => { const s = BA.Store.get(); return s.machines.find(m => !m.door && !m.power && BA.Model.removalList(s, m, null).length).num; });
-  await S(p2, n => BA.Wizard.open(n), n3); await p2.waitForSelector("#wz-mv .mv-side");
-  ok("ordinateur : fenêtre large, panneau à droite", !!(await p2.$(".modal.wz-wide")) && !!(await p2.$("#wz-mv .mv-side .mv-panel")));
+  await S(p2, n => BA.Wizard.open(n), n3); await p2.waitForSelector("#wz-mv .mv-machine");
+  ok("ordinateur : pas de colonne à droite (la machine prend toute la largeur de la fenêtre)", !(await p2.$(".mv-side, .modal.wz-wide")));
+  await p2.click("#wz-mv [data-mv-sel]"); await sleep(300);
+  ok("ordinateur : un tiroir touché ouvre la fenêtre pop-up, centrée", await p2.$eval(".mv-pop", e => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }));
   await shot(p2, "v524-08-inventaire-pc");
+  await p2.keyboard.press("Escape"); await sleep(250);
   await p2.click("#mvw-inv-yes"); await p2.waitForSelector("#mvw-rm-yes, #mvw-rm-ok");
   await shot(p2, "v524-09-retrait-pc");
   await p2.click("#mvw-rm-yes"); await p2.waitForSelector("#mvw-ld-ok");
