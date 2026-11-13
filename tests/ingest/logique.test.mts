@@ -8,11 +8,21 @@ const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "ba-pur-")), "pur.ts
 fs.writeFileSync(tmp, src.slice(a, b) + "\nexport { lireReleve, resume, jwtGoogle, libelle, b64url };\n");
 const { lireReleve, resume, jwtGoogle, libelle } = await import(tmp);
 let ko = 0; const ok = (n: string, c: boolean, x?: unknown) => { console.log((c ? "  OK   " : "  ÉCHEC ") + n + (c ? "" : " → " + JSON.stringify(x))); if (!c) ko++; };
-const dat = fs.readFileSync(process.argv[2] || process.env.BA_AUDIT || path.join(ICI, "../donnees/AUDIT_FASTER_170824020354.dat"), "latin1");
-const r1 = lireReleve(dat);
-ok("vrai relevé : 3 pannes (ECF_38, E45, EOA)", r1.evs.length === 3 && r1.evs.every(e => e.type === "panne"), r1.evs);
-ok("vrai relevé : textes en français", /carte/i.test(r1.evs[0].titre) && /ascenseur/i.test(r1.evs[1].titre), r1.evs.map(e => e.titre));
-ok("vrai relevé : porte OUVERTE (dernier EGS 02:01 daté, jamais refermée ; EA2 EGS actif = 1)", r1.porte === true, r1.porte);
+// v5.25 : le vrai relevé (données privées, pas dans le dépôt) est facultatif : sans lui, ses 3 vérifications sont sautées
+const vrai = process.argv[2] || process.env.BA_AUDIT || path.join(ICI, "../donnees/AUDIT_FASTER_170824020354.dat");
+if (fs.existsSync(vrai)) {
+  const r1 = lireReleve(fs.readFileSync(vrai, "latin1"));
+  ok("vrai relevé : 3 pannes (ECF_38, E45, EOA)", r1.evs.length === 3 && r1.evs.every(e => e.type === "panne"), r1.evs);
+  ok("vrai relevé : textes en français", /carte/i.test(r1.evs[0].titre) && /ascenseur/i.test(r1.evs[1].titre), r1.evs.map(e => e.titre));
+  ok("vrai relevé : porte OUVERTE (dernier EGS 02:01 daté, jamais refermée ; EA2 EGS actif = 1)", r1.porte === true, r1.porte);
+} else console.log("  (vrai relevé absent : 3 vérifications sautées)");
+// v5.25 : la même panne écrite deux fois (EA1 en code EVA-DTS + MA5 en erreur FAS) = UNE seule notification
+const r5 = lireReleve("DXS\nEA1*ECF_38*261201*0800***+120\nMA5*ERROR*261201*0800*16*38\nDXE");
+ok("ECF_38 + MA5 16/38 au même moment = une seule panne", r5.evs.filter(e => e.type === "panne").length === 1, r5.evs);
+const r6 = lireReleve("DXS\nMA5*ERROR*261201*0800*10*38\nEA1*EOA*261201*0800***+120\nDXE");
+ok("MA5 10/38 écrit AVANT EOA au même moment = une seule panne", r6.evs.filter(e => e.type === "panne").length === 1, r6.evs);
+const r7 = lireReleve("DXS\nEA1*E45*261201*0800***+120\nMA5*ERROR*261201*0800*16*38\nDXE");
+ok("deux pannes DIFFÉRENTES au même moment (E45 et 16/38) = deux notifications", r7.evs.filter(e => e.type === "panne").length === 2, r7.evs);
 const tel = "DXS*FAS000000001*VA*V1/6*1\nEA1*EGS*251105*0412***+120\nEA2*EGS****1\nDXE*1*1";
 const r2 = lireReleve(tel);
 ok("porte ouverte : état ouvert, pas de notification immédiate", r2.porte === true && r2.evs.length === 0, r2);

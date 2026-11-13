@@ -96,6 +96,7 @@ window.BA = window.BA || {};
   function auto() {
     try {
       if (Date.now() - lastAuto < 3000) return;
+      if (BA.Store.replaying && BA.Store.replaying()) return;     // v5.25 : action refaite après un redémarrage
       const s = BA.Store.get();
       const o = { machines: s.machines.map(m => m.num), parts: { needs: true, hist: false, gen: false, set: true }, from: "", to: "" };
       const b = make(s, o, "auto", "");                // besoins + réglages généraux (sans calendrier)

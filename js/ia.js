@@ -15,7 +15,6 @@ window.BA = window.BA || {};
   const M = BA.Model;
   const t = (k, v) => BA.I18n.t(k, v);
   const U = () => BA.UI;
-  const JOURS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
   const JOURS_3 = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
   const ORDRE = [1, 2, 3, 4, 5, 6, 0];                 // lundi d'abord
   const pct = v => Math.round(v) + " %";

@@ -1,5 +1,5 @@
 // ============================================================
-// Broodautomate — fonction « ingest » (v5.9) : reçoit les envois des boîtiers 4G (LILYGO)
+// Broodautomate — fonction « ingest » (v5.9 ; v5.25 : une seule notification pour une panne écrite deux fois) : reçoit les envois des boîtiers 4G (LILYGO)
 // et envoie les NOTIFICATIONS (cloche de la page admin + appli Android).
 // Supabase → Edge Functions → ingest → Code → remplacer TOUT le code par celui-ci → Deploy.
 // « Verify JWT » (ou « Enforce JWT verification ») reste DÉSACTIVÉ : le boîtier
@@ -81,6 +81,10 @@ function lireReleve(raw: string): Lecture {
   let tS = "", tT = "", egsActif: boolean | null = null;
   const vus = new Set<string>();
   const datesEa1 = new Set<string>();
+  // v5.25 : la même panne est souvent écrite deux fois au même moment : en code EVA-DTS (EA1 « E45 », « ECF_38 », « EOA »)
+  // et en erreur FAS (MA5*ERROR 45/54, 16/38, 10/38). On retient « date|heure|n° FAS » des lignes EA1 pour ne notifier
+  // qu'une fois. (Avant, seul « E45 » était reconnu : « ECF_38 » + « 16/38 » donnaient 2 notifications.)
+  const fasDe = (code: string): string => { const vu = CODES_VUS[code]; if (vu) return vu.fas.padStart(2, "0"); const m = /^E(\d{2})/.exec(code); return m ? m[1] : ""; };
   const lignes = String(raw || "").split(/\r?\n/).map((l) => l.trim().split("*"));
   for (const f of lignes) {
     const seg = f[0], code = (f[1] || "").trim();
@@ -93,7 +97,8 @@ function lireReleve(raw: string): Lecture {
       const cle = "EA1|" + code + "|" + (f[2] || "") + "|" + (f[3] || "");
       if (vus.has(cle)) continue;
       vus.add(cle);
-      if (/^E\d{2}/.test(code)) datesEa1.add((f[2] || "") + "|" + (f[3] || ""));
+      const nf = fasDe(code);
+      if (nf) datesEa1.add((f[2] || "") + "|" + (f[3] || "") + "|" + nf);
       evs.push({ cle, type: grav === "p" ? "panne" : "alerte", titre, texte: "Code " + code + heureCourte(f[3]) });
     } else if (seg === "EA2" && code === "EGS") {
       let actif = (f[5] || "").trim();
@@ -103,7 +108,7 @@ function lireReleve(raw: string): Lecture {
     } else if (seg === "MA5" && code === "ERROR") {
       const n = (f[4] || "").trim(), sous = (f[5] || "").trim();
       if (!n) continue;
-      if (datesEa1.has((f[2] || "") + "|" + (f[3] || ""))) continue;   // même erreur déjà vue en « E45 »
+      if (datesEa1.has((f[2] || "") + "|" + (f[3] || "") + "|" + n.padStart(2, "0"))) continue;   // même panne déjà vue en EA1 (« E45 », « ECF_38 »…)
       const cle = "MA5|" + (f[2] || "") + "|" + (f[3] || "") + "|" + n + "|" + sous;
       if (vus.has(cle)) continue;
       vus.add(cle);
@@ -122,7 +127,7 @@ function lireReleve(raw: string): Lecture {
   if (tS || tT) porte = tS > tT ? true : tT > tS ? false : (egsActif !== null ? egsActif : (tS ? false : null));
   else if (egsActif !== null) porte = egsActif;
   // les erreurs « MA5 » sont souvent écrites AVANT la ligne EA1 du même moment : 2e passage
-  return { evs: evs.filter((e) => !(e.cle.startsWith("MA5|") && datesEa1.has(e.cle.split("|")[1] + "|" + e.cle.split("|")[2]))), porte };
+  return { evs: evs.filter((e) => { if (!e.cle.startsWith("MA5|")) return true; const p = e.cle.split("|"); return !datesEa1.has(p[1] + "|" + p[2] + "|" + p[3].padStart(2, "0")); }), porte };
 }
 
 // Une seule notification de téléphone pour plusieurs événements d'un coup

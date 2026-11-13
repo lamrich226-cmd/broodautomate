@@ -96,6 +96,7 @@ window.BA = window.BA || {};
       if (BA.Portes) BA.Portes.start();              // v5.13 : porte ouverte en direct (toutes les 15 s)
       if (ctx.afterInit) { try { ctx.afterInit(); } catch (e) { console.error(e); } }
       if (BA.Store.status().lost && BA.UI) BA.UI.toast(t("sync_lost"), 20000);
+      else if (BA.Store.status().replayed && BA.UI) BA.UI.toast("✅ " + t("sync_replayed", { n: BA.Store.status().replayed }), 10000);   // v5.25
     },
 
     login(ctx, message, email) {

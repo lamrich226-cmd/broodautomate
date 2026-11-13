@@ -971,7 +971,7 @@ table.rs-machines .plaque-in { width: 130px; }
    15. Vue machine (design-test v5.24) : étages, tiroirs, prix, heures et date de chaque pain, places libres
    ============================================================ */
 :root { --bread-blanc: #e9cf9a; --bread-gris: #b9a58a; --bread-complet: #8a5a2b; --bread-maya: #d9a441; --bread-sandwich: #e8b9a0; --bread-x: #c9b99a; }
-.mv-machine { min-width: 0; }
+.mv-mach { min-width: 0; }      /* (pas « .mv-machine » : ce nom sert déjà aux demandes de déplacement de pain) */
 .mv-grid { display: grid; gap: 8px; }
 .mv-etage { display: grid; grid-template-columns: 20px repeat(var(--cols), minmax(0, 1fr)); gap: 6px; align-items: stretch; padding-bottom: 8px; border-bottom: 3px solid var(--line-strong); }
 .mv-etage.last { border-bottom: 0; padding-bottom: 0; }

@@ -174,7 +174,7 @@
       <p class="note" data-aide="1">${t("op_sel_help")}</p>
       ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
       ${BA.MachineView && BA.MachineView.on() ? BA.MachineView.block(s, m) : ""}
-      ${BA.MachineView ? BA.MachineView.foldOpen("stock", `🍞 ${t("mv_table_title")}`, U.stockTable(s, m, false)) : U.stockTable(s, m, false)}
+      ${BA.MachineView ? BA.MachineView.foldOpen("stock", `🍞 ${t("vm_table_title")}`, U.stockTable(s, m, false)) : U.stockTable(s, m, false)}
       <p class="note">${t("products_op_note", { h: s.settings.thrHours })}</p>`;
     el.querySelector("#prod-machine").onchange = e => { st().machine = Number(e.target.value); renderProducts(el); };
     el.querySelector("#fill-btn").onclick = () => Wizard.open(m.num);
@@ -458,15 +458,15 @@
     mStep(s, m) {
       const w = this.w;
       let head;
-      if (w.step === 1) head = `<h3>${t("step1_title")}</h3><p class="note">${t("mv_inv_help")}</p>`;
+      if (w.step === 1) head = `<h3>${t("step1_title")}</h3><p class="note">${t("vm_inv_help")}</p>`;
       else if (w.step === 2) {
         const mission = M.openMission(s, m.num);
         const rule = mission && mission.removeBefore ? t("step2_rule_mission", { d: F.dt(mission.removeBefore) }) : t("step2_rule_thr", { h: s.settings.thrHours });
-        head = `<h3>${t("step2_title")}</h3><p class="note">${rule} ${t("mv_rm_help")}</p>`;
+        head = `<h3>${t("step2_title")}</h3><p class="note">${rule} ${t("vm_rm_help")}</p>`;
       } else {
         const c = this.loadCtx(s, m);
         head = `<h3>${t("step3_title")}</h3>
-          <p class="note">${t(c.mission ? "step3_help" : "step3_help_free")} ${t("mv_ld_help")}</p>
+          <p class="note">${t(c.mission ? "step3_help" : "step3_help_free")} ${t("vm_ld_help")}</p>
           <div class="alert warn">🔁 ${t("fifo_reminder")}</div>
           ${c.reduced ? `<div class="alert info">📈 ${t("op_reduced_load")}</div>` : ""}
           <label class="field-row">${t("ld_date_all")} <input type="datetime-local" id="mvl-date" value="${F.toInput(w.delivery)}"></label>`;
@@ -482,17 +482,17 @@
       if (w.mvOpen && !sel) w.mvOpen = false;
       const key = sel ? String(sel.n) : null;
       const grid = V.grid(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false });
-      return `<div class="mv-machine"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${sel ? V.pop(V.big(s, m, sel, o.list, o.stat) + o.panel(sel)) : ""}${o.footer}`;
+      return `<div class="mv-mach"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${sel ? V.pop(V.big(s, m, sel, o.list, o.stat) + o.panel(sel)) : ""}${o.footer}`;
     },
 
     // compteur − / + (grands boutons pour le doigt)
     mCounter(label, v, min, max, attrs, idBase) {
       return `<div class="mv-count"><span class="mv-count-l">${label}</span>
-        <button type="button" class="btn secondary mv-pm" id="${idBase}-m" ${attrs} data-d="-1" aria-label="${E(t("mv_minus"))}"${v <= min ? " disabled" : ""}>−</button>
+        <button type="button" class="btn secondary mv-pm" id="${idBase}-m" ${attrs} data-d="-1" aria-label="${E(t("vm_minus"))}"${v <= min ? " disabled" : ""}>−</button>
         <output class="mv-num" aria-live="polite">${v}</output>
-        <button type="button" class="btn secondary mv-pm" id="${idBase}-p" ${attrs} data-d="1" aria-label="${E(t("mv_plus"))}"${v >= max ? " disabled" : ""}>+</button></div>`;
+        <button type="button" class="btn secondary mv-pm" id="${idBase}-p" ${attrs} data-d="1" aria-label="${E(t("vm_plus"))}"${v >= max ? " disabled" : ""}>+</button></div>`;
     },
-    mHead(sel) { return `<h4>${t("mv_sel", { n: sel.n })} · ${U.prod(sel.type)}</h4>`; },
+    mHead(sel) { return `<h4>${t("vm_sel", { n: sel.n })} · ${U.prod(sel.type)}</h4>`; },
 
     // ---------- Étape 1 : inventaire ----------
     mInv(s, m) {
@@ -509,12 +509,12 @@
           return `<div class="mv-panel">${this.mHead(sel)}
             <div class="mv-kv"><span>${t("col_recorded")}</span><b>${e} / ${sel.cap}</b></div>
             ${this.mCounter(t("col_counted"), c, 0, sel.cap, `data-mvi="${sel.n}"`, "mvi")}
-            ${d < 0 ? `<p class="petit mv-warn">${t("mv_inv_less", { n: -d })}</p>` : d > 0 ? `<p class="petit">${t("mv_inv_more", { n: d })}</p>` : ""}
-            ${d ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvi-r" data-mvi-r="${sel.n}">↺ ${t("mv_inv_reset_one")}</button></div>` : ""}</div>`;
+            ${d < 0 ? `<p class="petit mv-warn">${t("vm_inv_less", { n: -d })}</p>` : d > 0 ? `<p class="petit">${t("vm_inv_more", { n: d })}</p>` : ""}
+            ${d ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvi-r" data-mvi-r="${sel.n}">↺ ${t("vm_inv_reset_one")}</button></div>` : ""}</div>`;
         },
         footer: changed
-          ? `<p class="petit">${t("mv_inv_changed", { n: changed })}</p>
-             <div class="wz-actions"><button class="btn big" id="mvw-inv-ok">✔ ${t("btn_validate_inv")}</button><button class="btn big secondary" id="mvw-inv-reset">↺ ${t("mv_reset")}</button></div>`
+          ? `<p class="petit">${t("vm_inv_changed", { n: changed })}</p>
+             <div class="wz-actions"><button class="btn big" id="mvw-inv-ok">✔ ${t("btn_validate_inv")}</button><button class="btn big secondary" id="mvw-inv-reset">↺ ${t("vm_reset")}</button></div>`
           : `<div class="q-title">${t("step1_question")}</div>
              <div class="wz-actions"><button class="btn big" id="mvw-inv-yes">✔ ${t("btn_inv_yes")}</button><button class="btn secondary" id="mvw-inv-skip">⏭ ${t("btn_skip")}</button></div>`
       };
@@ -535,10 +535,10 @@
         ? `<div class="alert info">✅ ${t("step2_none")}</div><div class="wz-actions">${back}<button class="btn big" id="mvw-rm-next">${t("btn_next")} →</button></div>`
         : `${nMust ? `<div class="alert err">${t("step2_must_alert", { n: nMust })}</div>` : ""}
            ${nAgain ? `<div class="alert info">${t("step2_again_alert", { n: nAgain, d: F.dt(Math.min.apply(null, again.map(r => r.until))) })}</div>` : ""}
-           <p class="petit">${t("mv_rm_sum", { n: nOut, k: nKeep })}</p>
+           <p class="petit">${t("vm_rm_sum", { n: nOut, k: nKeep })}</p>
            ${nKeep ? `<div class="alert info">⏳ ${t("step2_keep_note", { d: F.dt(M.nextDayAt(s, s.now)) })}</div>` : ""}
            <div class="wz-actions">${back}${changed
-             ? `<button class="btn big" id="mvw-rm-ok">✔ ${t("btn_validate_rm")}</button><button class="btn big secondary" id="mvw-rm-reset">↺ ${t("mv_reset")}</button>`
+             ? `<button class="btn big" id="mvw-rm-ok">✔ ${t("btn_validate_rm")}</button><button class="btn big secondary" id="mvw-rm-reset">↺ ${t("vm_reset")}</button>`
              : `<button class="btn big" id="mvw-rm-yes">✔ ${t(nOpt === 0 ? "btn_rm_must" : "btn_rm_yes")}</button>${nOpt > 0 ? `<button class="btn big secondary" id="mvw-rm-no">✖ ${t(nMust ? "btn_rm_only_must" : "btn_rm_no")}</button>` : ""}`}</div>`;
       return {
         mode: "rm",
@@ -549,17 +549,17 @@
           const mine = rows.filter(r => r.sel === sel.n);
           const lots = sel.lots.slice().sort((a, b) => a.date - b.date || a.id - b.id).map(l => {
             const r = mine.find(x => x.lotId === l.id);
-            const head = `<span>${t("mv_lot", { d: V.dd(l.date) })} · <b class="${r ? "old" : ""}">${t("mv_ago", { h: V.hrs(s, l.date) })}</b> · ${t("mv_n", { n: l.qty })}</span>`;
-            if (!r) return `<div class="mv-lotline">${head}<span class="mv-ok">✔ ${t("mv_good")}</span></div>`;
-            if (r.mandatory) return `<div class="mv-lotline">${head}<span class="mv-must">⛔ ${t("must_tag")} · ${t("mv_out_n", { n: r.qty })}</span></div>`;
+            const head = `<span>${t("vm_lot", { d: V.dd(l.date) })} · <b class="${r ? "old" : ""}">${t("vm_ago", { h: V.hrs(s, l.date) })}</b> · ${t("vm_n", { n: l.qty })}</span>`;
+            if (!r) return `<div class="mv-lotline">${head}<span class="mv-ok">✔ ${t("vm_good")}</span></div>`;
+            if (r.mandatory) return `<div class="mv-lotline">${head}<span class="mv-must">⛔ ${t("must_tag")} · ${t("vm_out_n", { n: r.qty })}</span></div>`;
             const k = this.rmKey(r), v = remOf(r);
             return `<div class="mv-lotline mv-rmline">${head}
               ${r.kept && r.keptAt ? `<span class="petit">⏳ ${t("kept_on", { d: F.dt(r.keptAt) })}</span>` : ""}
-              ${this.mCounter(t("mv_rm_out"), v, 0, r.qty, `data-mvr="${k}"`, "mvr-" + k)}
-              <div class="mv-btns"><button type="button" class="btn ${v === r.qty ? "" : "secondary"}" id="mvr-a-${k}" data-mvr-set="${k}" data-v="${r.qty}">✖ ${t("mv_rm_all")}</button>
+              ${this.mCounter(t("vm_rm_out"), v, 0, r.qty, `data-mvr="${k}"`, "mvr-" + k)}
+              <div class="mv-btns"><button type="button" class="btn ${v === r.qty ? "" : "secondary"}" id="mvr-a-${k}" data-mvr-set="${k}" data-v="${r.qty}">✖ ${t("vm_rm_all")}</button>
                 <button type="button" class="btn ${v === 0 ? "" : "secondary"}" id="mvr-k-${k}" data-mvr-set="${k}" data-v="0" title="${E(t("btn_keep_tip"))}">⏳ ${t("btn_keep")}</button></div></div>`;
           }).join("");
-          return `<div class="mv-panel">${this.mHead(sel)}${mine.length ? "" : `<p class="petit">✅ ${t("mv_rm_none_sel")}</p>`}${lots || `<p class="petit">${t("mv_empty")}</p>`}</div>`;
+          return `<div class="mv-panel">${this.mHead(sel)}${mine.length ? "" : `<p class="petit">✅ ${t("vm_rm_none_sel")}</p>`}${lots || `<p class="petit">${t("vm_empty")}</p>`}</div>`;
         },
         footer
       };
@@ -567,7 +567,7 @@
 
     // ---------- Étape 3 : chargement ----------
     mLoad(s, m) {
-      const w = this.w, V = BA.MachineView, c = this.loadCtx(s, m), L = c.L;
+      const V = BA.MachineView, c = this.loadCtx(s, m), L = c.L;
       const sum = n => (L[n] || []).reduce((a, x) => a + (Number(x.qty) || 0), 0);
       const total = m.sels.reduce((a, sel) => a + sum(sel.n), 0);
       const back = this.canBack(s, 3) ? `<button class="btn big secondary" id="mvw-back">${t("btn_back")}</button>` : "";
@@ -580,27 +580,27 @@
         panel: sel => {
           const q = M.qty(sel), need = sel.cap - q, lines = L[sel.n] || [], used = sum(sel.n);
           return `<div class="mv-panel">${this.mHead(sel)}
-            <div class="mv-kv"><span>${t("mv_inside")}</span><b>${q} / ${sel.cap}</b></div>
-            <div class="mv-kv"><span>${t("mv_ld_free")}</span><b>${need}</b></div>
+            <div class="mv-kv"><span>${t("vm_inside")}</span><b>${q} / ${sel.cap}</b></div>
+            <div class="mv-kv"><span>${t("vm_ld_free")}</span><b>${need}</b></div>
             ${c.mission && c.advised(sel) > 0 ? `<div class="mv-kv"><span>${t("op_advised")}</span><b>${c.advised(sel)}</b></div>` : ""}
-            ${need <= 0 ? `<p class="petit">✔ ${t("mv_full_sel")}</p>` : lines.map((x, i) => {
+            ${need <= 0 ? `<p class="petit">✔ ${t("vm_full_sel")}</p>` : lines.map((x, i) => {
               const v = Number(x.qty) || 0, room = need - (used - v);
-              return `<div class="mv-ldline">${this.mCounter(t("mv_ld_add"), v, 0, room, `data-mvl="${sel.n}" data-i="${i}"`, `mvl-${sel.n}-${i}`)}
-                <label class="mv-ld-date">${t("mv_ld_date")} <input type="datetime-local" id="mvl-d-${sel.n}-${i}" data-mvld="${sel.n}" data-i="${i}" value="${F.toInput(x.date)}"></label>
+              return `<div class="mv-ldline">${this.mCounter(t("vm_ld_add"), v, 0, room, `data-mvl="${sel.n}" data-i="${i}"`, `mvl-${sel.n}-${i}`)}
+                <label class="mv-ld-date">${t("vm_ld_date")} <input type="datetime-local" id="mvl-d-${sel.n}-${i}" data-mvld="${sel.n}" data-i="${i}" value="${F.toInput(x.date)}"></label>
                 ${lines.length > 1 ? `<button type="button" class="btn petit secondary" id="mvl-x-${sel.n}-${i}" data-mvl-del="${sel.n}" data-i="${i}" title="${E(t("ld_remove_line"))}" aria-label="${E(t("ld_remove_line"))}">✖</button>` : ""}</div>`;
             }).join("")}
-            ${need > 0 ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvl-f-${sel.n}" data-mvl-full="${sel.n}">⬆ ${t("mv_ld_full")}</button>
+            ${need > 0 ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvl-f-${sel.n}" data-mvl-full="${sel.n}">⬆ ${t("vm_ld_full")}</button>
               <button type="button" class="btn secondary" id="mvl-z-${sel.n}" data-mvl-zero="${sel.n}">0</button>
               <button type="button" class="btn secondary" id="mvl-a-${sel.n}" data-mvl-add="${sel.n}">${t("ld_add_date")}</button></div>` : ""}</div>`;
         },
         footer: `<p class="petit" id="mvl-total">${t("step3_total", { n: total })}</p>
-          <div class="wz-actions">${back}<button class="btn big secondary" id="mvw-ld-full">⬆ ${t("mv_ld_all_full")}</button><button class="btn big" id="mvw-ld-ok">✔ ${t("btn_validate_load")}</button></div>`
+          <div class="wz-actions">${back}<button class="btn big secondary" id="mvw-ld-full">⬆ ${t("vm_ld_all_full")}</button><button class="btn big" id="mvw-ld-ok">✔ ${t("btn_validate_load")}</button></div>`
       };
     },
 
     // Après le remplissage : la machine telle qu'elle est maintenant (lecture seule)
     mAfter(s, m) {
-      return `<h3>🧩 ${t("mv_after")}</h3><div class="mv-glass">${BA.MachineView.grid(s, m, { ro: true, free: true })}</div>${BA.MachineView.legend(s, "view")}`;
+      return `<h3>🧩 ${t("vm_after")}</h3><div class="mv-glass">${BA.MachineView.grid(s, m, { ro: true, free: true })}</div>${BA.MachineView.legend(s, "view")}`;
     },
 
     // Redessine seulement la machine et les boutons (le défilement de la fenêtre ne bouge pas)
@@ -608,7 +608,7 @@
       const w = this.w, box = document.getElementById("wz-mv"); if (!w || !box) return;
       const s = BA.Store.get(), m = M.machine(s, w.num); if (!m) return;
       const ae = document.activeElement, id = focusId || (ae && box.contains(ae) ? ae.id : null);
-      box.innerHTML = this.mInner(s, m);
+      BA.MachineView.keepPopScroll(box, () => { box.innerHTML = this.mInner(s, m); });     // la fenêtre du tiroir ne remonte pas à chaque + / −
       this.mBindInner();
       if (id) { const n = document.getElementById(id); if (n && !n.disabled) n.focus({ preventScroll: true }); }
     },

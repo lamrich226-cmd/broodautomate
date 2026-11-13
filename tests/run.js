@@ -12,6 +12,7 @@ fs.mkdirSync(OUT, { recursive: true });
 const TESTS = __dirname;
 // Relevé d'une vraie machine : PAS dans le dépôt (données privées). Le mettre dans tests/donnees/ ou donner son chemin avec BA_AUDIT=…
 const DAT = process.env.BA_AUDIT || path.join(TESTS, "donnees", "AUDIT_FASTER_170824020354.dat");
+if (!fs.existsSync(DAT)) { console.log("Relevé réel absent (données privées, pas dans le dépôt) : essai sauté. Le mettre dans tests/donnees/ ou BA_AUDIT=…"); process.exit(0); }
 const AUDIT = fs.readFileSync(DAT).toString("latin1").replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
 const FAKE_SERIAL = fs.readFileSync(path.join(TESTS, "fake_serial.js"), "utf8");
 const NM = path.join(TESTS, "node_modules");
@@ -228,7 +229,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.23.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.23.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.25.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.25.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
@@ -459,7 +460,9 @@ async function scenarioSync(ctx) {
   await synced(o, 30000).catch(() => {});
   ok("réseau revenu : retrait envoyé à la base", BA_qty(fake.ba("main").data, 1, 19) === 7, BA_qty(fake.ba("main").data, 1, 19));
 
-  // e) hors ligne, page rouverte, et un autre appareil a écrit entre-temps : message, copie gardée
+  // e) hors ligne, page rouverte, et un autre appareil a écrit entre-temps. v5.25 : le retrait (une action) est refait
+  //    sur la version de la base : rien n'est mis de côté et le réglage du PC est gardé
+  await st(o, () => localStorage.removeItem("broodautomate-v5-perdu"));
   fake.setOffline("tel", true);
   const lot3 = await st(o, () => BA.Model.sel(BA.Store.get().machines.find(x => x.num === 1), 19).lots[0].id);
   await st(o, l => BA.Actions.removeBread(1, 19, [{ lotId: l, qty: 1 }], "old", ""), lot3);
@@ -470,11 +473,27 @@ async function scenarioSync(ctx) {
   await synced(a);
   fake.setOffline("tel", false);
   await st(o, () => window.dispatchEvent(new Event("online")));
+  await synced(o, 30000).catch(() => {});
+  const rejoue = await st(o, () => ({ lost: !!BA.Store.status().lost, copie: !!localStorage.getItem("broodautomate-v5-perdu"), tempMin: BA.Store.get().settings.tempMin }));
+  rejoue.q = BA_qty(fake.ba("main").data, 1, 19);
+  ok("conflit après réouverture (v5.25) : le retrait est refait sur la version de la base, rien n'est mis de côté", !rejoue.lost && !rejoue.copie && rejoue.q === 6, rejoue);
+  ok("… et le réglage du PC est gardé", rejoue.tempMin === 13, rejoue);
+
+  // f) même chose avec une modification qui n'est pas une action (impossible à refaire) : message, copie gardée
+  fake.setOffline("tel", true);
+  await st(o, () => BA.Store.update(s => { s.settings.tempMax = 19; }));
+  await sleep(300);
+  await o.reload();
+  await ready(o);
+  await st(a, () => BA.Actions.saveSettings({ tempMin: 12 }));
+  await synced(a);
+  fake.setOffline("tel", false);
+  await st(o, () => window.dispatchEvent(new Event("online")));
   await o.waitForFunction(() => !!BA.Store.status().lost, null, { timeout: 30000 }).catch(() => {});
   const lost = await st(o, () => ({ lost: !!BA.Store.status().lost, copie: !!localStorage.getItem("broodautomate-v5-perdu"), toast: (document.getElementById("toast") || {}).textContent || "" }));
-  ok("conflit après réouverture : message et copie gardée sur l'appareil", lost.lost && lost.copie && /n'ont pas pu être envoyées/.test(lost.toast), lost);
+  ok("conflit après réouverture, modification impossible à refaire : message et copie gardée sur l'appareil", lost.lost && lost.copie && /n'ont pas pu être envoyées/.test(lost.toast), lost);
   await synced(o, 30000).catch(() => {});
-  ok("… et l'appareil reprend la version de la base (réglage du PC)", (await st(o, () => BA.Store.get().settings.tempMin)) === 13);
+  ok("… et l'appareil reprend la version de la base (réglage du PC)", (await st(o, () => BA.Store.get().settings.tempMin)) === 12);
 }
 function BA_qty(main, num, sel) {
   const m = main.machines.find(x => x.num === num); if (!m) return null;
@@ -860,7 +879,7 @@ async function scenarioOperateurCompte() {
   const o = await open(d2, "operateur.html");
   await login(o, "op@test.be", "Secret-456");
   await ready(o);
-  ok("compte opérateur sur l'appli opérateur : accepté (4 onglets)", !!(await o.$("nav button[data-view=todo]")) && (await o.$$("nav#app-nav button[data-view]")).length === 4);
+  ok("compte opérateur sur l'appli opérateur : accepté (5 onglets, v5.25 : avec le Dashboard)", !!(await o.$("nav button[data-view=todo]")) && (await o.$$("nav#app-nav button[data-view]")).length === 5);
   ok("navigateur normal : lien « Logiciel admin » présent", !!(await o.$("a[href='index.html']")));
   // appli Android (agent utilisateur de l'appli)
   const d3 = await device(fake, "op57c", { ctx: { userAgent: "Mozilla/5.0 (Linux; Android 14) BroodautomateOperateurApp" } });
@@ -955,7 +974,7 @@ async function scenarioOpSimple(ctx) {
   await view(o, "todo");
   // v5.11 : sur téléphone, les onglets sont en bas (#app-tabbar), avec leur nom
   const tabs = await o.$$eval("#app-tabbar button[data-view]", l => l.map(b => ({ v: b.dataset.view, t: b.innerText.trim(), w: b.querySelector("span") ? getComputedStyle(b.querySelector("span")).display : "" })));
-  ok("4 onglets : À faire, Remplir, Alertes, Plus — tous avec leur nom", tabs.map(x => x.v).join(",") === "todo,fill,alerts,more" && tabs.every(x => x.t && x.w !== "none"), tabs);
+  ok("5 onglets : À faire, Dashboard (v5.25), Remplir, Alertes, Plus — tous avec leur nom", tabs.map(x => x.v).join(",") === "todo,dashboard,fill,alerts,more" && tabs.every(x => x.t && x.w !== "none"), tabs);
   const h = await o.evaluate(() => Math.round(document.getElementById("app-header").getBoundingClientRect().height));
   ok("en-tête sur une seule ligne (langue, thème, déconnexion dans « Plus »)", h <= 64 && !(await o.isVisible("#lang-select")), h);
   await shot(o, "70-op-a-faire", false);

@@ -14,7 +14,9 @@ const { FakeSupabase } = require("./fake_supabase_server.js");
 const ROOT = path.resolve(process.argv[2]), OUT = path.resolve(process.argv[3]);
 fs.mkdirSync(OUT, { recursive: true });
 const TESTS = path.dirname(new URL(import.meta.url).pathname);
-const AUDIT = fs.readFileSync(process.env.BA_AUDIT || path.join(TESTS, "donnees", "AUDIT_FASTER_170824020354.dat")).toString("latin1").replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
+const DAT_4G = process.env.BA_AUDIT || path.join(TESTS, "donnees", "AUDIT_FASTER_170824020354.dat");
+if (!fs.existsSync(DAT_4G)) { console.log("Relevé réel absent (données privées, pas dans le dépôt) : essai sauté. Le mettre dans tests/donnees/ ou BA_AUDIT=…"); process.exit(0); }
+const AUDIT = fs.readFileSync(DAT_4G).toString("latin1").replace(/\r\n/g, "\n").replace(/\n/g, "\r\n");
 const NM = path.join(TESTS, "node_modules");
 const LIB = {
   "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js": path.join(NM, "@supabase/supabase-js/dist/umd/supabase.js"),
@@ -162,7 +164,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.23.0", (await a.innerText("#app-footer")).includes("5.23.0"));
+  ok("pied de page : version 5.25.0", (await a.innerText("#app-footer")).includes("5.25.0"));
   await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));

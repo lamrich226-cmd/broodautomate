@@ -210,9 +210,13 @@ window.BA = window.BA || {};
       if (appliquer) {
         // ventes depuis le relevé précédent, sélection par sélection (compteurs cumulés)
         const moyen = diff.deltaCount > 0 && diff.deltaValue > 0 ? diff.deltaValue / diff.deltaCount : 0;
+        // v5.25 : relevé reçu AVANT un inventaire fait ensuite sur cette machine, mais traité APRÈS (page admin fermée,
+        // téléphone hors ligne…) : l'opérateur a déjà compté les pains restants, ces ventes y sont donc déjà. La vente est
+        // notée (chiffres, historique) mais le stock n'est pas diminué une 2e fois (avant : stock trop bas et faux « manquants »).
+        const dejaCompte = (s.interventions || []).some(it => it.num === m.num && it.start > x.t && Array.isArray(it.inv) && it.inv.length > 0 && !it.invSkipped);
         const sell = (sel, nSel, price) => {
           let lotDate = null;
-          if (sel) {
+          if (sel && !dejaCompte) {
             M.sortLots(sel);
             const lot = sel.lots[0];
             if (lot) { lotDate = lot.date; lot.qty--; if (lot.qty <= 0) sel.lots.shift(); }
@@ -387,11 +391,39 @@ window.BA = window.BA || {};
     M.resolveEvents(s, m.num, "OLD_BREAD", e => !lotIds.has(e.key));
     M.resolveEvents(s, m.num, "KEPT_BREAD", e => !keptIds.has(e.key));
   }
+  // v5.25 : « Remplir » laissé ouvert trop longtemps → clos comme « Annuler » (les étapes déjà validées restent)
+  const IT_MAX = () => Math.max(1, Number(C.interventionMaxHours) || 4) * H;
+  function closeStale(s) {
+    (s.interventions || []).forEach(it => {
+      if (it.status !== "open" || !(s.now - it.start > IT_MAX())) return;
+      it.status = it.step > 1 ? "partial" : "cancelled"; it.end = s.now; it.auto = true;
+      const m = M.machine(s, it.num);
+      if (m && !(BA.Portes && BA.Portes.isOpen(m.id))) { m.door = false; delete m.doorAt; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
+    });
+  }
   function housekeepAll(s) {
+    closeStale(s);
     s.machines.forEach(m => housekeeping(s, m));
     // alertes de machines supprimées
     const nums = new Set(s.machines.map(m => m.num));
     s.events.forEach(e => { if (!nums.has(e.num) && !e.resolved) { e.resolved = true; e.resolvedAt = s.now; } });
+  }
+
+  // v5.25 : copie pour l'essai de l'entretien (toutes les 30 s) : seulement ce que l'entretien peut changer (machines,
+  // alertes, interventions, jours d'une machine restée vide). Avant : TOUTES les données (historique compris) étaient
+  // copiées toutes les 30 s, de plus en plus lent avec les mois (surtout sur le téléphone).
+  function lightCopy(s) {
+    const c = Object.assign({}, s);
+    c.machines = JSON.parse(JSON.stringify(s.machines));
+    c.events = JSON.parse(JSON.stringify(s.events));
+    c.interventions = (s.interventions || []).map(it => Object.assign({}, it));
+    c.daily = Object.assign({}, s.daily);
+    let from = s.now;
+    s.events.forEach(e => { if (e.code === "MACHINE_EMPTY" && !e.resolved && e.t < from) from = e.t; });
+    const k0 = M.dayKey(from);
+    Object.keys(s.daily).forEach(k => { if (k >= k0) c.daily[k] = JSON.parse(JSON.stringify(s.daily[k])); });
+    c.now = s.now;
+    return c;
   }
 
   let timer = null, last = 0;
@@ -402,11 +434,12 @@ window.BA = window.BA || {};
     // Entretien seulement s'il change quelque chose (sinon rien n'est envoyé)
     check() {
       const s = BA.Store.get(); if (!s) return;
-      const c = JSON.parse(JSON.stringify(s)); c.now = s.now;
+      const c = lightCopy(s);
       housekeepAll(c);
       const doors = x => x.machines.map(m => m.door ? 1 : 0).join("");
-      if (JSON.stringify(c.events) !== JSON.stringify(s.events) || doors(c) !== doors(s) || JSON.stringify(c.daily[M.dayKey(s.now)]) !== JSON.stringify(s.daily[M.dayKey(s.now)])) {
-        BA.Store.update(housekeepAll);
+      const its = x => (x.interventions || []).map(i => i.status).join("");
+      if (JSON.stringify(c.events) !== JSON.stringify(s.events) || doors(c) !== doors(s) || its(c) !== its(s) || JSON.stringify(c.daily[M.dayKey(s.now)]) !== JSON.stringify(s.daily[M.dayKey(s.now)])) {
+        BA.Store.update(housekeepAll, false, { derived: true });
       } else BA.Store.ping();
     },
     start() {
@@ -419,7 +452,8 @@ window.BA = window.BA || {};
       timer = setInterval(loop, 30000);
       document.addEventListener("visibilitychange", () => { if (!document.hidden && Date.now() - last > 5000) loop(); });
     },
-    _housekeepAll: housekeepAll
+    _housekeepAll: housekeepAll,
+    _lightCopy: lightCopy
   };
 
   BA.Reel = Reel;

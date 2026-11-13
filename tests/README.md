@@ -12,6 +12,9 @@ un **faux câble RS232** et un **faux Firebase**. Rien n'est envoyé sur Interne
 | `run4g.mjs` | boîtiers 4G : relevés, « Lire maintenant », clés, fonction « ingest » |
 | `v511.mjs` | v5.11 : machine « en ligne » seulement si elle est lue, alertes regroupées / archivées, profils sans historique, page Technique en onglets, thèmes nuit / clair |
 | `v524.mjs` | v5.24 (design-test, mode démo) : vue machine (prix, places « Non utilisé », ajout / prix / suppression d'une sélection), « Remplir » en touchant les tiroirs (inventaire, retrait, chargement), Dashboard en nombres et en liste, fenêtre pop-up, bouton Machine / Classique, aucune requête vers Supabase |
+| `v525.mjs` | v5.25 (design-test) : corrections de la vérification complète — fenêtre « Déplacer » (ses vrais titres), fenêtre d'un tiroir qui garde sa place, « Remplir » oublié (bandeau, clos après 4 h), ventes pas retirées deux fois, entretien rapide avec beaucoup d'historique, « Remplir » sans réseau gardé après un redémarrage, historique dans IndexedDB |
+| `sql/operateur.test.mjs` | `supabase/operateur-compte.sql` dans une vraie base PostgreSQL en mémoire : le compte opérateur LIT les relevés 4G mais ne peut rien y écrire ni effacer ; l'admin garde tout |
+| `sql/preuve-livraison.test.mjs` | `supabase/preuve-livraison-securite.sql` (autre appli du même Supabase, préparé, pas installé) : verrou après 5 mots de passe faux |
 | `v512.mjs` | v5.12 : page « Technique » (boîtiers en détail, données 4G estimées, machines et n° de plaque, câble et clé USB, journal des envois, système), page « Connexion RS232 » allégée, téléphone, opérateur |
 
 ## Lancer les tests (sur un ordinateur avec Node 22 ou plus)
@@ -19,6 +22,7 @@ un **faux câble RS232** et un **faux Firebase**. Rien n'est envoyé sur Interne
 1. Mettre un relevé d'une vraie machine dans `tests/donnees/AUDIT_FASTER_170824020354.dat`
    (ce dossier n'est **jamais** envoyé sur GitHub : il contient des chiffres de vente),
    ou donner son chemin : `BA_AUDIT=/chemin/vers/releve.dat`.
+   Sans ce fichier, les essais qui en ont besoin le disent et passent à la suite (les autres utilisent un relevé inventé).
 2. Dans le dossier `tests` : `npm install`, puis `npm install --no-save playwright` et `npx playwright install chromium`.
 3. `npm run tout` → chaque ligne affiche `OK` ou `ÉCHEC`, et la fin dit « TOUT EST BON ».
 

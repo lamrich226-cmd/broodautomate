@@ -168,7 +168,7 @@
             m.lastSale = s.now;
             BA.Model.addDaily(s, s.now, m.num, { s: 1, r: sel.price });
           }
-        });
+        }, false, { derived: true });
       } catch (e) { /* démo : on ignore */ }
     }, 15000);
   });

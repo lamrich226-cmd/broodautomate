@@ -659,4 +659,15 @@ window.BA = window.BA || {};
       });
     }
   };
+
+  // v5.25 : chaque action garde son nom et ses valeurs avec la modification qu'elle fait. Si l'appli est fermée avant
+  // que le réseau revienne, l'action est refaite au démarrage suivant (store-reel.js), même si un autre appareil a écrit.
+  Object.keys(BA.Actions).forEach(name => {
+    const f = BA.Actions[name];
+    if (typeof f !== "function") return;
+    BA.Actions[name] = function () {
+      const args = Array.prototype.slice.call(arguments);
+      return Store.track ? Store.track(name, args, () => f.apply(BA.Actions, args)) : f.apply(BA.Actions, args);
+    };
+  });
 })();

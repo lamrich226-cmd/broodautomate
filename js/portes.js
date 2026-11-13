@@ -38,7 +38,7 @@ window.BA = window.BA || {};
       // À CHAQUE tour (même si rien n'a changé côté serveur) : la porte de l'appli doit suivre celle du serveur.
       // Une porte restée « ouverte » dans l'appli (ouverte par un relevé, jamais refermée) est ainsi corrigée toute seule.
       const s = BA.Store.get();
-      if (s && liste.length && BA.Reel.portesPlan(s, liste).length) BA.Store.update(st => BA.Reel.portes(st, liste));
+      if (s && liste.length && BA.Reel.portesPlan(s, liste).length) BA.Store.update(st => BA.Reel.portes(st, liste), false, { derived: true });
     } catch (e) {
       console.warn("Portes :", e.message || e);
     } finally { busy = false; }

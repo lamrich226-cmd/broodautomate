@@ -22,7 +22,15 @@ const KEY = "cle-secrete-du-boitier-1234";
 DB.devices.push({ id: "dev1", name: "Machine 12", machine_id: "FAS-2012", key_hash: sha(KEY), last_seen: new Date(Date.now() - 600000).toISOString(), info: {} });
 DB.ba_push_tokens.push({ token: "tel-admin", operateur: false }, { token: "tel-operateur", operateur: true }, { token: "mort", operateur: false });
 const post = async (b: any) => { const r = await handler(new Request("https://x/ingest", { method: "POST", body: JSON.stringify(b) })); return { s: r.status, j: await r.json() }; };
-const dat = fs.readFileSync(process.argv[2] || process.env.BA_AUDIT || path.join(ICI, "../donnees/AUDIT_FASTER_170824020354.dat"), "latin1");
+// v5.25 : sans le vrai relevé (données privées), un relevé INVENTÉ sert à l'essai (ventes, pannes, porte, coupure)
+const vrai = process.argv[2] || process.env.BA_AUDIT || path.join(ICI, "../donnees/AUDIT_FASTER_170824020354.dat");
+const INVENTE = ["DXS*FAS000000001*VA*V1/6*1", "ST*001*0001", "ID1*FAS000000001* FASTER     *0091* !\"f*+120*", "ID5*261201*0930",
+  "VA1*637720*501*0*7*0**0", "PA1*11*100*1100*0**1**0*99", "PA2*50*5000*7", "LA1*0*11*100*7*50",
+  "EA1*EGS*261201*0925***+120", "EA2*EGS****0", "EA1*EGT*261201*0926***+120", "EA2*EGT****1", "EA1*ECF_38*261201*0800***+120", "EA2*ECF_38****1",
+  "EA1*EOA*261201*0805***+120", "EA2*EOA****0", "EA7*2*5", "MA5*ERROR*261201*0800*16*38", "MA5*TEMPER*261201*0804*+170", "G85*0000", "SE*20*001*0001", "DXE*1*1"].join("\r\n") + "\r\n";
+// (comme le vrai relevé : 3 événements anciens — 2 pannes et 1 coupure — ; « 16/38 » est la même panne que « ECF_38 »)
+const dat = fs.existsSync(vrai) ? fs.readFileSync(vrai, "latin1") : INVENTE;
+if (!fs.existsSync(vrai)) console.log("  (vrai relevé absent : relevé inventé)");
 let r = await post({ k: KEY, raw: dat, role: "boitier", fw: "1.2" });
 ok("1er relevé accepté", r.s === 200 && r.j.ok, r);
 ok("1er relevé : ancien journal noté silencieux, aucune notification", DB.ba_notifications.length === 3 && DB.ba_notifications.every(n => n.silencieux) && pushes.length === 0, DB.ba_notifications);

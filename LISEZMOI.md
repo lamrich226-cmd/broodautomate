@@ -179,3 +179,38 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Vérification complète : syntaxe et analyse de tout le code (ESLint), 252 écrans (admin PC et téléphone, opérateur, 3 langues, 2 thèmes), orthographe FR / NL / EN, programme du boîtier recompilé (0 avertissement) avec ses essais et son simulateur, Supabase (journaux, conseils de sécurité).
 - Tests : `tests/v519.mjs` (et `v515.mjs` ajouté à `npm run tout`).
 - Point de retour : v5.18 = commit 112cfd6.
+
+## v5.25 (essai « design-test ») — nouveau design et corrections après une vérification complète
+
+**Design** (détails : `DESIGN.md`) : Dashboard en nombres (vert = plein, orange = à moitié, rouge = vide), en cartes ou en liste ;
+un tiroir touché s'ouvre en fenêtre (le tiroir en grand, ses pains, ➕ pour les places vides, Retirer, Encore bon, ⇄ Déplacer, Modifier) ;
+bouton **Machine / Classique** (Classique = l'ancien affichage, sans changement) ; l'opérateur a aussi le Dashboard.
+
+**Corrections** (rien ne change dans la façon de travailler) :
+- Fenêtre « ⇄ Déplacer du pain » : elle montrait les titres de la vue machine ; elle a de nouveau ses vrais titres.
+- La fenêtre d'un tiroir ne remonte plus en haut quand l'écran se met à jour (vente, relevé), et ne s'ouvre plus toute seule sur une autre page.
+- « Remplir » commencé puis oublié (appli fermée) : la machine restait « porte ouverte » pour toujours. Maintenant : un bandeau dans
+  Détails machine (« Reprendre » / « Clore ce Remplir »), et le Remplir est clos tout seul après 4 h (`interventionMaxHours` dans `js/config.js`) ;
+  ce qui était déjà validé (inventaire, retrait) reste.
+- Ventes retirées deux fois du stock : un relevé lu AVANT un inventaire mais traité APRÈS (page admin fermée, téléphone sans réseau)
+  ne retire plus les ventes une 2e fois (elles restent comptées dans les chiffres).
+- Une même panne envoyait deux notifications (« ECF_38 » et « 16/38 ») : une seule maintenant (fonction `ingest`).
+- « Remplir » fait sans réseau, appli fermée avant le retour du réseau, et un autre appareil avait écrit entre-temps : le Remplir était
+  mis de côté. Maintenant il est refait sur les dernières données et envoyé (message « modification faite sans réseau envoyée »).
+- Avec les mois, l'historique grossit : il est gardé dans IndexedDB (le stockage habituel du navigateur est limité à 5 Mo) et
+  l'entretien des 30 s ne recopie plus tout l'historique (1 ms au lieu de 29 ms avec 400 jours × 35 machines).
+- Compte opérateur : il peut LIRE les relevés des boîtiers 4G (sinon son stock n'était pas à jour), toujours sans pouvoir y écrire ni effacer.
+- L'ancien code du simulateur de la version test est retiré (plus utilisé, mais il relisait les données pour rien).
+- Version **5.25.0** partout (`?v=5.25.0`) : après la publication, les téléphones prennent tous les nouveaux fichiers.
+
+**Supabase** (rien n'a été changé dans Supabase) :
+- Le jour où cette version remplace le vrai site : remplacer le code de la fonction `ingest` par `supabase/functions/ingest/index.ts`
+  (Deploy, « Verify JWT » toujours désactivé) ; et pour créer le compte opérateur, utiliser la nouvelle version de `supabase/operateur-compte.sql`.
+- Dès maintenant (sécurité, ne change rien au site) : Authentication → Sign In / Providers → désactiver « Allow new users to sign up »
+  (personne ne peut plus se créer un compte tout seul ; ton compte continue de marcher).
+- Autre appli du même Supabase (« Preuve de livraison ») : `supabase/preuve-livraison-securite.sql` est prêt et essayé (verrou de 15 min
+  après 5 mots de passe faux), **pas installé**.
+- « Leaked password protection » : seulement avec l'abonnement Pro (ton Supabase est en gratuit) ; rien à faire.
+- Tests : `tests/v525.mjs`, `tests/sql/operateur.test.mjs`, `tests/sql/preuve-livraison.test.mjs`.
+- Point de retour : v5.23 = commit 6e9d66f.
+

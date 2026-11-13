@@ -198,7 +198,7 @@ window.BA = window.BA || {};
         const x = pick(s); if (!x || !free(x)) return;
         BA.Model.addEvent(s, x.num, "BOX_WRONG", { msg: String(analyse.machineId).slice(0, 40), key: "w" + norm(analyse.machineId) });
         x.g4 = Object.assign({}, x.g4, { rid: R.id });
-      });
+      }, false, { derived: true });
       return "ok";
     }
 
@@ -212,12 +212,12 @@ window.BA = window.BA || {};
         const x = pick(s); if (!x || !free(x)) return;
         BA.Model.addEvent(s, x.num, "BOX_WRONG", { msg: sig, key: "m" + sig });
         x.g4 = Object.assign({}, x.g4, { rid: R.id });
-      });
+      }, false, { derived: true });
       return "ok";
     }
 
     if (analyse.g85.present && !analyse.g85.ok) {            // texte abîmé : rien n'est compté
-      BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.readBad(s, x.num); x.g4 = Object.assign({}, x.g4, { rid: R.id }); });
+      BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.readBad(s, x.num); x.g4 = Object.assign({}, x.g4, { rid: R.id }); }, false, { derived: true });
       return "ok";
     }
     const audit = analyse.type === "audit" ? BA.EvaDts.toAudit(analyse) : null;
@@ -227,7 +227,7 @@ window.BA = window.BA || {};
     // ventes) ; les ventes arrivent avec la lecture que le boîtier fait juste après
     const partiel = !!audit && R.role === "machine" && !!ancien && !couvre(ancien, audit);
     if (!audit || partiel) {                                 // envoi de la machine sans compteurs : événements seulement
-      BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.applyEvents(s, x.num, { t: tm, src: "4g", analyse: lite }); x.g4 = Object.assign({}, x.g4, { rid: R.id }); });
+      BA.Store.update(s => { const x = pick(s); if (!x || !free(x)) return; BA.Reel.applyEvents(s, x.num, { t: tm, src: "4g", analyse: lite }); x.g4 = Object.assign({}, x.g4, { rid: R.id }); }, false, { derived: true });
       return "ok";
     }
     const diff = BA.EvaDts.compare(ancien, audit);
@@ -248,7 +248,7 @@ window.BA = window.BA || {};
       BA.Model.resolveEvents(s, x.num, "BOX_WRONG");
       x.g4 = { rid: R.id, base: "r" + R.id, at: tm, sig: sigOld || sig || undefined };
       fait = true;
-    });
+    }, false, { derived: true });
     audits.set(R.id, audit);
     // copie dans la table « audits » (comme un relevé par câble) : point de départ si un câble ou une clé USB sert plus tard
     if (fait && !same && BA.Rs232 && BA.Rs232.saveAudit) {
@@ -299,7 +299,7 @@ window.BA = window.BA || {};
     if (todo.length) BA.Store.update(st => {
       // l'heure actuelle pour les alertes, et les machines retrouvées par leur numéro du moment
       todo.forEach(f => { try { f(st); } catch (e) { console.warn(e); } });
-    });
+    }, false, { derived: true });
   }
 
   // Ménage : relevés de plus de 30 jours déjà traités (le relevé de départ de chaque machine est gardé)

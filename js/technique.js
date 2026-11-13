@@ -357,7 +357,7 @@ window.BA = window.BA || {};
   const fmtO = o => o >= GO ? (o / GO).toFixed(2).replace(".", ",") + " Go" : o >= MO ? (o / MO).toFixed(1).replace(".", ",") + " Mo" : Math.round(o / 1024) + " Ko";
   function consoRows() {
     const c = S.conso, a = BA.Conso ? BA.Conso.courant() : { o: 0, n: 0 };
-    const j = Math.max(1, new Date().getDate()), mois = BA.Conso ? BA.Conso.mois() : "";
+    const j = Math.max(1, new Date().getDate());
     const rows = [[t("tq_c_dl"), t("tq_c_dl_v", { v: fmtO(a.o), n: a.n, p: fmtO(a.o / j * 30) }), "dl"]];
     if (c === undefined) rows.push([t("tq_c_db"), S.busy ? "⏳" : "—", "db"]);
     else if (c === false) rows.push([t("tq_c_db"), t("tq_c_missing"), "db"]);

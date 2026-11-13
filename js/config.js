@@ -15,7 +15,7 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate", version: "5.23.0" },
+  app: { name: "Broodautomate", version: "5.25.0" },
   currency: "EUR",
 
   supabase: {
@@ -39,6 +39,9 @@ const BA_CONFIG = {
   onlineMinutes: 45,
   // Erreur de la machine sans état « en cours / terminée » (erreurs FAS) : considérée réglée après N heures
   machineErrorHours: 6,
+  // v5.25 : « Remplir » commencé puis jamais terminé ni annulé (appli fermée, téléphone éteint…) : il est clos tout seul
+  // après N heures (ce qui a déjà été validé est gardé) ; sinon la machine restait notée « porte ouverte » sans fin
+  interventionMaxHours: 4,
 
   // Réglages par défaut (modifiables dans l'onglet « Paramètres » de l'admin)
   defaults: {

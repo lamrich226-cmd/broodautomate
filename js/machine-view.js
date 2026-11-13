@@ -26,7 +26,7 @@ window.BA = window.BA || {};
   function modeSwitch() {
     const cur = mode();
     const b = (v, ico, k) => `<button type="button" data-mvmode="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${ico} ${t(k)}</button>`;
-    return `<div class="seg mv-mode" role="group" aria-label="${E(t("mv_vue_aria"))}">${b("machine", "🧩", "mv_vue_machine")}${b("classic", "📋", "mv_vue_table")}</div>`;
+    return `<div class="seg mv-mode" role="group" aria-label="${E(t("vm_vue_aria"))}">${b("machine", "🧩", "vm_vue_machine")}${b("classic", "📋", "vm_vue_table")}</div>`;
   }
   // Détail machine, Produits : les tableaux répètent ce que montre la machine → repliés (un clic pour les ouvrir ;
   // l'état ouvert / fermé est gardé quand la page se redessine)
@@ -42,8 +42,8 @@ window.BA = window.BA || {};
   // Fenêtre pop-up (par-dessus la page : rien ne s'élargit, rien ne descend)
   function pop(inner, ok) {
     return `<div class="mv-pop-back" data-mv-backdrop="1"><div class="mv-pop" role="dialog" aria-modal="true">
-      <button type="button" class="mv-pop-x btn secondary" id="mv-pop-x" data-mv-close="1" aria-label="${E(t("mv_close"))}">✖ ${t("mv_close")}</button>${inner}
-      ${ok === false ? "" : `<button type="button" class="btn mv-pop-ok" id="mv-pop-ok" data-mv-close="1">✔ ${t("mv_ok")}</button>`}</div></div>`;
+      <button type="button" class="mv-pop-x btn secondary" id="mv-pop-x" data-mv-close="1" aria-label="${E(t("vm_close"))}">✖ ${t("vm_close")}</button>${inner}
+      ${ok === false ? "" : `<button type="button" class="btn mv-pop-ok" id="mv-pop-ok" data-mv-close="1">✔ ${t("vm_ok")}</button>`}</div></div>`;
   }
 
   // ---------------- Plan de la machine ----------------
@@ -138,10 +138,10 @@ window.BA = window.BA || {};
   const status = {
     view(sel, list) {
       const q = list.length, n = k => list.filter(b => b.k === k).length;
-      if (!q) return { k: "empty", txt: "✖ " + t("mv_empty") };
-      if (n("must")) return { k: "must", txt: "⛔ " + t("mv_must", { n: n("must") }) };
-      if (n("old")) return { k: "old", txt: "⚠ " + t("mv_remove", { n: n("old") }) };
-      if (n("kept")) return { k: "kept", txt: "⏳ " + t("mv_kept", { n: n("kept") }) };
+      if (!q) return { k: "empty", txt: "✖ " + t("vm_empty") };
+      if (n("must")) return { k: "must", txt: "⛔ " + t("vm_must", { n: n("must") }) };
+      if (n("old")) return { k: "old", txt: "⚠ " + t("vm_remove", { n: n("old") }) };
+      if (n("kept")) return { k: "kept", txt: "⏳ " + t("vm_kept", { n: n("kept") }) };
       return { k: "ok", txt: "✔ " + q + "/" + sel.cap };
     },
     inv(sel, list, exp, c) {
@@ -151,15 +151,15 @@ window.BA = window.BA || {};
     rm(sel, list) {
       const g = list.filter(b => b.k === "gone" || b.k === "gonemust").length, must = list.filter(b => b.k === "gonemust").length;
       const kp = list.filter(b => b.k === "keep").length;
-      if (g) return { k: must ? "must" : "old", txt: "✖ " + t("mv_remove", { n: g }) + (kp ? " · ⏳ " + kp : "") };
-      if (kp) return { k: "kept", txt: "⏳ " + t("mv_kept", { n: kp }) };
+      if (g) return { k: must ? "must" : "old", txt: "✖ " + t("vm_remove", { n: g }) + (kp ? " · ⏳ " + kp : "") };
+      if (kp) return { k: "kept", txt: "⏳ " + t("vm_kept", { n: kp }) };
       return status.view(sel, list);
     },
     load(sel, list) {
       const add = list.filter(b => b.k === "new").length, q = list.length - add;
-      if (add) return { k: "new", txt: "＋ " + add + (q + add >= sel.cap ? " · " + t("mv_full") : "") };
-      if (q >= sel.cap) return { k: "ok", txt: "✔ " + t("mv_full") };
-      return q ? { k: "ok", txt: "✔ " + q + "/" + sel.cap } : { k: "empty", txt: "✖ " + t("mv_empty") };
+      if (add) return { k: "new", txt: "＋ " + add + (q + add >= sel.cap ? " · " + t("vm_full") : "") };
+      if (q >= sel.cap) return { k: "ok", txt: "✔ " + t("vm_full") };
+      return q ? { k: "ok", txt: "✔ " + q + "/" + sel.cap } : { k: "empty", txt: "✖ " + t("vm_empty") };
     }
   };
 
@@ -169,14 +169,14 @@ window.BA = window.BA || {};
       return `<span class="mv-slots" style="--n:${sel.cap}">${Array.from({ length: sel.cap }, (_, i) => {
         const b = list[i];
         if (!b) return `<span class="mv-sw"><span class="mv-loaf"></span><span class="mv-h"></span><span class="mv-d"></span></span>`;
-        return `<span class="mv-sw"><span class="mv-loaf f ty-${E(sel.type)} k-${b.k}"></span><span class="mv-h k-${b.k}">${b.k === "new" ? "＋" : t("mv_ago", { h: b.h })}</span><span class="mv-d">${b.d}</span></span>`;
+        return `<span class="mv-sw"><span class="mv-loaf f ty-${E(sel.type)} k-${b.k}"></span><span class="mv-h k-${b.k}">${b.k === "new" ? "＋" : t("vm_ago", { h: b.h })}</span><span class="mv-d">${b.d}</span></span>`;
       }).join("")}</span>`;
     }
     const groups = [];
     list.forEach(b => { const g = groups.find(x => x.k === b.k && x.d === b.d && x.h === b.h); if (g) g.q++; else groups.push({ k: b.k, d: b.d, h: b.h, q: 1 }); });
     const inside = list.filter(b => !/^(gone|gonemust|miss)$/.test(b.k)).length;
     return `<span class="mv-bar"><span style="width:${Math.min(100, Math.round(inside / sel.cap * 100))}%"></span></span>
-      <span class="mv-chips">${groups.map(g => `<span class="mv-chip k-${g.k}">${g.k === "new" ? "＋" : ""}${t("mv_n", { n: g.q })}${g.k === "new" ? "" : " · " + t("mv_ago", { h: g.h })} · ${g.d}</span>`).join("")}</span>`;
+      <span class="mv-chips">${groups.map(g => `<span class="mv-chip k-${g.k}">${g.k === "new" ? "＋" : ""}${t("vm_n", { n: g.q })}${g.k === "new" ? "" : " · " + t("vm_ago", { h: g.h })} · ${g.d}</span>`).join("")}</span>`;
   }
 
   function tile(m, sel, list, stt, o) {
@@ -196,9 +196,9 @@ window.BA = window.BA || {};
   function freeTile(m, n, o) {
     const tag = o.ro ? "div" : "button";
     return `<${tag}${o.ro ? "" : ` type="button" data-mv-free="${n}" id="mvf-${m.num}-${n}" aria-pressed="${!!o.on}"`} class="mv-d-box mv-free${o.on ? " sel" : ""}${o.ro ? " ro" : ""}">
-      <span class="mv-top"><span class="mv-nm"><b>${n}</b><span class="mv-ty">${t("mv_unused")}</span></span></span>
+      <span class="mv-top"><span class="mv-nm"><b>${n}</b><span class="mv-ty">${t("vm_unused")}</span></span></span>
       <span class="mv-plus" aria-hidden="true">${o.ro ? "" : "＋"}</span>
-      <span class="mv-st">${o.ro ? "" : t("mv_add_short")}</span></${tag}>`;
+      <span class="mv-st">${o.ro ? "" : t("vm_add_short")}</span></${tag}>`;
   }
 
   // o : { list(sel) → pains, stat(sel, pains) → { k, txt }, key : case choisie (« 13 » ou « f61 »),
@@ -210,7 +210,7 @@ window.BA = window.BA || {};
     const L = layout(m, o.free !== false);
     const list = o.list || (sel => items.view(s, m, sel)), stat = o.stat || ((sel, l) => status.view(sel, l));
     return `<div class="mv-grid" style="--cols:${L.cols}">${L.rows.map((r, i) => {
-      const row = `<div class="mv-etage${i === L.rows.length - 1 ? " last" : ""}"><div class="mv-lvl" title="${E(t("mv_floor", { n: r.e }))}">${r.e}</div>${r.cells.map(c => {
+      const row = `<div class="mv-etage${i === L.rows.length - 1 ? " last" : ""}"><div class="mv-lvl" title="${E(t("vm_floor", { n: r.e }))}">${r.e}</div>${r.cells.map(c => {
         if (c.free) return freeTile(m, c.n, { on: o.key === c.key, ro: o.ro || !o.freeClick });
         const l = list(c.sel);
         return tile(m, c.sel, l, stat(c.sel, l), { on: o.key === c.key, ro: o.ro });
@@ -222,23 +222,23 @@ window.BA = window.BA || {};
   // Version réduite (Dashboard) : pour chaque tiroir, le numéro de sélection et le nombre de pains (pas de couleurs de pain)
   function compact(s, m) {
     const L = layout(m, true);
-    return `<div class="mv-compact" role="group" aria-label="${E(t("mv_title"))}">${L.rows.map(r => `<div class="mv-crow"><span class="mv-cl">${r.e}</span>${r.cells.map(c => {
-      if (c.free) return `<span class="mv-c st-free" title="${E(t("mv_unused"))}"><small>${c.n}</small><b>–</b></span>`;
+    return `<div class="mv-compact" role="group" aria-label="${E(t("vm_title"))}">${L.rows.map(r => `<div class="mv-crow"><span class="mv-cl">${r.e}</span>${r.cells.map(c => {
+      if (c.free) return `<span class="mv-c st-free" title="${E(t("vm_unused"))}"><small>${c.n}</small><b>–</b></span>`;
       const B = breads(s, m, c.sel), stt = status.view(c.sel, B).k, q = B.length;
       const flag = stt === "must" ? "⛔" : stt === "old" ? "⚠" : stt === "kept" ? "⏳" : "";
       const fill = q <= 0 ? "none" : q >= c.sel.cap ? "full" : "part";     // vide : rouge · plein : vert · entre les deux : orange
-      return `<span class="mv-c st-${stt} fill-${fill}" title="${E(t("mv_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><small>${c.sel.n}</small><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span>`;
+      return `<span class="mv-c st-${stt} fill-${fill}" title="${E(t("vm_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><small>${c.sel.n}</small><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span>`;
     }).join("")}</div>`).join("")}</div>`;
   }
 
   function legend(s, mode) {
     const it = (cls, txt) => `<span class="mv-lg"><i class="mv-loaf ${cls}"></i>${txt}</span>`;
-    const free = `<span class="mv-lg"><i class="mv-lg-free"></i>${t("mv_unused")}</span>`;
+    const free = `<span class="mv-lg"><i class="mv-lg-free"></i>${t("vm_unused")}</span>`;
     const L = {
-      view: [it("f k-old", t("mv_legend_old", { h: s.settings.thrHours })), it("f k-kept", t("mv_lg_kept")), it("", t("mv_legend_empty")), free],
-      inv: [it("f k-miss", t("mv_lg_miss")), it("f k-extra", t("mv_lg_extra")), it("", t("mv_legend_empty"))],
-      rm: [it("f k-gone", t("mv_lg_gone")), it("f k-keep", t("mv_lg_keep")), it("f k-gonemust", t("mv_lg_must"))],
-      load: [it("f k-new", t("mv_lg_new")), it("", t("mv_legend_empty"))]
+      view: [it("f k-old", t("vm_legend_old", { h: s.settings.thrHours })), it("f k-kept", t("vm_lg_kept")), it("", t("vm_legend_empty")), free],
+      inv: [it("f k-miss", t("vm_lg_miss")), it("f k-extra", t("vm_lg_extra")), it("", t("vm_legend_empty"))],
+      rm: [it("f k-gone", t("vm_lg_gone")), it("f k-keep", t("vm_lg_keep")), it("f k-gonemust", t("vm_lg_must"))],
+      load: [it("f k-new", t("vm_lg_new")), it("", t("vm_legend_empty"))]
     }[mode || "view"];
     return `<div class="mv-legend">${L.join("")}</div>`;
   }
@@ -269,27 +269,27 @@ window.BA = window.BA || {};
     }
     const lots = sel.lots.slice().sort((a, b) => a.date - b.date || a.id - b.id).map(l => {
       const must = !!l.kept && M.isMandatory(s, l), kept = !!l.kept && !must, old = !l.kept && M.mustRemove(s, l, mission);
-      const tag = must ? `⛔ ${t("mv_lot_must")}` : old ? `⚠ ${t("mv_lot_old")}` : kept ? `⏳ ${t("mv_lot_kept")}` : "";
-      return `<div class="mv-lotline"><span>${t("mv_lot", { d: dd(l.date) })} · <b class="${old || must ? "old" : ""}">${t("mv_ago", { h: hrs(s, l.date) })}</b>${tag ? " · " + tag : ""}${l.estimated ? ` <span class="petit">${t("estimated")}</span>` : ""}</span>
-        <span class="mv-lq">${t("mv_n", { n: l.qty })}
+      const tag = must ? `⛔ ${t("vm_lot_must")}` : old ? `⚠ ${t("vm_lot_old")}` : kept ? `⏳ ${t("vm_lot_kept")}` : "";
+      return `<div class="mv-lotline"><span>${t("vm_lot", { d: dd(l.date) })} · <b class="${old || must ? "old" : ""}">${t("vm_ago", { h: hrs(s, l.date) })}</b>${tag ? " · " + tag : ""}${l.estimated ? ` <span class="petit">${t("estimated")}</span>` : ""}</span>
+        <span class="mv-lq">${t("vm_n", { n: l.qty })}
           ${old ? `<button type="button" class="btn petit secondary" data-mv-keep="${sel.n}" data-lot="${l.id}" title="${E(t("btn_keep_tip"))}">${t("btn_keep")}</button>` : ""}
           <button type="button" class="btn petit ${old || must ? "" : "secondary"}" data-mv-rm="${sel.n}" data-lot="${l.id}" title="${E(t("btn_rm_tip"))}">➖ ${t("btn_withdraw")}</button>
           ${!must && m.sels.some(x => x !== sel && x.type === sel.type) ? `<button type="button" class="btn petit secondary mv-btn" data-mv-move="${sel.n}" data-lot="${l.id}" title="${E(t("btn_move_tip"))}"><span class="mv-arrows">⇄</span> ${t("btn_move")}</button>` : ""}</span></div>`;
     }).join("");
     const id = k => `mvx-${k}-${m.num}`;
     return `<div class="mv-panel">${msgHtml(m.num)}${big(s, m, sel)}
-      <div class="mv-ph"><h4>${t("mv_sel", { n: sel.n })} · ${U.prod(sel.type)}</h4><b class="mv-price-big">${F.eur(sel.price)}</b></div>
-      <div class="mv-kv"><span>${t("mv_inside")}</span><b>${q} / ${sel.cap}</b></div>
-      ${lots || `<div class="petit">${t("mv_empty")}</div>`}
+      <div class="mv-ph"><h4>${t("vm_sel", { n: sel.n })} · ${U.prod(sel.type)}</h4><b class="mv-price-big">${F.eur(sel.price)}</b></div>
+      <div class="mv-kv"><span>${t("vm_inside")}</span><b>${q} / ${sel.cap}</b></div>
+      ${lots || `<div class="petit">${t("vm_empty")}</div>`}
       <div class="mv-form">
-        <div class="mv-form-t">✏ ${t("mv_edit_title")}</div>
+        <div class="mv-form-t">✏ ${t("vm_edit_title")}</div>
         <label for="${id("type")}">${t("col_type")}</label><select id="${id("type")}" data-mvx="type">${typeOpts(s, ed.type)}</select>
         ${ed.type === "__new" ? `<label for="${id("newtype")}">${t("new_type_name")}</label><input id="${id("newtype")}" data-mvx="newType" type="text" maxlength="40" placeholder="${E(t("new_type_ph"))}" value="${E(ed.newType)}">` : ""}
         <label for="${id("cap")}">${t("col_cap")}</label><input id="${id("cap")}" data-mvx="cap" type="number" min="1" max="50" inputmode="numeric" value="${E(ed.cap)}">
-        <label for="${id("price")}">${t("mv_price_eur")}</label><input id="${id("price")}" data-mvx="price" type="number" min="0" step="0.1" inputmode="decimal" value="${E(ed.price)}">
-        <div class="mv-btns"><button type="button" class="btn" data-mvx-save="${sel.n}">✔ ${t("mv_save")}</button>
+        <label for="${id("price")}">${t("vm_price_eur")}</label><input id="${id("price")}" data-mvx="price" type="number" min="0" step="0.1" inputmode="decimal" value="${E(ed.price)}">
+        <div class="mv-btns"><button type="button" class="btn" data-mvx-save="${sel.n}">✔ ${t("vm_save")}</button>
           ${m.sels.length > 1 ? `<button type="button" class="btn secondary" data-mvx-del="${sel.n}">🗑 ${t("btn_del_sel")}</button>` : ""}</div>
-        <p class="petit">${t("mv_price_note")}</p>
+        <p class="petit">${t("vm_price_note")}</p>
       </div></div>`;
   }
 
@@ -303,35 +303,36 @@ window.BA = window.BA || {};
     const price = f.priceSet ? f.price : priceFor(s, m, f.type).toFixed(2);
     const id = k => `mva-${k}-${m.num}`;
     return `<div class="mv-panel mv-panel-add">${msgHtml(m.num)}
-      <h4>➕ ${t("mv_add_title", { n: E(f.n || slot) })}</h4>
-      <p class="petit">${t("mv_add_help")}</p>
+      <h4>➕ ${t("vm_add_title", { n: E(f.n || slot) })}</h4>
+      <p class="petit">${t("vm_add_help")}</p>
       <div class="mv-form">
         <label for="${id("n")}">${t("col_sel")}</label><input id="${id("n")}" data-mva="n" type="number" min="1" max="999" inputmode="numeric" value="${E(f.n)}">
         <label for="${id("type")}">${t("col_type")}</label><select id="${id("type")}" data-mva="type">${typeOpts(s, f.type)}</select>
         ${f.type === "__new" ? `<label for="${id("newtype")}">${t("new_type_name")}</label><input id="${id("newtype")}" data-mva="newType" type="text" maxlength="40" placeholder="${E(t("new_type_ph"))}" value="${E(f.newType)}">` : ""}
         <label for="${id("cap")}">${t("col_cap")}</label><input id="${id("cap")}" data-mva="cap" type="number" min="1" max="50" inputmode="numeric" value="${E(f.cap)}">
-        <label for="${id("price")}">${t("mv_price_eur")}</label><input id="${id("price")}" data-mva="price" type="number" min="0" step="0.1" inputmode="decimal" value="${E(price)}">
+        <label for="${id("price")}">${t("vm_price_eur")}</label><input id="${id("price")}" data-mva="price" type="number" min="0" step="0.1" inputmode="decimal" value="${E(price)}">
         <div class="mv-btns"><button type="button" class="btn" data-mva-go="1">➕ ${t("btn_add_sel")}</button></div>
-        <p class="petit">${t("mv_price_note")}</p>
+        <p class="petit">${t("vm_price_note")}</p>
       </div></div>`;
   }
 
-  // Un tiroir touché ouvre une fenêtre pop-up (S.mvSel = { num, key, open })
+  // Un tiroir touché ouvre une fenêtre pop-up (S.mvSel = { num, key, open, view }) ; seulement sur la page où on l'a ouverte
+  const curView = () => (BA.Shell && BA.Shell.state && BA.Shell.state.view) || "";
   function area(s, m) {
     const S = st(), L = layout(m, true), cells = L.rows.flatMap(r => r.cells);
-    let key = S.mvSel && S.mvSel.num === m.num && S.mvSel.open ? S.mvSel.key : null;
+    let key = S.mvSel && S.mvSel.num === m.num && S.mvSel.open && (!S.mvSel.view || S.mvSel.view === curView()) ? S.mvSel.key : null;
     if (key != null && !cells.some(c => c.key === key)) key = null;     // tiroir supprimé, place prise…
     const cell = key != null ? cells.find(c => c.key === key) : null;
     const panel = !cell ? "" : cell.free ? panelFree(s, m, cell.n) : panelSel(s, m, cell.sel);
     const g = grid(s, m, { key, free: true, freeClick: true });
-    return `<div class="mv-machine"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${cell ? pop(panel, !cell.free) : ""}`;
+    return `<div class="mv-mach"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${cell ? pop(panel, !cell.free) : ""}`;
   }
 
   // Bloc complet (Détail machine, Produits / Stock)
   function block(s, m, o) {
     o = o || {};
     return `<div class="mv-wrap" data-mv-num="${m.num}">
-      ${o.title === false ? "" : `<h3>🧩 ${t("mv_title")}</h3>`}<p class="note">${t("mv_note")}</p>
+      ${o.title === false ? "" : `<h3>🧩 ${t("vm_title")}</h3>`}<p class="note">${t("vm_note")}</p>
       <div class="mv-area">${area(s, m)}</div></div>`;
   }
 
@@ -340,12 +341,21 @@ window.BA = window.BA || {};
     if (!wrap) return;
     const num = m0.num, S = st(), A = BA.Actions;
     const cur = () => { const s = BA.Store.get(); return { s, m: M.machine(s, num) }; };
+    // La fenêtre garde sa position quand l'écran se redessine (nouvelle vente, mise à jour toutes les 30 s…) :
+    // avant, elle remontait toute seule en haut pendant qu'on la lisait.
+    const byId = id => (id ? wrap.querySelector("#" + (window.CSS && CSS.escape ? CSS.escape(id) : id)) : null);
+    const keepTop = () => { const p = wrap.querySelector(".mv-pop"); if (p && S.mvSel && S.mvSel.open) S.mvPopTop = p.scrollTop; };
+    const putTop = () => { const p = wrap.querySelector(".mv-pop"); if (p && S.mvPopTop) p.scrollTop = S.mvPopTop; };
     const redraw = focusId => {
       const { s, m } = cur(); if (!m || !document.body.contains(wrap)) return;
+      keepTop();
       wrap.querySelector(".mv-area").innerHTML = area(s, m);
       bindInputs();
-      if (focusId) { const n = document.getElementById(focusId); if (n) n.focus({ preventScroll: true }); }
+      putTop();
+      if (focusId) { const n = byId(focusId); if (n) n.focus({ preventScroll: true }); }
     };
+    putTop();                                                          // page entière redessinée : même position qu'avant
+    wrap.addEventListener("scroll", e => { if (e.target.classList && e.target.classList.contains("mv-pop")) S.mvPopTop = e.target.scrollTop; }, true);
     const later = () => U.afterClick(() => redraw());
     function bindInputs() {
       wrap.querySelectorAll("[data-mvx]").forEach(i => {
@@ -402,23 +412,23 @@ window.BA = window.BA || {};
       if (!m || !f || f.num !== num) return;
       const price = f.priceSet ? f.price : priceFor(s, m, f.type);
       const err = A.addSelection(num, { n: f.n, type: f.type, newType: f.newType, cap: f.cap, price });
-      if (!err) { S.mvSel = { num, key: String(Number(f.n)), open: true }; S.mvAdd = null; S.mvEdit = null; }
+      if (!err) { S.mvSel = { num, key: String(Number(f.n)), open: true, view: curView() }; S.mvAdd = null; S.mvEdit = null; S.mvPopTop = 0; }
       say(num, err, "added_sel");
       later();
     }
 
     // ouvrir : on place le curseur dans la fenêtre ; fermer : on le remet sur le tiroir touché
     let from = null;
-    function open(id) { from = id; redraw(); const x = document.getElementById("mv-pop-x"); if (x) x.focus({ preventScroll: true }); }
-    function close() { const k = S.mvSel && S.mvSel.key; S.mvSel = null; S.mvEdit = null; S.mvAdd = null; redraw(from || (k != null ? (String(k)[0] === "f" ? "mvf-" + num + "-" + String(k).slice(1) : "mvt-" + num + "-" + k) : null)); }
+    function open(id) { from = id; S.mvPopTop = 0; redraw(); const x = byId("mv-pop-x"); if (x) x.focus({ preventScroll: true }); }
+    function close() { const k = S.mvSel && S.mvSel.key; S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0; redraw(from || (k != null ? (String(k)[0] === "f" ? "mvf-" + num + "-" + String(k).slice(1) : "mvt-" + num + "-" + k) : null)); }
     wrap.addEventListener("click", e => {
       if (e.target.dataset && e.target.dataset.mvBackdrop != null) return close();
       const b = e.target.closest("button");
       if (!b || !wrap.contains(b) || b.disabled) return;
       const d = b.dataset;
       if (d.mvClose != null) return close();
-      if (d.mvSel != null) { S.mvSel = { num, key: String(d.mvSel), open: true }; S.mvEdit = null; return open(b.id); }
-      if (d.mvFree != null) { S.mvSel = { num, key: "f" + d.mvFree, open: true }; S.mvAdd = null; return open(b.id); }
+      if (d.mvSel != null) { S.mvSel = { num, key: String(d.mvSel), open: true, view: curView() }; S.mvEdit = null; return open(b.id); }
+      if (d.mvFree != null) { S.mvSel = { num, key: "f" + d.mvFree, open: true, view: curView() }; S.mvAdd = null; return open(b.id); }
       if (d.mvRm != null) { S.mvSel = null; S.mvEdit = null; redraw(); return U.removeDialog(num, d.mvRm, d.lot); }   // la fenêtre du tiroir se ferme, la fenêtre « Retirer » s'ouvre seule
       if (d.mvMove != null) { S.mvSel = null; S.mvEdit = null; redraw(); return U.moveDialog(num, d.mvMove, d.lot); }   // même fenêtre « Déplacer » que dans le tableau
       if (d.mvKeep != null) { S.mvSel = null; S.mvEdit = null; redraw(); return A.keepLot(num, d.mvKeep, d.lot); }
@@ -436,7 +446,7 @@ window.BA = window.BA || {};
     window.__mvGlobal = true;
     document.addEventListener("keydown", e => {
       if (e.key !== "Escape") return;
-      const xs = document.querySelectorAll(".mv-pop-x"); if (!xs.length) return;
+      const xs = [...document.querySelectorAll(".mv-pop-x")].filter(x => x.getClientRects().length > 0); if (!xs.length) return;
       const top = document.querySelector("#modal-root .modal-back");     // une fenêtre (Retirer, confirmation…) est par-dessus : Échap la ferme, elle
       if (top && !top.contains(xs[xs.length - 1])) return;
       e.preventDefault(); e.stopPropagation(); xs[xs.length - 1].click();
@@ -454,5 +464,12 @@ window.BA = window.BA || {};
     });
   }
 
-  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop, big };
+  // « Remplir » : redessine un bloc en gardant la position de la fenêtre du tiroir (touches + et − sur un petit téléphone)
+  function keepPopScroll(box, draw) {
+    const p = box.querySelector(".mv-pop"), top = p ? p.scrollTop : 0;
+    draw();
+    const q = box.querySelector(".mv-pop"); if (q && top) q.scrollTop = top;
+  }
+
+  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop, big, keepPopScroll };
 })();

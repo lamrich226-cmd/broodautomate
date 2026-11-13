@@ -19,13 +19,18 @@
 //   navigateur (comme la version test).
 // - Premier démarrage : les machines, produits et ventes de la v3
 //   (tables machines / products / sales) sont repris automatiquement.
+// - v5.25 : (1) chaque action (Remplir, retrait, prix…) est gardée sur l'appareil avec son nom et ses
+//   valeurs tant qu'elle n'est pas envoyée : appli fermée sans réseau, elle est refaite au démarrage
+//   suivant, même si un autre appareil a écrit entre-temps (avant : copie mise de côté, rien d'envoyé) ;
+//   (2) la copie de l'appareil garde l'historique (gros) dans IndexedDB, réécrit seulement quand il
+//   change : plus de limite de 5 Mo du navigateur, et chaque modification écrit beaucoup moins.
 // ============================================================
 
 window.BA = window.BA || {};
 
 (function () {
   const C = BA_CONFIG, M = BA.Model;
-  const H = M.H, DAY = M.DAY;
+  const DAY = M.DAY;
   const LKEY = C.storageKey;                       // copie sur cet appareil
   const LOCAL_DB = LKEY + "-local";                // base du mode local
   const CLOUD = !!(BA.DB && BA.DB.isReady && BA.DB.isReady());
@@ -34,6 +39,37 @@ window.BA = window.BA || {};
   const lsGet = k => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : null; } catch (e) { return null; } };
   const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { console.warn("Stockage impossible (" + k + ") :", e.message); return false; } };
   const clone = o => JSON.parse(JSON.stringify(o));
+  // v5.25 : grande copie sur l'appareil (historique des jours passés) : IndexedDB (pas de limite de 5 Mo) ;
+  // en mode démo, ou si IndexedDB est indisponible : le stockage habituel (localStorage)
+  const IDB = (() => {
+    const NAME = LKEY + "-copie", STORE = "kv";
+    let dbp = null;
+    const can = () => !window.BA_DEMO && typeof indexedDB !== "undefined";
+    const open = () => dbp || (dbp = new Promise((res, rej) => {
+      try {
+        const r = indexedDB.open(NAME, 1);
+        r.onupgradeneeded = () => { try { r.result.createObjectStore(STORE); } catch (e) { /* déjà là */ } };
+        r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); r.onblocked = () => rej(new Error("IndexedDB bloqué"));
+      } catch (e) { rej(e); }
+    }));
+    return {
+      async get(k) {
+        if (!can()) return lsGet(LKEY + "-" + k);
+        try {
+          const db = await open();
+          return await new Promise((res, rej) => { const r = db.transaction(STORE, "readonly").objectStore(STORE).get(k); r.onsuccess = () => res(r.result == null ? null : r.result); r.onerror = () => rej(r.error); });
+        } catch (e) { return lsGet(LKEY + "-" + k); }
+      },
+      async set(k, v) {
+        if (!can()) return lsSet(LKEY + "-" + k, v);
+        try {
+          const db = await open();
+          await new Promise((res, rej) => { const tx = db.transaction(STORE, "readwrite"); tx.objectStore(STORE).put(v, k); tx.oncomplete = () => res(); tx.onerror = () => rej(tx.error); tx.onabort = () => rej(tx.error); });
+          return true;
+        } catch (e) { return lsSet(LKEY + "-" + k, v); }
+      }
+    };
+  })();
   // JSON avec les clés triées : la base (jsonb) peut changer l'ordre des clés
   function stable(v) {
     if (v === null || typeof v !== "object") return v === undefined ? "null" : JSON.stringify(v);
@@ -313,10 +349,58 @@ window.BA = window.BA || {};
   }
 
   // Copie sur cet appareil (sert si le réseau est coupé au démarrage)
+  // v5.25 : le présent va dans le stockage habituel ; l'historique (gros) dans IndexedDB, seulement quand il change ;
+  // les actions pas encore envoyées sont gardées avec leur nom et leurs valeurs (refaites au prochain démarrage si besoin)
+  let cachedHistSig = null;
+  // v5.25 : historique de l'appareil illisible au démarrage sans réseau (IndexedDB vidé, écriture pas terminée…) : tant que
+  // celui de la base n'a pas été relu, rien n'est écrit à sa place (ni dans la base, ni sur l'appareil)
+  let histMissing = false;
+  function opsToKeep() {
+    return pending.map(op => op.desc ? { t: op.t, first: op.first, desc: op.desc } : (op.derived || op.part) ? null : { t: op.t, first: op.first, unknown: true }).filter(Boolean);
+  }
   function writeCache() {
     if (!state) return;
     const sp = split(state);
-    lsSet(LKEY, { url: CLOUD ? C.supabase.url : "local", version: base.version, dirty: pending.length > 0, main: sp.main, hist: sp.hist, at: Date.now() });
+    lsSet(LKEY, { url: CLOUD ? C.supabase.url : "local", version: base.version, dirty: pending.length > 0, main: sp.main, histSig: histMissing ? "?" : sp.hist.sig, ops: opsToKeep(), at: Date.now() });
+    if (!histMissing && sp.hist.sig !== cachedHistSig) {
+      const sig = sp.hist.sig; cachedHistSig = sig;
+      IDB.set("hist", sp.hist).then(ok => { if (ok === false && cachedHistSig === sig) cachedHistSig = null; });
+    }
+  }
+  // Copie de l'appareil au démarrage : l'historique est lu dans IndexedDB (ancienne forme : dans la même clé)
+  async function readCache() {
+    const cache = lsGet(LKEY);
+    if (cache && !cache.hist && cache.histSig) {
+      const h = await IDB.get("hist");
+      cache.hist = h && h.sig === cache.histSig ? h : null;
+      if (cache.hist) cachedHistSig = cache.hist.sig;
+      else cache.histStale = h || null;            // pas le bon : sert seulement à l'affichage hors ligne
+    }
+    return cache;
+  }
+  // Avant le premier envoi : l'historique de la base remis dans les données (les jours que seul cet appareil a sont gardés)
+  async function reloadHist() {
+    const h = await backend.fetchHist();
+    if (h) {
+      const sp = split(state);
+      histCache = pickHist(h, null, sp.hist);
+      state = assemble(sp.main, histCache);
+      base.histSig = h.sig;
+    }
+    histMissing = false;
+    notify();
+  }
+
+  // ---------------- v5.25 : actions refaites après un redémarrage ----------------
+  // BA.Actions donne à chaque modification le nom de l'action et ses valeurs (Store.track). Pour la refaire sur une
+  // version plus récente des données, on rappelle la même action : ses changements sont faits directement sur cet état.
+  let track = null, replayInto = null;
+  function replayFn(desc) {
+    return s => {
+      const prev = replayInto; replayInto = s;
+      try { return BA.Actions[desc.a].apply(BA.Actions, desc.args); }
+      finally { replayInto = prev; }
+    };
   }
 
   // Une modification : faite tout de suite ici, refaite à l'identique si elle doit l'être sur une version plus récente
@@ -338,14 +422,14 @@ window.BA = window.BA || {};
   // Modifications faites hors ligne lors d'une visite précédente (page fermée avant l'envoi)
   let orphan = null;
   function resumeDirty(cache) {
-    const op = { fn: () => {}, t: Date.now(), first: newBlock() };     // repère : « cette copie a bien été envoyée »
+    const op = { fn: () => {}, t: Date.now(), first: newBlock(), derived: true };     // repère : « cette copie a bien été envoyée »
     runOp(state, op);
     pending.push(op);
     orphan = { cache, first: op.first };
   }
   function markLost(cache) {
     status.lost = Date.now();
-    lsSet(LKEY + "-perdu", Object.assign({}, cache, { lostAt: status.lost }));
+    lsSet(LKEY + "-perdu", Object.assign({}, cache, { hist: undefined, histStale: undefined, lostAt: status.lost }));   // v5.25 : sans l'historique (il est dans la base) : petite copie
     console.warn("Modifications hors ligne non envoyées : copie gardée dans", LKEY + "-perdu");
     // découvert après le démarrage : message tout de suite (au démarrage, c'est BA.Boot qui l'affiche)
     if (BA.Shell && BA.Shell.ctx && BA.UI && BA.UI.toast) BA.UI.toast(BA.I18n.t("sync_lost"), 20000);
@@ -364,6 +448,7 @@ window.BA = window.BA || {};
     setSync("sending");
     try {
       for (let guard = 0; guard < 8 && pending.length; guard++) {
+        if (histMissing) await reloadHist();
         const batch = pending.slice();
         const sent = () => { pending = pending.filter(op => !batch.includes(op)); };
         const sp = split(state);
@@ -410,6 +495,7 @@ window.BA = window.BA || {};
     pending.forEach(op => runOp(s, op));
     state = s;
     base = { version: Number(row.version), stable: stable(row.data), histSig: hist ? hist.sig : null };
+    histMissing = false;
     notify();
   }
 
@@ -446,7 +532,7 @@ window.BA = window.BA || {};
     // Chargement au démarrage (après la connexion)
     async init() {
       backend = CLOUD ? Cloud : Local;
-      const cache = lsGet(LKEY);
+      const cache = await readCache();
       const cacheOk = cache && cache.main && cache.url === (CLOUD ? C.supabase.url : "local");
       let remote;
       try {
@@ -455,10 +541,18 @@ window.BA = window.BA || {};
         if (e.setup) throw e;                               // table « ba_state » pas encore créée
         if (!cacheOk) throw e;                              // pas de réseau et rien sur cet appareil
         // réseau coupé : on repart de la copie de cet appareil
-        state = assemble(cache.main, cache.hist);
+        histMissing = !cache.hist && "histSig" in cache;
+        state = assemble(cache.main, cache.hist || cache.histStale);
         histCache = cache.hist || null;
         base = { version: cache.version || 0, stable: stable(cache.main), histSig: !cache.dirty && cache.hist ? cache.hist.sig : null };
-        if (cache.dirty) resumeDirty(cache);              // modifications pas encore envoyées : elles partiront dès le retour du réseau
+        // modifications pas encore envoyées : elles partiront dès le retour du réseau. v5.25 : les ACTIONS gardées reprennent
+        // leur place dans la file d'envoi (refaites sur la version de la base si un autre appareil a écrit entre-temps)
+        if (cache.dirty) {
+          const ops = Array.isArray(cache.ops) ? cache.ops : null;
+          const known = ops ? ops.filter(o => o.desc && BA.Actions && typeof BA.Actions[o.desc.a] === "function") : [];
+          if (ops && known.length === ops.length) known.forEach(o => pending.push({ fn: replayFn(o.desc), t: o.t, first: o.first, desc: o.desc }));
+          else resumeDirty(cache);
+        }
         setSync("offline", e.message);
         writeCache();
         listen();
@@ -486,7 +580,17 @@ window.BA = window.BA || {};
           if (Number(cache.version) === base.version) {          // personne n'a écrit depuis : on les envoie maintenant
             state = assemble(cache.main, pickHist(cache.hist, cache.main.h, histCache));
             resumeDirty(cache);
-          } else markLost(cache);                                // un autre appareil a écrit entre-temps : copie gardée
+          } else {
+            // v5.25 : un autre appareil a écrit entre-temps : les ACTIONS gardées (Remplir, retrait, prix…) sont refaites sur
+            // sa version (celles déjà arrivées dans la base ne sont pas refaites). Seulement s'il reste une modification
+            // impossible à refaire (ou une copie d'une ancienne version de l'appli) : copie mise de côté, comme avant.
+            const done = new Set(Array.isArray(remote.main.data.applied) ? remote.main.data.applied : []);
+            const ops = (Array.isArray(cache.ops) ? cache.ops : []).filter(o => !done.has(o.first));
+            const known = ops.filter(o => o.desc && BA.Actions && typeof BA.Actions[o.desc.a] === "function");
+            known.forEach(o => { const op = { fn: replayFn(o.desc), t: o.t, first: o.first, desc: o.desc }; runOp(state, op); pending.push(op); });
+            if (!Array.isArray(cache.ops) || known.length < ops.length) markLost(cache);
+            if (known.length) status.replayed = known.length;
+          }
         }
       }
       setSync(pending.length ? "sending" : "ok");
@@ -505,9 +609,12 @@ window.BA = window.BA || {};
     },
 
     // Lecture-modification : fait tout de suite sur cet appareil, puis envoyé
-    update(fn, silent) {
+    // meta.derived : modification recalculée toute seule (entretien, relevés des boîtiers, porte…) : pas à refaire après un redémarrage
+    update(fn, silent, meta) {
+      if (replayInto) return fn(replayInto);                 // v5.25 : action refaite après un redémarrage
       if (!state) throw new Error("Données pas encore chargées.");
-      const op = { fn, t: Date.now(), first: newBlock() };
+      const op = { fn, t: Date.now(), first: newBlock(), derived: !!(meta && meta.derived) };
+      if (track) { if (!track.used) { op.desc = track.desc; track.used = true; } else op.part = true; }
       const res = runOp(state, op);
       if (BA.Live && BA.Live.derive) BA.Live.derive(state);
       pending.push(op);
@@ -517,6 +624,15 @@ window.BA = window.BA || {};
       return res;
     },
 
+    // v5.25 : BA.Actions passe ici : la modification faite par l'action garde son nom et ses valeurs
+    track(name, args, run) {
+      if (replayInto) return run();
+      let desc = null;
+      try { desc = { a: name, args: JSON.parse(JSON.stringify(args)) }; } catch (e) { /* valeurs impossibles à garder */ }
+      const prev = track; track = desc ? { desc, used: false } : null;
+      try { return run(); } finally { track = prev; }
+    },
+    replaying: () => !!replayInto,
     subscribe(f) { subs.push(f); },
     // Redessiner sans rien changer (heure, « il y a … »)
     ping() { if (state) { state.now = Date.now(); notify(); } },

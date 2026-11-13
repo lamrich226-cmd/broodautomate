@@ -207,7 +207,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   console.log("\n== 4. Ordinateur : Remplir avec la fenêtre pop-up");
   const p2 = await device("pc-op", { viewport: { width: 1440, height: 900 } }, "operateur.html", "machine");
   const n3 = await S(p2, () => { const s = BA.Store.get(); return s.machines.find(m => !m.door && !m.power && BA.Model.removalList(s, m, null).length).num; });
-  await S(p2, n => BA.Wizard.open(n), n3); await p2.waitForSelector("#wz-mv .mv-machine");
+  await S(p2, n => BA.Wizard.open(n), n3); await p2.waitForSelector("#wz-mv .mv-mach");
   ok("ordinateur : pas de colonne à droite (la machine prend toute la largeur de la fenêtre)", !(await p2.$(".mv-side, .modal.wz-wide")));
   await p2.click("#wz-mv [data-mv-sel]"); await sleep(300);
   ok("ordinateur : un tiroir touché ouvre la fenêtre pop-up, centrée", await p2.$eval(".mv-pop", e => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }));

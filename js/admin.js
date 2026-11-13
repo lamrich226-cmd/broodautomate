@@ -33,7 +33,7 @@
       <p class="note">${t("products_admin_note")}</p>
       ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
       ${BA.MachineView && BA.MachineView.on() ? BA.MachineView.block(s, m) : ""}
-      ${BA.MachineView ? BA.MachineView.foldOpen("stock", `🍞 ${t("mv_table_title")}`, U.stockTable(s, m, true)) : U.stockTable(s, m, true)}
+      ${BA.MachineView ? BA.MachineView.foldOpen("stock", `🍞 ${t("vm_table_title")}`, U.stockTable(s, m, true)) : U.stockTable(s, m, true)}
       <h3>🧮 ${t("fleet_stock_title")}</h3>
       <div class="table-scroll"><table>
         <thead><tr><th>${t("col_type")}</th><th>${t("x_in_machines")}</th><th>${t("x_cap_total")}</th><th>${t("x_to_remove")}</th><th>${t("lbl_fill")}</th><th>${t("fleet_where")}</th></tr></thead>

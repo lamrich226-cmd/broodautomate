@@ -560,7 +560,7 @@ window.BA = window.BA || {};
         const rem = it.rem.reduce((a, r) => a + r.removed, 0);
         const load = it.load.reduce((a, r) => a + r.qty, 0);
         return `<tr><td>${F.dt(it.start)}</td><td>${it.inv.length ? (gap > 0 ? "+" : "") + gap : "—"}</td><td>${rem}</td><td>${load}</td>
-          <td>${it.delivery ? F.dt(it.delivery) : "—"}</td><td>${t("it_" + it.status)}</td></tr>`;
+          <td>${it.delivery ? F.dt(it.delivery) : "—"}</td><td>${t("it_" + it.status)}${it.auto ? ` <span class="petit">(${t("it_auto")})</span>` : ""}</td></tr>`;
       }).join("")}</tbody></table></div>`;
   }
 
@@ -624,12 +624,16 @@ window.BA = window.BA || {};
     const evs = s.events.filter(e => e.num === m.num && !e.archived && (ctx.admin || M.OPERATOR_CATS.includes(e.cat)));
     const mission = M.openMission(s, m.num);
     const tempBad = tempBadOf(s, m);
+    const openIt = s.interventions.find(x => x.num === m.num && x.status === "open");     // v5.25 : « Remplir » pas terminé
 
     el.innerHTML = `
       <h2>📊 ${t("nav_details")}</h2>
       ${machinePicker(s, m.num, "det-machine")}
       ${ctx.admin && BA.Boitiers && BA.Boitiers.detail ? BA.Boitiers.detail(m) : ""}
       ${m.door ? `<div class="alert door">🚪 <b>${t("door_banner")}</b>${m.doorAt ? " (" + t("door_since", { d: F.age(Math.max(0, s.now - m.doorAt)) }) + ")" : ""} — ${t("door_explain")}</div>` : ""}
+      ${openIt ? `<div class="alert warn it-open">🧺 ${t("it_open_banner", { d: F.dt(openIt.start), h: F.age(Math.max(0, s.now - openIt.start)) })}
+        ${BA.Wizard ? `<button type="button" class="btn petit" id="it-resume">🧺 ${t("it_open_resume")}</button>` : ""}
+        <button type="button" class="btn petit secondary" id="it-close" data-it="${openIt.id}">✖ ${t("it_open_close")}</button></div>` : ""}
       ${mission ? `<div class="alert info">🧾 ${t("mission_banner", { n: mission.load })}${mission.removeBefore ? " " + t("mission_remove_before", { d: F.dt(mission.removeBefore) }) : ""}${mission.mandatory ? " " + t("mission_must", { n: mission.mandatory }) : ""}</div>` : ""}
       <div class="cards">
         <div class="card"><div class="label">${t("lbl_status")}</div><div class="value v-small">${pill(x.st)}</div><div class="petit">${E(m.street)}, ${E(m.city)} · S/N ${E(m.serial)}</div></div>
@@ -652,6 +656,14 @@ window.BA = window.BA || {};
       ${interventionsTable(s, m.num)}`;
 
     el.querySelector("#det-machine").onchange = e => { BA.Shell.state.machine = Number(e.target.value); renderDetails(el, ctx); };
+    const itR = el.querySelector("#it-resume"); if (itR) itR.onclick = () => BA.Wizard.open(m.num);
+    const itC = el.querySelector("#it-close");
+    if (itC) itC.onclick = () => confirmDialog({
+      title: "✖ " + t("it_open_close_title", { n: m.num }),
+      html: `<p>${t("it_open_close_text")}</p>`,
+      ok: "✖ " + t("it_open_close"),
+      onOk: () => { BA.Actions.cancelIntervention(Number(itC.dataset.it)); renderDetails(el, ctx); }
+    });
     bindDetailAlerts(el, ctx, evs, () => renderDetails(el, ctx));
     bindLotActions(el, m.num);
     if (BA.MachineView && BA.MachineView.on()) BA.MachineView.bind(el, m);
