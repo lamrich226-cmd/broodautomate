@@ -6,7 +6,7 @@
   const D = BA.I18n.dicts;
 
   Object.assign(D.fr, {
-    tq_tab_usage: "Consommation",
+    tq_tab_usage: "Consommation 4G",
     bx_conso_note: "Chiffres de 1NCE, carte par carte, jour par jour (1 Ko = 1000 octets). Les chiffres du jour peuvent arriver avec un peu de retard.",
     bx_conso_noiccid: "Renseigne le n° ICCID de ce boîtier (onglet Boîtiers 4G) pour voir sa consommation.",
     bx_conso_day: "Jour",
@@ -25,7 +25,7 @@
     bx_read_fast_ko: "L'ordre instantané n'est pas parti : le boîtier lira la machine à son prochain passage ({d} au plus)."
   });
   Object.assign(D.nl, {
-    tq_tab_usage: "Verbruik",
+    tq_tab_usage: "Verbruik 4G",
     bx_conso_note: "Cijfers van 1NCE, kaart per kaart, dag per dag (1 Ko = 1000 bytes). De cijfers van vandaag kunnen wat vertraging hebben.",
     bx_conso_noiccid: "Vul het ICCID-nummer van deze module in (tabblad 4G-modules) om het verbruik te zien.",
     bx_conso_day: "Dag",
@@ -44,7 +44,7 @@
     bx_read_fast_ko: "Het directe bevel is niet vertrokken: de module leest de automaat bij zijn volgende contact (hoogstens {d})."
   });
   Object.assign(D.en, {
-    tq_tab_usage: "Usage",
+    tq_tab_usage: "4G usage",
     bx_conso_note: "Figures from 1NCE, card by card, day by day (1 Ko = 1000 bytes). Today's figures can arrive a little late.",
     bx_conso_noiccid: "Fill in this box's ICCID number (4G boxes tab) to see its usage.",
     bx_conso_day: "Day",
