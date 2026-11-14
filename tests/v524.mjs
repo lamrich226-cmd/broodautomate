@@ -153,9 +153,9 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await o.keyboard.press("Escape"); await sleep(250);
   ok("Échap ferme la fenêtre du tiroir (la correction reste)", !(await o.$(".mv-pop")) && (await o.innerText(`#mvt-${num}-${inv.n} .mv-st`)).includes("→"));
   // aller-retour vers le tableau : la correction suit
-  await o.click('[data-mvmode="classic"]'); await sleep(300);
+  await o.click('.wz-vue [data-mvmode="classic"]'); await sleep(300);
   ok("bouton « Tableau » : le tableau reprend la correction (mode modifier)", await o.$eval(`#inv-${inv.n}`, i => Number(i.value)) === inv.q - 1);
-  await o.click('[data-mvmode="machine"]'); await sleep(300);
+  await o.click('.wz-vue [data-mvmode="machine"]'); await sleep(300);
   ok("retour « Machine » : la correction est toujours là", (await o.innerText(`#mvt-${num}-${inv.n} .mv-st`)).includes("→"));
   await o.click("#mvw-inv-ok"); await o.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
   const after1 = await S(o, a => { const s = BA.Store.get(), M = BA.Model, m = M.machine(s, a.num), sel = M.sel(m, a.n); const it = s.interventions.find(x => x.num === a.num && x.status === "open"); const l = sel.lots.find(x => x.id === a.first.id); return { q: M.qty(sel), real: it.inv.find(r => r.sel === a.n).real, lot: l ? l.qty : 0 }; }, Object.assign({ num }, inv));
