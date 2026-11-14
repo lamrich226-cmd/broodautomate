@@ -42,7 +42,9 @@ Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il e
 - Avec `ECOUTE_UDP 1` et `ENVOI_UDP 1` dans `config.h`, le boîtier envoie ses signaux de vie et relevés **en UDP** vers `udp.os.1nce.com:4445` au lieu du HTTPS (~6 Ko par échange à cause du TLS ; en UDP : quelques centaines d'octets).
 - Le message JSON (sans la clé du boîtier : c'est la carte SIM qui l'identifie) est découpé en morceaux `U1|<n° d'envoi>|<n° du morceau>|<nombre de morceaux>|<texte>` (440 octets au plus ; limite 1NCE : 508).
 - 1NCE les transmet (Cloud Integrator) à la fonction Supabase `ingest-udp`, qui recolle les morceaux, les confirme par `ok <n° d'envoi>` et les passe à `ingest`.
-- Sans confirmation après 30 s, le boîtier renvoie une fois ; sans confirmation encore, il envoie **en HTTPS** (rien n'est perdu). Au-delà de 40 morceaux (~17 Ko), HTTPS aussi.
+- **L'UDP reste le mode normal.** Sans confirmation après 30 s, le boîtier renvoie une fois ; sans confirmation encore, il **garde le relevé** et réessaie en UDP toutes les 10 min (pas d'HTTPS pour une panne brève).
+- **Repli HTTPS** : seulement après `UDP_REPLI_MIN` (120) minutes sans AUCUNE confirmation **et** si l'HTTPS marche à ce moment-là (réseau et Supabase en bon état : le problème vient donc de l'UDP, de 1NCE ou de son webhook). Si l'HTTPS ne marche pas non plus, c'est le réseau : le boîtier reste en UDP.
+- En repli, la version du boîtier affiche « REPLI » ; l'UDP est retenté toutes les `UDP_REESSAI_MIN` (30) minutes et le boîtier y revient dès qu'il remarche. Au-delà de 40 morceaux (~17 Ko), le message part en HTTPS.
 - À mettre en service seulement après : SQL `v528.sql`, fonctions `ingest-udp` et `ingest`, secret `INGEST_UDP_SECRET`, webhook 1NCE (voir `PLAN-ENVOI-UDP.md`). `ENVOI_UDP 0` = comme la v1.5.2.
 - « lire N » reste instantané. Le résultat d'une demande (`fait`) et la question « y a-t-il une demande ? » restent en HTTPS : mets le réglage « Lire maintenant » sur 1 h.
 

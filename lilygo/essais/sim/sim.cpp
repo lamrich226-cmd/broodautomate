@@ -243,6 +243,7 @@ void simTick() {
   if (a == 34) modemSim.udpRecoit("lire 77");        // v1.5.2 : la demande n°77 de Broodautomate, par 1NCE
   if (a == 35) modemSim.udpRecoit("lire 78 b");      // … n°78, avec le relevé complet (flux brut)
   if (a == 36) modemSim.udpRecoit("lire 99x");       // … pas une demande valable : seulement affiché
+  if (a == 40) modemSim.ackMode = 1;                // v1.6 : le serveur se remet à confirmer (fin de la panne UDP)
   if (a == 32) { modemSim.udpOuvert = false; modemSim.rep("\r\n+CIPEVENT: NETWORK CLOSED UNEXPECTEDLY\r\n"); }
   if (a == 3) modemSim.reseau = false;
   if (a == 4) modemSim.reseau = true;
@@ -272,6 +273,8 @@ int main(int argc, char** argv) {
     else if (scen == "udp_dem") { evenements[10UL * 60000UL] = 34; evenements[20UL * 60000UL] = 35; evenements[30UL * 60000UL] = 36; duree = 40UL * 60000UL; }
     else if (scen.compare(0, 8, "udp_envo") == 0) {            // v1.6 : envoi par UDP ; udp_envoi = confirmé, udp_envoi2 = confirmé au 2e essai, udp_envoi0 = jamais (repli HTTPS)
       modemSim.ackMode = scen == "udp_envoi" ? 1 : scen == "udp_envoi2" ? 2 : 0; evenements[10UL * 60000UL] = 31; duree = 50UL * 60000UL;
+      if (scen == "udp_envoi0l") { evenements[170UL * 60000UL] = 40; duree = 240UL * 60000UL; }   // jamais de confirmation, puis le serveur revient à 170 min
+      if (scen == "udp_envoi0r") { modemSim.code = 500; duree = 200UL * 60000UL; }                  // jamais de confirmation ET l'HTTPS est en panne aussi
     }
     else if (scen == "udp_repli") { modemSim.liaison1Impossible = true; evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; }
     else { evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; modemSim.udpFormat = scen == "udp_ipd" ? 1 : scen == "udp_ipd_seul" ? 2 : scen == "udp_brut" ? 3 : 4; }
