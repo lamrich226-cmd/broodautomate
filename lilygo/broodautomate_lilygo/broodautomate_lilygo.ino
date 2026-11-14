@@ -1,5 +1,5 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G pour distributeur FAS (LILYGO T-A7670E) — v1.5
+// BROODAUTOMATE — Boîtier 4G pour distributeur FAS (LILYGO T-A7670E) — v1.6
 //
 // Ce fichier ne contient que ce mode d'emploi : le programme est dans les
 // autres onglets. LE SEUL ONGLET À MODIFIER EST « config.h ».
@@ -12,12 +12,16 @@
 //   config.h        réglages (mode, clé du boîtier, carte SIM, broches)
 //   boitier.cpp     programme principal (lecture, envois, Moniteur série)
 //   ddcmp_moteur.h  liaison RS232 EVA-DTS DDCMP (copie du moteur du logiciel)
-//   modem.h         modem 4G (réseau, heure, HTTPS ; v1.5 : écoute UDP pour la carte 1NCE)
+//   modem.h         modem 4G (réseau, heure, HTTPS ; v1.5 : écoute et envoi UDP pour la carte 1NCE)
 //   dex_moteur.h    v1.4 : lecture de la FAS 480 (DEX-UCS)
 //   horloge.h       heure belge (été / hiver)
 //   envoi.h         préparation des envois
 //   filtre.h        v1.3 : retire du relevé les lignes inutiles avant l'envoi 4G (moins de data)
 //
+// v1.6 : carte 1NCE : les relevés, signaux de vie et résultats de « Lire maintenant » partent en UDP (quelques centaines d'octets
+//        au lieu de ~6 Ko en HTTPS), confirmés par le serveur ; plus aucun appel HTTPS en fonctionnement normal.
+//        Repli sur l'HTTPS seulement si l'UDP est muet depuis 2 h alors que l'HTTPS marche (réglages ENVOI_UDP… dans config.h).
+//        La version du programme (ex. 1.6.1) est affichée dans Broodautomate : Technique → Boîtiers 4G.
 // v1.5 : carte 1NCE : écoute UDP (« Lire maintenant » instantané par le Device Controller de 1NCE).
 //        Broodautomate (Technique → Boîtiers 4G → « Ajouter un boîtier ») donne le programme COMPLET, déjà
 //        rempli (clé, carte SIM, mode 0) : il suffit de l'ouvrir et de téléverser.
