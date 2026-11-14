@@ -404,7 +404,7 @@ window.BA = window.BA || {};
     const d = devices.find(x => x.id === id); if (!d) return null;
     const enCours = demandes.get(id);
     if (pending(enCours)) {
-      // v5.28.4 : carte 1NCE, demande sans réponse depuis plus de 90 s → le bouton renvoie l'ordre « lire » (même demande, rien n'est doublé)
+      // v5.28.5 : carte 1NCE, demande sans réponse depuis plus de 90 s → le bouton renvoie l'ordre « lire » (même demande, rien n'est doublé)
       if (d.iccid && enCours.id && Date.now() - demAt(enCours) > 90000) { U().toast("⚡ " + t("bx_read_sent_fast"), 6000); instantane(d, enCours.id); return null; }
       U().toast("⏳ " + t("bx_read_wait")); return null;
     }
@@ -523,8 +523,7 @@ window.BA = window.BA || {};
     if (!list.length) return "";
     const d = list.slice().sort((a, b) => seenMs(b) - seenMs(a))[0];
     return `<div class="bx-detail">📡 <b>${E(d.name)}</b> · <span class="petit">${E(etatTxt(d))}</span>
-      ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span>
-      <div class="petit bx-iccid">📶 ${E(t("bx_iccid"))} <input class="txt-in" data-bxiccid="${E(d.id)}" inputmode="numeric" maxlength="30" placeholder="89882280…" value="${E(d.iccid || "")}"> <button class="btn petit" data-bxiccid-save="${E(d.id)}">💾</button> ${d.iccid ? "⚡" : ""}</div></div>`;
+      ${readBtn(d)} <span class="petit" data-bxdem="${E(d.id)}">${E(demText(d))}</span></div>`;
   }
 
   // ---------------- Bouton « 📡 Lire toutes les machines » (v5.3) ----------------
@@ -611,7 +610,7 @@ window.BA = window.BA || {};
       todo.forEach(d => {
         const row = rows.find(r => r.device_id === d.id) || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
         demandes.set(d.id, row); dem.set(d.id, row.id); rws.set(d.id, row);
-        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.4 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
+        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.5 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
       });
     }
     lot = { at: now, dem, rows: rws, fini: false, finiAt: 0, guess: false };
@@ -728,8 +727,15 @@ window.BA = window.BA || {};
     document.addEventListener("click", e => {
       const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
       if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
-      const sv = e.target && e.target.closest && e.target.closest("button[data-bxiccid-save]");
-      if (sv) { const inp = document.querySelector('input[data-bxiccid="' + sv.dataset.bxiccidSave + '"]'); saveIccid(sv.dataset.bxiccidSave, inp && inp.value).then(ok => { if (ok) showDem(); }); }
+      // v5.28.5 : le n° de carte (ICCID) se modifie seulement ici (Technique → Boîtiers 4G), après une confirmation
+      const ed = e.target && e.target.closest && e.target.closest("button[data-bxiccid-edit]");
+      if (ed) {
+        const dv = devices.find(x => x.id === ed.dataset.bxiccidEdit);
+        const v = dv ? window.prompt(t("bx_iccid"), dv.iccid || "") : null;
+        if (v !== null && String(v).replace(/\s+/g, "") !== String(dv.iccid || "") && window.confirm("⚠️ " + t("bx_iccid") + " : " + (String(v).replace(/\s+/g, "") || "—") + " ?")) {
+          saveIccid(dv.id, v).then(ok => { if (ok) { redraw(true); showDem(); } });
+        }
+      }
       // « Lire toutes les machines » : Commander, Dashboard, onglet Boîtiers 4G
       const a = e.target && e.target.closest && e.target.closest("button[data-bxreadall]");
       if (a && !a.disabled) { a.disabled = true; readAll().catch(err => U().toast("⚠️ " + t("bx_error", { e: err.message }))).finally(() => showDem()); }
@@ -895,7 +901,8 @@ window.BA = window.BA || {};
         const st = Number(i.mode) === 1 ? t("bx_mode_test") : Number(i.mode) === 2 ? t("bx_mode_loop") : (i.st || "—");
         const L = k => `data-label="${E(t(k))}"`;
         return `<tr data-bxid="${E(d.id)}">
-          <td data-label=""><b>${E(d.name)}</b><div class="petit">${i.fw ? "v" + E(i.fw) : ""}${i.op ? " · " + E(reseau(i.op)) : ""}${Number(i.ec) >= 60 ? " · ⏱ " + E(t("bx_ec_box", { d: duree(Math.round(Number(i.ec) / 60)) })) : ""}</div></td>
+          <td data-label=""><b>${E(d.name)}</b><div class="petit">${i.fw ? "v" + E(i.fw) : ""}${i.op ? " · " + E(reseau(i.op)) : ""}${Number(i.ec) >= 60 ? " · ⏱ " + E(t("bx_ec_box", { d: duree(Math.round(Number(i.ec) / 60)) })) : ""}</div>
+            <div class="petit bx-iccid">📶 ${d.iccid ? E(d.iccid) + " ⚡" : "—"} <button class="btn petit secondary" data-bxiccid-edit="${E(d.id)}" title="${E(t("bx_iccid"))}">✏️</button></div></td>
           <td ${L("machine")}><select class="auto-w" data-bxm="${E(d.id)}">${ms.filter(m => m.id).map(m => `<option value="${E(m.id)}" ${m.id === d.machine_id ? "selected" : ""}>${E(nomM(m))}</option>`).join("")}
             ${ms.some(m => m.id === d.machine_id) ? "" : `<option value="${E(d.machine_id)}" selected>${E(t("bx_unknown_machine", { id: d.machine_id }))}</option>`}</select></td>
           <td ${L("bx_col_seen")}>${alive ? `<span class="tag c-ok">🟢 ${E(t("online"))}</span>` : `<span class="tag">${E(t("offline"))}</span>`}<div class="petit">${E(ago(seenMs(d)))}</div></td>
@@ -908,7 +915,7 @@ window.BA = window.BA || {};
   }
   function htmlEcoute() {
     const cur = ecouteMin();
-    // v5.28.4 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
+    // v5.28.5 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
     const toutUdp = devices.length > 0 && devices.every(d => d.iccid);
     return `<div class="bx-ecoute">${toutUdp ? "" : `<label>⏱ ${E(t("bx_ec_label"))}
       <select id="bx-ec" class="auto-w">${cur ? "" : `<option value="" selected disabled>${E(t("bx_ec_unset"))}</option>`}

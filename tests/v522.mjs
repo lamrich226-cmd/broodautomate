@@ -47,7 +47,7 @@ const nums = p => p.$$eval("#todo-body .mission-card .cm-num", e => e.map(x => x
 (async () => {
   console.log("== 0. Fichiers du site");
   const version = (fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8").match(/version:\s*"([^"]+)"/) || [])[1];
-  ok("version 5.28.4 dans config.js", version === "5.28.4", version);
+  ok("version 5.28.5 dans config.js", version === "5.28.5", version);
   for (const f of ["index.html", "operateur.html"]) {
     const liens = [...fs.readFileSync(path.join(ROOT, f), "utf8").matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)].map(m => m[1]);
     const mauvais = liens.filter(l => !l.endsWith("?v=" + version));

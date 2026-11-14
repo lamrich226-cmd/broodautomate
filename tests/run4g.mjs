@@ -164,7 +164,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.28.4", (await a.innerText("#app-footer")).includes("5.28.4"));
+  ok("pied de page : version 5.28.5", (await a.innerText("#app-footer")).includes("5.28.5"));
   await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));

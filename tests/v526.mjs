@@ -84,16 +84,19 @@ const ICCID = "89882280666680646327";
   ok("message « l'ordre instantané n'est pas parti … prochain passage (15 min au plus) »", (await toasts()).some(x => /pas parti/.test(x) && /15 min/.test(x)), await toasts());
   panne = false; fake.t.ba_demandes.forEach(x => { x.statut = "faite"; x.fini_at = new Date().toISOString(); }); await p.evaluate(() => BA.Boitiers.refresh(true)); await sleep(500);
 
-  console.log("== 4. Saisie de l'ICCID dans le détail de la machine");
-  await p.evaluate(() => { BA.Technique && BA.Technique.tab("boxes"); }); await sleep(800);
+  console.log("== 4. Saisie de l'ICCID dans Technique → Boîtiers 4G (v5.28.5 : plus dans le détail de la machine)");
+  await p.evaluate(() => { BA.Technique && BA.Technique.tab("boxes"); BA.Shell.go("technique"); }); await sleep(1200);
   const dans = await p.evaluate(() => BA.Boitiers.detail({ id: "FAS-526000002" }));
-  ok("détail machine : champ « N° de la carte SIM (ICCID) » + bouton 💾", /data-bxiccid="dev-B"/.test(dans) && /data-bxiccid-save="dev-B"/.test(dans) && /N° de la carte SIM/.test(dans), dans.slice(0, 300));
-  await p.evaluate(() => { document.body.insertAdjacentHTML("beforeend", '<div id="zz">' + BA.Boitiers.detail({ id: "FAS-526000002" }) + "</div>"); });
-  await p.fill('#zz input[data-bxiccid="dev-B"]', "123");
-  await p.click('#zz button[data-bxiccid-save="dev-B"]'); await sleep(500);
+  ok("détail machine : plus de champ ICCID (seulement le bouton « Lire maintenant »)", !/bxiccid/.test(dans) && /data-bxread="dev-B"/.test(dans), dans.slice(0, 300));
+  ok("Technique → Boîtiers 4G : bouton ✏️ pour le n° de carte de chaque boîtier", (await p.$$("button[data-bxiccid-edit=\"dev-B\"]")).length === 1);
+  const editer = async (valeur, confirme) => {
+    await p.evaluate(([v, c]) => { window.prompt = () => v; window.confirm = () => c; document.querySelector('button[data-bxiccid-edit="dev-B"]').click(); }, [valeur, confirme]); await sleep(700);
+  };
+  await editer("123", true);
   ok("faux numéro (3 chiffres) refusé, rien enregistré", !fake.t.devices.find(d => d.id === "dev-B").iccid && (await toasts()).some(x => /18 à 20 chiffres/.test(x)), await toasts());
-  await p.fill('#zz input[data-bxiccid="dev-B"]', "8988 2280 6666 8064 6328");
-  await p.click('#zz button[data-bxiccid-save="dev-B"]'); await sleep(600);
+  await editer("8988 2280 6666 8064 6328", false);
+  ok("confirmation refusée : rien enregistré", !fake.t.devices.find(d => d.id === "dev-B").iccid);
+  await editer("8988 2280 6666 8064 6328", true);
   ok("bon numéro (espaces ignorés) enregistré dans devices.iccid", fake.t.devices.find(d => d.id === "dev-B").iccid === "89882280666680646328", fake.t.devices.find(d => d.id === "dev-B"));
   const n1 = appels.length; const e = await p.evaluate(() => BA.Boitiers.readNow("dev-B")); await sleep(800);
   ok("ensuite : « Lire maintenant » de ce boîtier est instantané aussi", appels.length === n1 + 1 && appels[n1].device === "dev-B", appels);
