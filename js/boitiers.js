@@ -605,10 +605,11 @@ window.BA = window.BA || {};
       todo.forEach(d => {
         const row = rows.find(r => r.device_id === d.id) || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
         demandes.set(d.id, row); dem.set(d.id, row.id); rws.set(d.id, row);
+        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.3 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
       });
     }
     lot = { at: now, dem, rows: rws, fini: false, finiAt: 0, guess: false };
-    U().toast("📡 " + t("bx_all_sent", { n: dem.size, d: delai() }), 7000);
+    U().toast(todo.some(d => d.iccid) ? "⚡ " + t("bx_read_sent_fast") : "📡 " + t("bx_all_sent", { n: dem.size, d: delai() }), 7000);
     showDem();
     watch();
   }
@@ -901,10 +902,12 @@ window.BA = window.BA || {};
   }
   function htmlEcoute() {
     const cur = ecouteMin();
-    return `<div class="bx-ecoute"><label>⏱ ${E(t("bx_ec_label"))}
+    // v5.28.3 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
+    const toutUdp = devices.length > 0 && devices.every(d => d.iccid);
+    return `<div class="bx-ecoute">${toutUdp ? "" : `<label>⏱ ${E(t("bx_ec_label"))}
       <select id="bx-ec" class="auto-w">${cur ? "" : `<option value="" selected disabled>${E(t("bx_ec_unset"))}</option>`}
         ${ECOUTE.map(m => `<option value="${m}" ${m === cur ? "selected" : ""}>${E(duree(m))}</option>`).join("")}</select></label>
-      <p class="note">${E(t("bx_ec_note"))}</p>
+      <p class="note">${E(t("bx_ec_note"))}</p>`}
       <label class="check-row"><input type="checkbox" id="bx-porte-notif" ${((BA.Store.get() || {}).settings || {}).porteNotif === true ? "checked" : ""}> 🚪 ${E(t("bx_porte_notif"))}</label>
       <p class="note">${E(t("bx_porte_notif_note"))}</p></div>`;
   }
