@@ -23,6 +23,7 @@ const admin = createClient(Deno.env.get("SUPABASE_URL") ?? "", cleServeur(), { a
 const reponse = (o: Record<string, unknown>, status = 200) => new Response(JSON.stringify(o), { status, headers: { "Content-Type": "application/json" } });
 
 // ==== DÉBUT LOGIQUE PURE (testée hors Supabase) ====
+const VIE_DEMANDE_MS = 35 * 60000;  // v5.29 : durée de vie d'une demande « Lire maintenant » (la même dans l'appli et dans lire-1nce)
 const MAX_MORCEAUX = 40;            // 40 × 440 octets = 17 Ko : plus que le plus gros relevé permis
 const MAX_TOTAL_OCTETS = 20000;
 
@@ -134,12 +135,13 @@ Deno.serve(async (req: Request) => {
   }
   if (r.ok) await accuserSiPossible(iccid, m.seq);
   // v5.28.3 : filet de sécurité — en mode UDP le boîtier ne consulte plus HTTPS ; si l'envoi immédiat d'un « Lire maintenant » n'est pas parti,
-  // on le renvoie ici, à chaque message du boîtier (demande de CE boîtier, encore en attente, de moins de 6 h).
+  // on le renvoie ici, à chaque message du boîtier (demande de CE boîtier, encore en attente, de moins de 35 min : v5.29, même durée de vie
+  // que dans l'appli et dans lire-1nce ; avant : 6 h, une vieille demande que l'appli disait « sans réponse » pouvait encore partir).
   if (r.ok) {
     try {
       const { data: dev2 } = await admin.from("devices").select("id").eq("iccid", iccid).maybeSingle();
       if (dev2) {
-        const depuis = new Date(Date.now() - 6 * 3600000).toISOString();
+        const depuis = new Date(Date.now() - VIE_DEMANDE_MS).toISOString();
         const { data: dem } = await admin.from("ba_demandes").select("id, brut").eq("device_id", dev2.id).eq("statut", "attente").gte("cree_at", depuis).order("id", { ascending: true }).limit(1).maybeSingle();
         if (dem) await accuserSiPossible(iccid, m.seq, "lire " + Math.floor(Number(dem.id)) + (dem.brut ? " b" : ""));
       }

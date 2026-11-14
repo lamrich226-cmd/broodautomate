@@ -94,7 +94,7 @@ window.BA = window.BA || {};
   function rowHtml(s, e, admin, withMachine) {
     return `<tr class="mv-${e.k}">
       <td class="nowrap">${when(e.t)}</td>
-      ${withMachine ? `<td class="selno">#${e.n}</td>` : ""}
+      ${withMachine ? `<td class="selno">${E(M.numTxt ? M.numTxt(e.n) : "#" + e.n)}</td>` : ""}
       <td>${e.s != null ? e.s : ""}${e.y ? `<div class="petit only-phone">${U.prod(e.y)}</div>` : ""}</td>
       <td class="no-phone">${e.y ? U.prod(e.y) : ""}</td>
       <td><span class="tag mv mv-${e.k}">${ICON[e.k] || ""} ${moveName(e)}</span></td>

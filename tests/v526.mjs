@@ -81,10 +81,10 @@ const ICCID = "89882280666680646327";
   console.log("== 3. La fonction échoue : rien n'est perdu");
   panne = true; const c = await p.evaluate(() => BA.Boitiers.readNow("dev-A")); await sleep(1200);
   ok("demande toujours en attente (le boîtier la prendra à son passage)", fake.t.ba_demandes.some(x => x.id === c.id && x.statut === "attente"));
-  ok("message « l'ordre instantané n'est pas parti … prochain passage (15 min au plus) »", (await toasts()).some(x => /pas parti/.test(x) && /15 min/.test(x)), await toasts());
+  ok("message « l'ordre instantané n'est pas parti … 🔁 … prochain signal de vie (30 min au plus) » (v5.29)", (await toasts()).some(x => /pas parti/.test(x) && /🔁/.test(x) && /30 min/.test(x)), await toasts());
   panne = false; fake.t.ba_demandes.forEach(x => { x.statut = "faite"; x.fini_at = new Date().toISOString(); }); await p.evaluate(() => BA.Boitiers.refresh(true)); await sleep(500);
 
-  console.log("== 4. Saisie de l'ICCID dans Technique → Boîtiers 4G (v5.28.6 : plus dans le détail de la machine)");
+  console.log("== 4. Saisie de l'ICCID dans Technique → Boîtiers 4G (v5.28.5 : plus dans le détail de la machine)");
   await p.evaluate(() => { BA.Technique && BA.Technique.tab("boxes"); BA.Shell.go("technique"); }); await sleep(1200);
   const dans = await p.evaluate(() => BA.Boitiers.detail({ id: "FAS-526000002" }));
   ok("détail machine : plus de champ ICCID (seulement le bouton « Lire maintenant »)", !/bxiccid/.test(dans) && /data-bxread="dev-B"/.test(dans), dans.slice(0, 300));

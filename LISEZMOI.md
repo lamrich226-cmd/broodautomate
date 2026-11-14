@@ -1,3 +1,17 @@
+> **État actuel (v5.29, 14/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
+>   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
+>   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
+>   le boîtier écoute en permanence et répond en quelques secondes. Une demande vit **35 min** partout (appli, `lire-1nce`, filet de
+>   sécurité d'`ingest-udp` qui renvoie l'ordre au prochain message du boîtier) ; sans réponse après 1 min, le bouton devient 🔁.
+> - **Technique** : Boîtiers 4G (liste, n° de carte SIM ✏️, détail), Machines, Câble et clé USB, Journal, Système, Flux brut,
+>   **Consommation 4G** (chiffre exact de 1NCE). Le programme du boîtier se télécharge dans la fenêtre de la clé (Ajouter un boîtier
+>   ou 🔑) ; programme actuel : **v1.6.2** (`lilygo/`).
+> - **Machine supprimée** : son historique passe sous un numéro fantôme, affiché « #n (supprimée) » ; une nouvelle machine qui reprend
+>   le numéro démarre vide.
+> - **Nouvelle version publiée** : un bandeau propose de recharger les pages restées ouvertes (PC, téléphone, appli opérateur).
+> - L'ancienne v3.2 (`v3/`) a été retirée en v5.29 (toujours dans l'historique GitHub).
+
 > **v5.6 — fonctions de la version test 4.8.9** (reprises dans le vrai logiciel, sur les vraies données) :
 > - **Commander & prévisions** : un seul menu. Onglets *Préparer une commande* · *Vérifier l'état de stock* · *Prévision* (Calendrier · Profils par jour · **L'an dernier**). L'entrée « Prévisions & calendrier » du menu n'existe plus.
 > - **L'an dernier** : *Période à venir (pour commander)* (dates libres, détail par type de pain, « Utiliser l'an dernier » avec ↩ Annuler, Excel) et *8 dernières semaines (comparaison)*. Depuis la commande : « Voir l'an dernier pour ces jours » puis « ← Retour à la commande ». La reprise de la v3 contient 400 jours de ventes : l'an dernier est complet à partir de ~420 jours d'historique.
@@ -15,7 +29,7 @@ Logiciel de suivi des distributeurs de pain FAS Power Lift.
 
 - `index.html` : le logiciel **admin** (sur le PC).
 - `operateur.html` : l'**appli opérateur** (sur le téléphone).
-- `v3/` : l'ancienne version 3.2, gardée telle quelle en secours.
+- `v3/` : l'ancienne version 3.2 — retirée en v5.29 (plus utilisée ; elle reste dans l'historique GitHub).
 
 La version 5 reprend toutes les fonctions de la version test 4.8.1 : Dashboard, lots de pain datés (le plus ancien sort en premier), appli opérateur avec « Remplir » en 3 étapes, Commander, Prévisions et calendrier, Statistiques, Historique, Alertes, français, néerlandais et anglais. Elle est branchée sur les vraies machines.
 
@@ -47,6 +61,8 @@ Tes machines, produits et ventes de la v3 sont alors repris automatiquement. Les
 - Une machine est « En ligne » si elle a envoyé des données il y a moins de 45 minutes.
 
 ## Boîtiers 4G (v5.1, « Lire maintenant » en v5.2, « Lire toutes les machines » en v5.3)
+
+> Historique des premières versions (HTTPS, carte Digi). Pour le fonctionnement actuel (1NCE, UDP), voir « État actuel » en haut.
 
 Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la machine, la lit tout seul (liste 2, comme le câble) et envoie les relevés par la 4G. Ils sont traités exactement comme un relevé par câble (ventes, stock, alertes), sur le PC comme sur le téléphone, sans jamais compter une vente deux fois.
 
@@ -88,6 +104,20 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.29 — vérification complète du 14/11/2026 : corrections
+
+- **Historique des machines** : une machine supprimée laissait ses alertes, ventes et interventions sous son numéro ; la machine
+  suivante qui prenait ce numéro en héritait. Désormais l'historique part sous un numéro fantôme (« #n (supprimée) ») ; une
+  réparation automatique au chargement détache aussi l'ancien historique resté attaché (ex. machine #2).
+- **« Lire maintenant » (1NCE)** : même durée de vie de 35 min partout ; 🔁 après 1 min ; textes justes (« écoute permanente »,
+  réponse en quelques secondes) ; plus d'estimation de data fausse (le vrai chiffre est dans « Consommation 4G »).
+- **Ajouter un boîtier** : carte 1NCE par défaut.
+- **Bandeau « nouvelle version »** (`js/maj.js`) : une page restée ouverte avec un ancien programme le signale.
+- **Message du boîtier** : coupé proprement à la fin d'une phrase (avant : « …la v ») ; l'explication est ajoutée par l'appli.
+- **Boîtier v1.6.2** : numéros d'envoi UDP tirés au hasard au démarrage, plus de « RECU » en tout-UDP, message d'état court.
+- **Nettoyage** : 64 textes de traduction inutilisés retirés, dossier `v3/` retiré, documents mis à jour.
+- **Sécurité « Preuve de livraison »** (même projet Supabase) : verrou après 5 mots de passe faux (`supabase/preuve-livraison-securite.sql`, appliqué).
 
 ## v5.7 — design opérateur
 - Téléphone : menu en bas de l'écran (icônes, nom de la page active), grands boutons, assistant « Remplir » au nouveau style.
@@ -141,7 +171,7 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 ## v5.12 — page « Technique » (diagnostic et installation)
 - **Nouvelle page « Technique »** (admin seulement, dans le menu juste après « Connexion RS232 »), en 5 onglets :
-  - **📡 Boîtiers 4G** : la liste des boîtiers, puis le **détail de chacun** (programme, mode, allumé depuis, dernier contact, signal et réseau, machine et température, dernière lecture réussie, lectures, rythme, message, porte) et les **données 4G estimées** (depuis le démarrage du boîtier, et par mois au même rythme). Ensuite : réglage « Lire maintenant », « Lire toutes les machines », ajouter un boîtier. L'installation (commandes SQL, fonction « ingest », programme) est repliée en bas.
+  - **📡 Boîtiers 4G** : la liste des boîtiers, puis le **détail de chacun** (programme, mode, allumé depuis, dernier contact, signal et réseau, machine et température, dernière lecture réussie, lectures, rythme, message, porte) et les **données 4G estimées** (depuis le démarrage du boîtier, et par mois au même rythme). Ensuite : réglage « Lire maintenant », « Lire toutes les machines », ajouter un boîtier. L'installation (commandes SQL, fonction « ingest », programme) est repliée en bas. *(v5.28.2 : bloc d'installation retiré ; v5.29 : estimation de data remplacée par l'onglet Consommation 4G pour les cartes 1NCE.)*
   - **🏭 Machines** : ajouter, renuméroter, supprimer une machine (avant : « Mes machines »). Nouveau : le **n° de plaque** se corrige. Il sert à vérifier qu'un boîtier lit bien cette machine : s'il est faux (par exemple le n° générique FAS000000001), chaque relevé du boîtier est refusé (« relevé d'une autre machine »). L'identifiant interne de la machine ne change pas.
   - **🔌 Câble et clé USB** : le câble entre le PC et une machine, les relevés reçus, le journal du câble ; l'import d'une clé USB ; le test d'un texte EVA-DTS (replié).
   - **📜 Journal** : les 30 derniers envois des boîtiers (heure à la seconde, origine « envoyé par la machine » ou « lu par le boîtier », contenu décodé, taille, traité ou pas) ; « 🔍 Voir » montre tout l'envoi décodé (n° lu, horloge, ventes, températures, événements, coupures) puis le texte reçu, à copier. Aussi : les alertes de communication et les demandes « Lire maintenant ».
@@ -154,7 +184,7 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 ## v5.21 — carte SIM du boîtier (Digi / 1NCE) et programme complet à télécharger
 
-- Technique → 📡 Boîtiers 4G → **Ajouter un boîtier** : nouveau choix **Carte SIM** (Digi par défaut, comme avant, ou 1NCE).
+- Technique → 📡 Boîtiers 4G → **Ajouter un boîtier** : nouveau choix **Carte SIM** (Digi par défaut à l'époque ; depuis la v5.29 : 1NCE par défaut).
 - La fenêtre de la clé (aussi après 🔑 « Nouvelle clé ») propose **⬇️ Télécharger le programme complet (.zip)** : le programme
   du boîtier v1.5 avec `config.h` déjà rempli (MODE 0, clé de CE boîtier, APN de la carte, écoute UDP pour 1NCE). La clé ne
   quitte pas le navigateur : le .zip est fabriqué sur l'ordinateur (`js/zip.js`, `js/programme.js`). La ligne DEVICE_KEY à
@@ -201,7 +231,7 @@ bouton **Machine / Classique** (Classique = l'ancien affichage, sans changement)
   l'entretien des 30 s ne recopie plus tout l'historique (1 ms au lieu de 29 ms avec 400 jours × 35 machines).
 - Compte opérateur : il peut LIRE les relevés des boîtiers 4G (sinon son stock n'était pas à jour), toujours sans pouvoir y écrire ni effacer.
 - L'ancien code du simulateur de la version test est retiré (plus utilisé, mais il relisait les données pour rien).
-- Version **5.28.6** partout (`?v=5.28.6`) : après la publication, les téléphones prennent tous les nouveaux fichiers.
+- Version **5.25.0** partout (`?v=5.25.0`) : après la publication, les téléphones prennent tous les nouveaux fichiers.
 
 **Supabase** (rien n'a été changé dans Supabase) :
 - Le jour où cette version remplace le vrai site : remplacer le code de la fonction `ingest` par `supabase/functions/ingest/index.ts`

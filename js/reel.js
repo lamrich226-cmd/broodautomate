@@ -154,6 +154,78 @@ window.BA = window.BA || {};
     M.resolveEvents(s, m.num, "READ_BAD");
   }
 
+  // ---------------- v5.29 : numéro de machine et historique ----------------
+  // Le numéro d'une machine est le lien de tout son historique (alertes, missions, interventions, journal, ventes par jour,
+  // calendrier, profils). Avant la v5.29, une machine supprimée laissait son historique sous son numéro : la machine suivante
+  // qui prenait ce numéro en héritait (ex. alertes et ventes d'une autre machine). Désormais l'historique d'une machine
+  // supprimée part sous un numéro FANTÔME (k × 100000 + ancien numéro, jamais un numéro de machine) : les statistiques de la
+  // flotte restent, mais aucune machine ne le reprend.
+  const FANTOME = 100000;
+  const estFantome = n => Number(n) >= FANTOME;
+  const numObj = o => (o && typeof o === "object" ? o : {});
+  // Tous les numéros cités par l'historique
+  function numerosCites(s) {
+    const set = new Set(), add = n => { const v = Number(n); if (Number.isInteger(v) && v > 0) set.add(v); };
+    ["events", "missions", "interventions", "moves"].forEach(k => (s[k] || []).forEach(e => add(e.num)));
+    (s.journal || []).forEach(e => add(e.n));
+    Object.values(numObj(s.daily)).forEach(d => Object.keys(numObj(d)).forEach(add));
+    (s.calendar || []).forEach(e => { (Array.isArray(e.machines) ? e.machines : []).forEach(add); Object.keys(numObj(e.perMachine)).forEach(add); });
+    Object.values(numObj(s.dayDecisions)).forEach(d => Object.keys(numObj(d && d.m)).forEach(add));
+    ["profileManual", "profileManualAt", "profileTypes"].forEach(k => Object.keys(numObj(s[k])).forEach(add));
+    return set;
+  }
+  function fantomePour(s, old) {
+    const pris = numerosCites(s);
+    let k = 1; while (pris.has(k * FANTOME + old)) k++;
+    return k * FANTOME + old;
+  }
+  // Renumérotation d'une machine (son historique la suit)
+  function deplacerNum(s, old, n) {
+    ["events", "missions", "interventions", "moves"].forEach(k => (s[k] || []).forEach(e => { if (e.num === old) e.num = n; }));
+    (s.journal || []).forEach(e => { if (e.n === old) e.n = n; });
+    Object.values(numObj(s.daily)).forEach(d => { if (d && d[old]) { d[n] = d[old]; delete d[old]; } });
+    (s.calendar || []).forEach(e => { if (Array.isArray(e.machines)) e.machines = e.machines.map(x => x === old ? n : x); if (e.perMachine && e.perMachine[old] != null) { e.perMachine[n] = e.perMachine[old]; delete e.perMachine[old]; } });
+    Object.values(numObj(s.dayDecisions)).forEach(d => { if (d && d.m && d.m[old]) { d.m[n] = d.m[old]; delete d.m[old]; } });
+    ["profileManual", "profileManualAt", "profileTypes"].forEach(k => { const o = s[k]; if (o && o[old] != null) { o[n] = o[old]; delete o[old]; } });
+    s.histRev = (s.histRev || 0) + 1;                       // les jours passés (2e partie des données) seront réécrits
+  }
+  // Détache l'historique du numéro « old » (machine supprimée) vers un numéro fantôme. avant (ms) : seulement ce qui est plus
+  // ancien que cet instant (réparation d'une machine qui a hérité de l'historique d'une autre). Rend le nombre d'éléments détachés.
+  function detacher(s, old, avant) {
+    const g = fantomePour(s, old), vieux = t => avant == null || (Number(t) || 0) < avant;
+    const jourMax = avant == null ? null : M.dayKey(avant);
+    let n = 0;
+    const evs = (s.events || []).filter(e => e.num === old && vieux(e.t));
+    if (evs.length) { s.events = s.events.filter(e => !evs.includes(e)); n += evs.length; }      // ses alertes sont effacées
+    const mv = (s.moves || []).filter(e => e.num === old && vieux(e.at));
+    if (mv.length) { s.moves = s.moves.filter(e => !mv.includes(e)); n += mv.length; }          // pains à déplacer : plus rien à faire
+    (s.missions || []).forEach(e => { if (e.num === old && vieux(e.created)) { e.num = g; n++; } });
+    (s.interventions || []).forEach(e => { if (e.num === old && vieux(e.start)) { e.num = g; n++; } });
+    (s.journal || []).forEach(e => { if (e.n === old && vieux(e.t)) { e.n = g; n++; } });
+    Object.keys(numObj(s.daily)).forEach(k => { const d = s.daily[k]; if (d && d[old] && (jourMax == null || k < jourMax)) { d[g] = d[old]; delete d[old]; n++; } });
+    if (avant == null) {                                     // réglages propres à cette machine : effacés
+      (s.calendar || []).forEach(e => { if (Array.isArray(e.machines) && e.machines.includes(old)) { e.machines = e.machines.filter(x => x !== old); n++; } if (e.perMachine && e.perMachine[old] != null) { delete e.perMachine[old]; n++; } });
+      Object.values(numObj(s.dayDecisions)).forEach(d => { if (d && d.m && d.m[old]) { delete d.m[old]; n++; } });
+      ["profileManual", "profileManualAt", "profileTypes"].forEach(k => { const o = s[k]; if (o && o[old] != null) { delete o[old]; n++; } });
+    }
+    if (n) s.histRev = (s.histRev || 0) + 1;
+    return n;
+  }
+  // Réparation (au chargement, sans effet si tout est en ordre) : 1) historique d'un numéro sans machine (machine supprimée
+  // avant la v5.29) → fantôme ; 2) machine créée en v5.29 ou après (m.cree) : ce qui est plus vieux qu'elle (1 h de marge,
+  // horloges des appareils) appartenait à une autre machine → fantôme.
+  function reparerNumeros(s) {
+    let n = 0;
+    const machines = new Set((s.machines || []).map(m => m.num));
+    numerosCites(s).forEach(num => { if (!estFantome(num) && !machines.has(num)) n += detacher(s, num, null); });
+    (s.machines || []).forEach(m => { if (Number(m.cree) > 0) n += detacher(s, m.num, Number(m.cree) - H); });
+    return n;
+  }
+  // La même réparation, sur une copie : y a-t-il quelque chose à réparer ?
+  const aReparer = s => { try { return reparerNumeros(JSON.parse(JSON.stringify(s))) > 0; } catch (e) { return false; } };
+  // « #2 » ou « #2 (supprimée) » pour un numéro fantôme
+  M.numTxt = n => estFantome(n) ? "#" + (Number(n) % FANTOME) + " " + BA.I18n.t("num_supprimee") : "#" + n;
+
   const Reel = {
     machineMs, addSpan,
 
@@ -303,7 +375,9 @@ window.BA = window.BA || {};
       if (!Number.isInteger(num) || num < 1 || num > 99999) return "rs_err_num";
       if (M.machine(s, num)) return "rs_err_num_used";
       if (o.id && s.machines.some(m => String(m.id || "").toUpperCase() === String(o.id).toUpperCase())) return "rs_err_exists";
-      s.machines.push(BA.Store.newMachine(o));
+      const nm = BA.Store.newMachine(o);
+      nm.cree = s.now || Date.now();                            // v5.29 : rien de plus ancien ne peut être à elle
+      s.machines.push(nm);
       s.machines.sort((a, b) => a.num - b.num);
       return null;
     },
@@ -313,16 +387,8 @@ window.BA = window.BA || {};
         const n = Number(v.num);
         if (!Number.isInteger(n) || n < 1 || n > 99999) return "rs_err_num";
         if (M.machine(s, n)) return "rs_err_num_used";
-        // le numéro sert de lien partout : alertes, missions, interventions, historique, statistiques
-        const old = m.num;
-        s.events.forEach(e => { if (e.num === old) e.num = n; });
-        s.missions.forEach(e => { if (e.num === old) e.num = n; });
-        s.interventions.forEach(e => { if (e.num === old) e.num = n; });
-        (s.journal || []).forEach(e => { if (e.n === old) e.n = n; });
-        Object.values(s.daily).forEach(d => { if (d[old]) { d[n] = d[old]; delete d[old]; } });
-        (s.calendar || []).forEach(e => { if (Array.isArray(e.machines)) e.machines = e.machines.map(x => x === old ? n : x); if (e.perMachine && e.perMachine[old] != null) { e.perMachine[n] = e.perMachine[old]; delete e.perMachine[old]; } });
-        Object.values(s.dayDecisions || {}).forEach(d => { if (d.m && d.m[old]) { d.m[n] = d.m[old]; delete d.m[old]; } });
-        ["profileManual", "profileManualAt", "profileTypes"].forEach(k => { const o = s[k]; if (o && o[old] != null) { o[n] = o[old]; delete o[old]; } });
+        // le numéro sert de lien partout : alertes, missions, interventions, pains à déplacer, historique, statistiques
+        deplacerNum(s, m.num, n);
         m.num = n;
         s.machines.sort((a, b) => a.num - b.num);
       }
@@ -345,9 +411,10 @@ window.BA = window.BA || {};
       const m = M.machine(s, num); if (!m) return "rs_err_missing";
       s.machines = s.machines.filter(x => x !== m);
       s.missions.forEach(x => { if (x.num === m.num && x.status === "open") x.status = "replaced"; });
-      s.events.forEach(e => { if (e.num === m.num && !e.resolved) { e.resolved = true; e.resolvedAt = s.now; } });
+      detacher(s, m.num, null);          // v5.29 : son historique part sous un numéro fantôme (une autre machine ne le reprendra pas)
       return null;
-    }
+    },
+    reparerNumeros, aReparer, estFantome
   };
 
   // ---------------- BA.Live : heure réelle et entretien ----------------

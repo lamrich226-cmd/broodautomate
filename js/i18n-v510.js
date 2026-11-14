@@ -21,7 +21,6 @@
     op_todo_title: "À faire",
     op_todo_ok: "Rien d'urgent : toutes les machines sont en ordre.",
     op_todo_need: "Machines à visiter",
-    op_todo_all: "Toutes les machines",
     op_fill_title: "Remplir une machine",
     op_fill_pick: "Choisis la machine à remplir :",
     op_fill_go: "Remplir",
@@ -38,7 +37,6 @@
     op_more_settings: "Réglages",
     op_back_more: "Retour",
     op_help: "Aide",
-    op_n_machines: "{n} [machine|machines]",
     op_fill_pct: "{q}/{c} pains"
   });
 
@@ -57,7 +55,6 @@
     op_todo_title: "Te doen",
     op_todo_ok: "Niets dringends: alle automaten zijn in orde.",
     op_todo_need: "Te bezoeken automaten",
-    op_todo_all: "Alle automaten",
     op_fill_title: "Een automaat vullen",
     op_fill_pick: "Kies de automaat die je wilt vullen:",
     op_fill_go: "Vullen",
@@ -74,7 +71,6 @@
     op_more_settings: "Instellingen",
     op_back_more: "Terug",
     op_help: "Uitleg",
-    op_n_machines: "{n} [automaat|automaten]",
     op_fill_pct: "{q}/{c} broden"
   });
 
@@ -93,7 +89,6 @@
     op_todo_title: "To do",
     op_todo_ok: "Nothing urgent: every machine is in order.",
     op_todo_need: "Machines to visit",
-    op_todo_all: "All machines",
     op_fill_title: "Fill a machine",
     op_fill_pick: "Choose the machine to fill:",
     op_fill_go: "Fill",
@@ -110,7 +105,6 @@
     op_more_settings: "Settings",
     op_back_more: "Back",
     op_help: "Help",
-    op_n_machines: "{n} [machine|machines]",
     op_fill_pct: "{q}/{c} loaves"
   });
 })();

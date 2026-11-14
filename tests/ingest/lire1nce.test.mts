@@ -18,7 +18,8 @@ ok("contrôle : ICCID manquant", verifier(dem, { id: DEV, iccid: null }, DEV, MA
 ok("contrôle : demande d'un autre boîtier / déjà traitée / trop ancienne / inconnue",
   verifier({ ...dem, device_id: "autre" }, { id: DEV, iccid: ICCID }, DEV, MAINT) === "demande d'un autre boîtier" &&
   verifier({ ...dem, statut: "faite" }, { id: DEV, iccid: ICCID }, DEV, MAINT) === "demande déjà traitée" &&
-  verifier({ ...dem, cree_at: "2026-11-13T14:50:00Z" }, { id: DEV, iccid: ICCID }, DEV, MAINT) === "demande trop ancienne" &&
+  verifier({ ...dem, cree_at: "2026-11-13T14:20:00Z" }, { id: DEV, iccid: ICCID }, DEV, MAINT) === "demande trop ancienne" &&
+  verifier({ ...dem, cree_at: "2026-11-13T14:30:00Z" }, { id: DEV, iccid: ICCID }, DEV, MAINT) === "" &&   // v5.29 : 30 min → encore envoyée (🔁)
   verifier(null, { id: DEV, iccid: ICCID }, DEV, MAINT) === "demande inconnue");
 
 // fausse API 1NCE

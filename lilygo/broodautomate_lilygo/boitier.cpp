@@ -1,7 +1,9 @@
 // ============================================================
-// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.5)
+// BROODAUTOMATE — Boîtier 4G LILYGO T-A7670E (programme principal, v1.6.2)
 // Lit la machine FAS en RS232 (lecture seule, comme le câble de Broodautomate) et envoie
-// les relevés à Supabase par la 4G (HTTPS).
+// les relevés à Supabase par la 4G (carte 1NCE : en UDP, voir v1.6 ; autres cartes : HTTPS).
+//   • v1.6.2 : n° des envois UDP au hasard au démarrage, plus de « RECU » en tout-UDP, message d'état court (1re phrase).
+//   • v1.6 / v1.6.1 : carte 1NCE : signaux de vie, relevés et résultats de « Lire maintenant » en UDP (repli HTTPS après 2 h d'UDP muet).
 //   • v1.5 : carte 1NCE (ECOUTE_UDP 1) : le boîtier écoute un port UDP ; le Device Controller de 1NCE lui envoie « lire »
 //     → lecture et envoi tout de suite (« Lire maintenant » instantané). Sans ECOUTE_UDP (Digi…) : tout est comme en v1.4.
 //   • v1.4 : UN SEUL programme pour deux familles de machines, reconnues toutes seules au branchement :
@@ -30,7 +32,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.6.1"
+#define FW_VERSION "1.6.2"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
@@ -57,7 +59,7 @@
 #define UDP_PORT_ECOUTE 3000     // port UDP écouté par le boîtier (à indiquer dans le Device Controller de 1NCE)
 #endif
 #ifndef UDP_VIVANT_MIN
-#define UDP_VIVANT_MIN 0         // petit message « vivant » vers 1NCE toutes les N minutes (0 = jamais : le signal de vie HTTPS suffit)
+#define UDP_VIVANT_MIN 0         // petit message « vivant » vers 1NCE toutes les N minutes (0 = jamais : le signal de vie suffit)
 #endif
 
 // v1.6 : carte 1NCE : le boîtier envoie ses relevés et signaux de vie en UDP (quelques centaines d'octets) au lieu du HTTPS (~6 Ko).
@@ -111,6 +113,9 @@ static String statut = "démarrage";
 static bool statutOk = false;              // dernière lecture de la machine réussie
 static String dernierStatutEnvoye = "";
 static uint32_t nbLectures = 0, nbEchecs = 0, nbEnvois = 0, nbEnvoisRates = 0, seq = 0;
+// v1.6.2 : n° des envois UDP (« U1|n°|… », confirmé par « ok n° ») = base tirée au hasard au démarrage + seq. Le serveur garde
+// en mémoire les n° déjà traités : un boîtier redémarré qui repartirait à 1 pourrait être pris pour un doublon (14/11/2026).
+static uint32_t udpBase = 0;
 static uint32_t derniereLecture = 0, dernierEnvoiOk = 0, prochainEssaiEnvoi = 0, dernierEssaiReseau = 0;
 static uint32_t delaiReseau = 0, echecsSuite = 0, dernierPing = 0;
 static bool lectureDemandee = true;       // première lecture dès que l'heure est connue
@@ -191,8 +196,10 @@ struct Ecoute : MoteurDdcmp::Ecouteur {
       if (!surveillance || echecsSurveillance == 2) nbEchecs++;
       if (surveillance) echecsSurveillance++;
       statutOk = false;
-      statut = String(erreur.c_str());
-      Serial.println("[RS232] ✖ Lecture impossible : " + statut);
+      // v1.6.2 : à Broodautomate, seulement la 1re phrase (ex. « La machine ne répond pas (10 START sans réponse). ») :
+      // l'explication est ajoutée par l'appli. Avant, le texte complet (≈ 330 octets) était coupé à 240 et doublait le signal de vie.
+      { size_t f = erreur.find(". "); statut = String((f != std::string::npos && f >= 20 && f < 160 ? erreur.substr(0, f + 1) : erreur.substr(0, 160)).c_str()); }
+      Serial.println(String("[RS232] ✖ Lecture impossible : ") + erreur.c_str());
     }
     // Lecture demandée par Broodautomate : si aucun relevé n'attend d'être envoyé pour elle,
     // le résultat (échec) est annoncé tout de suite ; sinon il le sera après l'envoi du relevé
@@ -391,7 +398,7 @@ static bool envoyer(const Releve* r) {
   b += "}";
   Serial.printf("[Envoi] %s (%u octets)%s…\n", r ? "Relevé" : "Signal de vie", (unsigned)b.size(), viaUdp ? " par UDP" : "");
   if (viaUdp) {
-    if (modem.udpPret && envoyerParUdp(b, seq, retourUdp ? 1 : 2)) {
+    if (modem.udpPret && envoyerParUdp(b, udpBase + seq, retourUdp ? 1 : 2)) {
       nbEnvois++; echecsSuite = 0; premierEnvoi = false;
       dernierEnvoiOk = millis(); dernierStatutEnvoye = statut;
       udpEchecDepuis = 0;
@@ -564,7 +571,7 @@ static void ecouteUdp() {
       }
       else Serial.println(F("[UDP] (mode essai : le boîtier ne lit pas la machine)"));
     }
-    udpEnvoyerTexte(String("RECU ") + String(m.substr(0, 40).c_str()));
+    if (!toutEnUdp()) udpEnvoyerTexte(String("RECU ") + String(m.substr(0, 40).c_str()));   // v1.6.2 : en tout-UDP, le résultat suffit
   }
   if (!modem.udpPret) return;
   if (udpVivantDemande || (UDP_VIVANT_MIN > 0 && now - udpDernierEnvoi >= (uint32_t)UDP_VIVANT_MIN * 60000UL)) {
@@ -617,6 +624,7 @@ static void console() {
 // ============================================================
 void setup() {
   Serial.begin(115200);
+  udpBase = 100000000UL + (esp_random() % 800000000UL);   // v1.6.2 : 9 chiffres, différent à chaque démarrage
   delay(800);
   Serial.println();
   Serial.println(F("============================================================"));

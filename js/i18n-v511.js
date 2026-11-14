@@ -84,19 +84,16 @@
 (function () {
   const D = BA.I18n.dicts;
   Object.assign(D.fr, {
-    rs_tab_cable: "Câble", rs_tab_boxes: "Boîtiers 4G", rs_tab_machines: "Mes machines", rs_tab_tools: "Outils",
     rs_tab_cable_note: "Câble entre ce PC et une machine (Chrome ou Edge). Choisis la machine, branche, puis « Lire maintenant ».",
     rs_read_more: "Quelle liste lire",
     rs_journal_hint: "pour le dépannage"
   });
   Object.assign(D.nl, {
-    rs_tab_cable: "Kabel", rs_tab_boxes: "4G-kastjes", rs_tab_machines: "Mijn automaten", rs_tab_tools: "Hulpmiddelen",
     rs_tab_cable_note: "Kabel tussen deze pc en een automaat (Chrome of Edge). Kies de automaat, sluit aan en klik op „Nu lezen”.",
     rs_read_more: "Welke lijst lezen",
     rs_journal_hint: "voor het oplossen van problemen"
   });
   Object.assign(D.en, {
-    rs_tab_cable: "Cable", rs_tab_boxes: "4G boxes", rs_tab_machines: "My machines", rs_tab_tools: "Tools",
     rs_tab_cable_note: "Cable between this PC and a machine (Chrome or Edge). Choose the machine, connect, then “Read now”.",
     rs_read_more: "Which list to read",
     rs_journal_hint: "for troubleshooting"

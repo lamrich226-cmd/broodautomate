@@ -10,9 +10,10 @@
   const DOSSIER = "broodautomate_lilygo";
   const FICHIERS = ["broodautomate_lilygo.ino", "config.h", "boitier.cpp", "modem.h", "envoi.h", "filtre.h", "horloge.h", "ddcmp_moteur.h", "dex_moteur.h"];
   // Cartes SIM proposées. apn = adresse internet de l'opérateur ; udp = le boîtier écoute un port (Device Controller de 1NCE)
+  // v5.29 : 1NCE en premier (choix par défaut dans « Ajouter un boîtier ») ; Digi reste possible
   const SIMS = {
-    digi: { nom: "Digi", apn: "internet", udp: false },
-    "1nce": { nom: "1NCE", apn: "iot.1nce.net", udp: true }
+    "1nce": { nom: "1NCE", apn: "iot.1nce.net", udp: true },
+    digi: { nom: "Digi", apn: "internet", udp: false }
   };
   const pad = n => String(n).padStart(2, "0");
   function slug(n) {

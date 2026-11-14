@@ -45,7 +45,6 @@
     bx_det_data_na: "pas disponible avec ce programme",
     bx_det_data_note: "Données 4G : estimation à partir du nombre d'envois du boîtier (5 à 9 Ko par échange avec Supabase). La vraie consommation se lit sur l'appli de la carte SIM.",
     bx_data_total: "Tous les boîtiers ({n}), au rythme actuel : ≈ {a} à {b} Mo par mois (estimation).",
-    bx_install_title: "Installation : commandes SQL, fonction « ingest », programme du boîtier",
 
     // page Technique → Journal
     tq_j_local: "Le journal des boîtiers a besoin de Supabase (mode en ligne).",
@@ -91,7 +90,6 @@
     tq_s_boxes_n: "Boîtiers", tq_s_boxes_tables: "Tables des boîtiers installées", tq_s_boxes_read: "« Lire maintenant » installé", tq_s_boxes_seen: "Dernier contact d'un boîtier",
     tq_s_local_na: "seulement avec Supabase",
     tq_yes: "oui", tq_no: "non",
-    tq_s_note: "Lecture seule : cette page ne change rien aux données. Les copies de nuit sont gardées 14 nuits dans Supabase.",
 
     // Machines : n° de plaque corrigeable
     rs_plate_tip: "N° de la plaque de la machine : il sert à vérifier que le boîtier lit bien cette machine.",
@@ -142,7 +140,6 @@
     bx_det_data_na: "niet beschikbaar met dit programma",
     bx_det_data_note: "4G-data: schatting op basis van het aantal verzendingen van het kastje (5 tot 9 kB per uitwisseling met Supabase). Het echte verbruik staat in de app van de simkaart.",
     bx_data_total: "Alle kastjes ({n}), aan het huidige ritme: ≈ {a} tot {b} MB per maand (schatting).",
-    bx_install_title: "Installatie: SQL-opdrachten, functie „ingest”, programma van het kastje",
 
     tq_j_local: "Het logboek van de kastjes heeft Supabase nodig (online modus).",
     tq_j_refresh: "Vernieuwen", tq_j_updated: "Bijgewerkt om {h}", tq_j_err: "Lezen lukt niet: {e}",
@@ -186,7 +183,6 @@
     tq_s_boxes_n: "Kastjes", tq_s_boxes_tables: "Tabellen van de kastjes geïnstalleerd", tq_s_boxes_read: "„Nu uitlezen” geïnstalleerd", tq_s_boxes_seen: "Laatste contact van een kastje",
     tq_s_local_na: "alleen met Supabase",
     tq_yes: "ja", tq_no: "nee",
-    tq_s_note: "Alleen lezen: deze pagina verandert niets aan de gegevens. De nachtelijke kopieën blijven 14 nachten in Supabase.",
 
     rs_plate_tip: "Nummer van de plaat van de automaat: daarmee wordt gecontroleerd dat het kastje wel deze automaat leest.",
     rs_err_plate_generic: "„FAS000000001” is het algemene nummer dat sommige automaten sturen: vul het nummer van de PLAAT in.",
@@ -235,7 +231,6 @@
     bx_det_data_na: "not available with this program",
     bx_det_data_note: "4G data: estimate from the number of sends of the box (5 to 9 kB per exchange with Supabase). The real usage is in the SIM card's app.",
     bx_data_total: "All boxes ({n}), at the current rate: ≈ {a} to {b} MB per month (estimate).",
-    bx_install_title: "Installation: SQL commands, “ingest” function, box program",
 
     tq_j_local: "The box log needs Supabase (online mode).",
     tq_j_refresh: "Refresh", tq_j_updated: "Updated at {h}", tq_j_err: "Could not read: {e}",
@@ -279,7 +274,6 @@
     tq_s_boxes_n: "Boxes", tq_s_boxes_tables: "Box tables installed", tq_s_boxes_read: "“Read now” installed", tq_s_boxes_seen: "Last contact of a box",
     tq_s_local_na: "only with Supabase",
     tq_yes: "yes", tq_no: "no",
-    tq_s_note: "Read only: this page changes nothing in the data. Nightly copies are kept for 14 nights in Supabase.",
 
     rs_plate_tip: "Number on the machine's plate: it is used to check that the box really reads this machine.",
     rs_err_plate_generic: "“FAS000000001” is the generic number sent by some machines: enter the number on the PLATE.",

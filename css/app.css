@@ -1102,3 +1102,12 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 }
 .lm-sels { min-width: 190px; max-width: 260px; } .lm-sels .mv-compact { margin: 0; }
 .demo-banner { position: relative; z-index: 40; background: var(--c-info, #1d5fd6); color: #fff; font-weight: 650; font-size: .85rem; text-align: center; padding: 6px 12px; }
+
+/* v5.29 : bandeau « nouvelle version publiée » (js/maj.js) */
+.maj-bandeau {
+  position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 9000;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+  max-width: calc(100vw - 32px); padding: 10px 14px; border-radius: var(--radius-sm);
+  background: var(--surface); color: var(--text); border: 1px solid var(--line-strong); box-shadow: var(--shadow-lg);
+}
+.maj-bandeau span { line-height: 1.35; }

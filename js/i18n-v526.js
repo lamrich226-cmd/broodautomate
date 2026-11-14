@@ -12,7 +12,6 @@
     bx_conso_day: "Jour",
     bx_conso_total: "Total",
     bx_conso_refresh: "Actualiser",
-    bx_conso: "Consommation",
     bx_conso_none: "Pas encore de chiffre pour les 7 derniers jours.",
     bx_conso_sum: "7 jours : {k}",
     bx_conso_left: "reste {k}",
@@ -22,7 +21,7 @@
     bx_iccid_saved: "N° de carte SIM enregistré.",
     bx_iccid_sql: "La base n'a pas encore la colonne du n° de carte SIM : passe d'abord la commande v526.sql dans Supabase.",
     bx_read_sent_fast: "Demande envoyée : le boîtier lit la machine tout de suite (1 à 2 secondes pour recevoir l'ordre).",
-    bx_read_fast_ko: "L'ordre instantané n'est pas parti : le boîtier lira la machine à son prochain passage ({d} au plus)."
+    bx_read_fast_ko: "L'ordre instantané n'est pas parti. Réessaie avec 🔁 dans une minute ; sinon le boîtier le recevra à son prochain signal de vie (30 min au plus)."
   });
   Object.assign(D.nl, {
     tq_tab_usage: "Verbruik 4G",
@@ -31,7 +30,6 @@
     bx_conso_day: "Dag",
     bx_conso_total: "Totaal",
     bx_conso_refresh: "Vernieuwen",
-    bx_conso: "Verbruik",
     bx_conso_none: "Nog geen cijfer voor de laatste 7 dagen.",
     bx_conso_sum: "7 dagen: {k}",
     bx_conso_left: "over: {k}",
@@ -41,7 +39,7 @@
     bx_iccid_saved: "Nr. van de simkaart opgeslagen.",
     bx_iccid_sql: "De database heeft de kolom voor het simkaartnummer nog niet: voer eerst het commando v526.sql uit in Supabase.",
     bx_read_sent_fast: "Aanvraag verstuurd: de module leest de automaat meteen (1 tot 2 seconden om het bevel te ontvangen).",
-    bx_read_fast_ko: "Het directe bevel is niet vertrokken: de module leest de automaat bij zijn volgende contact (hoogstens {d})."
+    bx_read_fast_ko: "Het directe bevel is niet vertrokken. Probeer opnieuw met 🔁 over een minuut; anders krijgt de module het bij zijn volgende levenssignaal (hoogstens 30 min)."
   });
   Object.assign(D.en, {
     tq_tab_usage: "4G usage",
@@ -50,7 +48,6 @@
     bx_conso_day: "Day",
     bx_conso_total: "Total",
     bx_conso_refresh: "Refresh",
-    bx_conso: "Usage",
     bx_conso_none: "No figure yet for the last 7 days.",
     bx_conso_sum: "7 days: {k}",
     bx_conso_left: "left: {k}",
@@ -60,7 +57,7 @@
     bx_iccid_saved: "SIM card number saved.",
     bx_iccid_sql: "The database does not have the SIM card number column yet: run the v526.sql command in Supabase first.",
     bx_read_sent_fast: "Request sent: the box reads the machine right away (1 to 2 seconds to receive the order).",
-    bx_read_fast_ko: "The instant order did not go out: the box will read the machine at its next contact ({d} at most)."
+    bx_read_fast_ko: "The instant order did not go out. Try again with 🔁 in a minute; otherwise the box will get it at its next heartbeat (30 min at most)."
   });
 
   // Réglage « toutes les 15 min / 30 min / 1 h » : devient un filet de sécurité pour les boîtiers à carte 1NCE

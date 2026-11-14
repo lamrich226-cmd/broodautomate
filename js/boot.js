@@ -89,6 +89,9 @@ window.BA = window.BA || {};
         this.error(ctx, e);
         return;
       }
+      // v5.29 : historique resté sous le numéro d'une machine supprimée → numéro fantôme (voir BA.Reel.reparerNumeros)
+      try { if (BA.Reel && BA.Reel.aReparer && BA.Reel.aReparer(BA.Store.get())) BA.Store.update(s => { BA.Reel.reparerNumeros(s); }, true); }
+      catch (e) { console.warn("Réparation des numéros de machine :", e); }
       close();
       BA.Shell.init(ctx);
       if (BA.Boitiers) BA.Boitiers.start();          // boîtiers 4G : relevés reçus par la 4G
@@ -136,7 +139,6 @@ window.BA = window.BA || {};
         <div class="carte-actions wrap-actions">
           <button class="btn" id="setup-retry">${E(t("setup_retry"))}</button>
         </div>
-        <p class="note">${E(t("setup_v3"))} <a href="v3/index.html">v3/index.html</a></p>
       </div>`);
       bindLang(ctx, () => this.setup(ctx));
       bindSqlList(document.getElementById("boot"), SQL_STEPS);
@@ -148,7 +150,6 @@ window.BA = window.BA || {};
         <div class="boot-top"><h2>🥖 Broodautomate</h2>${langSelect(ctx)}</div>
         <div class="alert err">${E(t("load_error", { e: e && e.message || e }))}</div>
         <div class="carte-actions"><button class="btn" id="boot-retry">🔄 ${E(t("retry"))}</button></div>
-        <p class="note">${E(t("setup_v3"))} <a href="v3/index.html">v3/index.html</a></p>
       </div>`);
       bindLang(ctx, () => this.error(ctx, e));
       document.getElementById("boot-retry").onclick = () => this.load(ctx);

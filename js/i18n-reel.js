@@ -11,7 +11,6 @@
 
   Object.assign(D.fr, {
     // remplace les textes « version test / simulateur »
-    stats_note: "Ventes : relevés des machines (câble RS232 ou clé USB), comptées à l'heure du relevé. Chargements et retraits : appli opérateur. Avant la v5 : ventes reprises de la v3.",
     sg_note: "Ces suggestions sont calculées par des règles simples, à partir de tes ventes. Rien n'est appliqué sans ton accord.",
     // en-tête, synchronisation
     sync_ok: "☁️ Synchronisé", sync_sending: "⏳ Envoi…", sync_offline: "⚠️ Hors ligne : modifications gardées sur cet appareil", sync_local: "💾 Mode local",
@@ -23,7 +22,7 @@
     setup_text: "La version 5 garde les données partagées (admin + opérateur) dans une nouvelle table « ba_state ». Elle n'existe pas encore : passe une seule fois ces 5 commandes dans Supabase. Tes tables actuelles et tes réglages de connexion ne changent pas.",
     setup_steps: "supabase.com → ton projet → SQL Editor → New query. L'éditeur n'accepte qu'une commande à la fois : « Copier », colle-la à la place de tout le reste, Run, « Success », puis la suivante. À la fin, clique sur « Réessayer ».",
     setup_exists: "Si une commande répond « already exists », elle est déjà faite : passe à la suivante.", setup_copy_one: "Copier", setup_copied_one: "Copié",
-    setup_copy: "📋 Copier le script", setup_copied: "Script copié.", setup_retry: "🔄 Réessayer", setup_v3: "En attendant, l'ancienne version 3.2 reste disponible :",
+    setup_retry: "🔄 Réessayer",
     no_machine_admin: "Aucune machine pour l'instant : ajoute-la dans l'onglet « 🔌 Connexion RS232 » (Mes machines).",
     no_machine_op: "Aucune machine pour l'instant : l'admin les ajoute dans son onglet « Connexion RS232 ».",
     foot_seen: "Données : {d}", foot_never: "Pas encore de données",
@@ -45,7 +44,6 @@
     rs_err_num: "Le numéro de la machine doit être un nombre entier (1 à 99999).", rs_err_num_used: "Ce numéro est déjà utilisé par une autre machine.",
     rs_err_exists: "Cette machine (n° de plaque) est déjà dans la flotte.", rs_err_missing: "Machine introuvable.",
     // onglet Connexion RS232
-    rs_subtitle: "câble entre ce PC et une machine", rs_ws_ok: "Web Serial disponible dans ce navigateur",
     rs_ws_no: "Web Serial non disponible — utilise Google Chrome ou Microsoft Edge (sur ordinateur)",
     rs_step1: "Machine branchée sur ce câble", rs_choose: "Choisir la machine branchée", rs_plate: "N° de plaque",
     rs_step1_note: "Toutes les machines s'annoncent « FAS000000001 » (commande 91 jamais remplie) : c'est ce choix qui dit à quelle machine appartiennent les données reçues par le câble.",
@@ -78,10 +76,10 @@
     rs_region_auto: "Selon la ville", rs_region_vl: "Flandre", rs_region_bxl: "Bruxelles", rs_add_btn: "Ajouter à la flotte",
     rs_journal: "Journal de la liaison", rs_raw: "Flux brut (hexadécimal) — octets reçus", rs_nothing: "Rien pour l'instant",
     rs_security: "Sécurité : ce PC n'envoie à la machine que START, STACK, ACK, NACK, « Who Are You » (codes de sécurité 0000), « Read Data » (liste 1 ou 2), FINISH, et les réponses 88 E0 / 88 E3. Aucune commande d'écriture ni d'effacement : toute autre trame est bloquée avant l'envoi.",
-    rs_my_machines: "Mes machines", rs_my_machines_note: "Le numéro (#), l'adresse ou le nom et la ville sont ceux affichés partout (Dashboard, missions…). « Vacances scolaires » choisit le calendrier des prévisions. Les changements sont enregistrés dès qu'on quitte la case.",
+    rs_my_machines_note: "Le numéro (#), l'adresse ou le nom et la ville sont ceux affichés partout (Dashboard, missions…). « Vacances scolaires » choisit le calendrier des prévisions. Les changements sont enregistrés dès qu'on quitte la case.",
     rs_no_machine: "Aucune machine pour l'instant.", rs_del_machine: "Supprimer la machine",
     rs_add_manual: "Ajouter une machine manuellement", rs_add_manual_note: "Sans câble : pour une machine que tu n'as pas devant toi. Ensuite, ajoute ses sélections dans Produits / Stock.",
-    rs_del_title: "Supprimer {m} ?", rs_del_text: "La machine disparaît du Dashboard, de Commander et de l'appli opérateur. Son stock et ses alertes sont effacés, ainsi que ses relevés dans Supabase (le prochain relevé sera un nouveau point de départ). Les statistiques passées restent.",
+    rs_del_title: "Supprimer {m} ?", rs_del_text: "La machine disparaît du Dashboard, de Commander et de l'appli opérateur. Son stock et ses alertes sont effacés, ainsi que ses relevés dans Supabase (le prochain relevé sera un nouveau point de départ). Les statistiques passées restent (notées « #n (supprimée) ») : une nouvelle machine qui reprend ce numéro démarre avec un historique vide.",
     rs_del_ok: "Oui, supprimer", rs_deleted: "Machine supprimée.",
     rs_err_plate: "Entre le n° de plaque de la machine (lettres, chiffres et tirets seulement).",
     rs_err_generic: "« {p} » est le n° générique envoyé par toutes les machines : entre le n° de la PLAQUE.",
@@ -108,7 +106,6 @@
   });
 
   Object.assign(D.nl, {
-    stats_note: "Verkoop: uitlezingen van de automaten (RS232-kabel of USB-stick), geteld op het uur van de uitlezing. Laden en verwijderen: operator-app. Vóór v5: verkoop overgenomen uit v3.",
     sg_note: "Deze suggesties worden berekend met eenvoudige regels, op basis van je verkoop. Niets wordt toegepast zonder jouw akkoord.",
     sync_ok: "☁️ Gesynchroniseerd", sync_sending: "⏳ Verzenden…", sync_offline: "⚠️ Offline: wijzigingen bewaard op dit toestel", sync_local: "💾 Lokale modus",
     sync_lost: "⚠️ Offline gemaakte wijzigingen konden niet verzonden worden (een ander toestel had intussen geschreven). Er is een kopie bewaard op dit toestel.",
@@ -119,7 +116,7 @@
     setup_text: "Versie 5 bewaart de gedeelde gegevens (admin + operator) in een nieuwe tabel „ba_state”. Die bestaat nog niet: voer deze 5 opdrachten één keer uit in Supabase. Je huidige tabellen en verbindingsinstellingen veranderen niet.",
     setup_steps: "supabase.com → je project → SQL Editor → New query. De editor aanvaardt maar één opdracht tegelijk: „Kopiëren”, plak in plaats van al de rest, Run, „Success”, dan de volgende. Klik op het einde op „Opnieuw proberen”.",
     setup_exists: "Antwoordt een opdracht „already exists”, dan is ze al gedaan: ga naar de volgende.", setup_copy_one: "Kopiëren", setup_copied_one: "Gekopieerd",
-    setup_copy: "📋 Script kopiëren", setup_copied: "Script gekopieerd.", setup_retry: "🔄 Opnieuw proberen", setup_v3: "Ondertussen blijft de oude versie 3.2 beschikbaar:",
+    setup_retry: "🔄 Opnieuw proberen",
     no_machine_admin: "Nog geen automaat: voeg hem toe in het tabblad „🔌 RS232-verbinding” (Mijn automaten).",
     no_machine_op: "Nog geen automaat: de admin voegt ze toe in zijn tabblad „RS232-verbinding”.",
     foot_seen: "Gegevens: {d}", foot_never: "Nog geen gegevens",
@@ -138,7 +135,6 @@
     rs_msg_known: "niets nieuws (gebeurtenissen al bekend)", rs_msg_same: "geen verandering sinds de vorige uitlezing",
     rs_err_num: "Het nummer van de automaat moet een geheel getal zijn (1 tot 99999).", rs_err_num_used: "Dit nummer wordt al gebruikt door een andere automaat.",
     rs_err_exists: "Deze automaat (plaatnummer) zit al in de vloot.", rs_err_missing: "Automaat niet gevonden.",
-    rs_subtitle: "kabel tussen deze pc en een automaat", rs_ws_ok: "Web Serial beschikbaar in deze browser",
     rs_ws_no: "Web Serial niet beschikbaar — gebruik Google Chrome of Microsoft Edge (op een computer)",
     rs_step1: "Automaat aangesloten op deze kabel", rs_choose: "Kies de aangesloten automaat", rs_plate: "Plaatnummer",
     rs_step1_note: "Alle automaten melden zich als „FAS000000001” (commando 91 nooit ingevuld): deze keuze bepaalt bij welke automaat de gegevens van de kabel horen.",
@@ -171,10 +167,10 @@
     rs_region_auto: "Volgens de stad", rs_region_vl: "Vlaanderen", rs_region_bxl: "Brussel", rs_add_btn: "Toevoegen aan de vloot",
     rs_journal: "Logboek van de verbinding", rs_raw: "Ruwe gegevens (hexadecimaal) — ontvangen bytes", rs_nothing: "Nog niets",
     rs_security: "Veiligheid: deze pc stuurt de automaat alleen START, STACK, ACK, NACK, „Who Are You” (veiligheidscodes 0000), „Read Data” (lijst 1 of 2), FINISH en de antwoorden 88 E0 / 88 E3. Geen enkel schrijf- of wiscommando: elk ander frame wordt geblokkeerd vóór het verzenden.",
-    rs_my_machines: "Mijn automaten", rs_my_machines_note: "Het nummer (#), het adres of de naam en de stad worden overal getoond (Dashboard, opdrachten…). „Schoolvakanties” kiest de kalender van de prognoses. Wijzigingen worden opgeslagen zodra je het vak verlaat.",
+    rs_my_machines_note: "Het nummer (#), het adres of de naam en de stad worden overal getoond (Dashboard, opdrachten…). „Schoolvakanties” kiest de kalender van de prognoses. Wijzigingen worden opgeslagen zodra je het vak verlaat.",
     rs_no_machine: "Nog geen automaat.", rs_del_machine: "Automaat verwijderen",
     rs_add_manual: "Een automaat handmatig toevoegen", rs_add_manual_note: "Zonder kabel: voor een automaat die je niet voor je hebt. Voeg daarna zijn selecties toe in Producten / Voorraad.",
-    rs_del_title: "{m} verwijderen?", rs_del_text: "De automaat verdwijnt uit het Dashboard, Bestellen en de operator-app. Zijn voorraad en meldingen worden gewist, net als zijn uitlezingen in Supabase (de volgende uitlezing wordt een nieuw vertrekpunt). De vroegere statistieken blijven.",
+    rs_del_title: "{m} verwijderen?", rs_del_text: "De automaat verdwijnt uit het Dashboard, Bestellen en de operator-app. Zijn voorraad en meldingen worden gewist, net als zijn uitlezingen in Supabase (de volgende uitlezing wordt een nieuw vertrekpunt). De vroegere statistieken blijven (genoteerd als « #n (verwijderd) »): een nieuwe automaat met dit nummer begint met een lege geschiedenis.",
     rs_del_ok: "Ja, verwijderen", rs_deleted: "Automaat verwijderd.",
     rs_err_plate: "Vul het plaatnummer van de automaat in (alleen letters, cijfers en streepjes).",
     rs_err_generic: "„{p}” is het algemene nummer dat alle automaten sturen: vul het nummer van de PLAAT in.",
@@ -201,7 +197,6 @@
   });
 
   Object.assign(D.en, {
-    stats_note: "Sales: machine readings (RS232 cable or USB stick), counted at the time of the reading. Loading and removals: operator app. Before v5: sales taken over from v3.",
     sg_note: "These suggestions are calculated with simple rules, from your sales. Nothing is applied without your approval.",
     sync_ok: "☁️ Synced", sync_sending: "⏳ Sending…", sync_offline: "⚠️ Offline: changes kept on this device", sync_local: "💾 Local mode",
     sync_lost: "⚠️ Changes made offline could not be sent (another device had written in the meantime). A copy is kept on this device.",
@@ -212,7 +207,7 @@
     setup_text: "Version 5 keeps the shared data (admin + operator) in a new table “ba_state”. It does not exist yet: run these 5 commands once in Supabase. Your current tables and connection settings do not change.",
     setup_steps: "supabase.com → your project → SQL Editor → New query. The editor accepts only one command at a time: “Copy”, paste it instead of everything else, Run, “Success”, then the next one. At the end, click “Try again”.",
     setup_exists: "If a command answers “already exists”, it is already done: go to the next one.", setup_copy_one: "Copy", setup_copied_one: "Copied",
-    setup_copy: "📋 Copy the script", setup_copied: "Script copied.", setup_retry: "🔄 Try again", setup_v3: "Meanwhile, the old version 3.2 is still available:",
+    setup_retry: "🔄 Try again",
     no_machine_admin: "No machine yet: add it in the “🔌 RS232 connection” tab (My machines).",
     no_machine_op: "No machine yet: the admin adds them in the “RS232 connection” tab.",
     foot_seen: "Data: {d}", foot_never: "No data yet",
@@ -231,7 +226,6 @@
     rs_msg_known: "nothing new (events already known)", rs_msg_same: "no change since the previous reading",
     rs_err_num: "The machine number must be a whole number (1 to 99999).", rs_err_num_used: "This number is already used by another machine.",
     rs_err_exists: "This machine (plate number) is already in the fleet.", rs_err_missing: "Machine not found.",
-    rs_subtitle: "cable between this PC and a machine", rs_ws_ok: "Web Serial available in this browser",
     rs_ws_no: "Web Serial not available — use Google Chrome or Microsoft Edge (on a computer)",
     rs_step1: "Machine connected to this cable", rs_choose: "Choose the connected machine", rs_plate: "Plate number",
     rs_step1_note: "All machines announce themselves as “FAS000000001” (command 91 never filled in): this choice tells which machine the data received by the cable belongs to.",
@@ -264,10 +258,10 @@
     rs_region_auto: "From the city", rs_region_vl: "Flanders", rs_region_bxl: "Brussels", rs_add_btn: "Add to the fleet",
     rs_journal: "Link log", rs_raw: "Raw data (hexadecimal) — bytes received", rs_nothing: "Nothing yet",
     rs_security: "Safety: this PC only sends START, STACK, ACK, NACK, “Who Are You” (security codes 0000), “Read Data” (list 1 or 2), FINISH and the answers 88 E0 / 88 E3 to the machine. No write or erase command: any other frame is blocked before sending.",
-    rs_my_machines: "My machines", rs_my_machines_note: "The number (#), address or name and city are shown everywhere (Dashboard, missions…). “School holidays” chooses the calendar used by the forecasts. Changes are saved when you leave the field.",
+    rs_my_machines_note: "The number (#), address or name and city are shown everywhere (Dashboard, missions…). “School holidays” chooses the calendar used by the forecasts. Changes are saved when you leave the field.",
     rs_no_machine: "No machine yet.", rs_del_machine: "Delete the machine",
     rs_add_manual: "Add a machine by hand", rs_add_manual_note: "Without a cable: for a machine you are not in front of. Then add its selections in Products / Stock.",
-    rs_del_title: "Delete {m}?", rs_del_text: "The machine disappears from the Dashboard, Order and the operator app. Its stock and alerts are erased, as well as its readings in Supabase (the next reading will be a new starting point). Past statistics stay.",
+    rs_del_title: "Delete {m}?", rs_del_text: "The machine disappears from the Dashboard, Order and the operator app. Its stock and alerts are erased, as well as its readings in Supabase (the next reading will be a new starting point). Past statistics stay (shown as « #n (deleted) »): a new machine that takes this number starts with an empty history.",
     rs_del_ok: "Yes, delete", rs_deleted: "Machine deleted.",
     rs_err_plate: "Enter the machine's plate number (letters, digits and dashes only).",
     rs_err_generic: "“{p}” is the generic number sent by all machines: enter the number on the PLATE.",

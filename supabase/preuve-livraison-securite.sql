@@ -1,5 +1,5 @@
 -- ============================================================
--- PRÉPARÉ, PAS APPLIQUÉ — appli « Preuve de livraison » (même projet Supabase que Broodautomate)
+-- APPLIQUÉ le 14/11/2026 (v5.29, migration « preuve_livraison_verrou_v529 ») — appli « Preuve de livraison » (même projet Supabase que Broodautomate)
 -- v5.25 : vérification complète : les fonctions de connexion de cette appli (pl_login, pl_admin_list,
 -- pl_admin_add, pl_admin_delete) peuvent être essayées sans limite par n'importe qui (la clé publique est dans
 -- l'appli) : on peut tenter des milliers de mots de passe. Et pl_admin_list rend TOUS les mots de passe des

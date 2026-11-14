@@ -150,7 +150,7 @@
   // ---------- 4. Bandeau + ventes inventées ----------
   window.addEventListener("DOMContentLoaded", () => {
     const b = document.createElement("div"); b.className = "demo-banner"; b.id = "demo-banner";
-    const txt = () => (window.BA && BA.I18n && BA.I18n.t && BA.I18n.dicts.fr.mv_demo ? BA.I18n.t("mv_demo") : "Mode démo : 20 machines inventées. Rien n'est envoyé à Supabase.");
+    const txt = () => (window.BA && BA.I18n && BA.I18n.t && BA.I18n.dicts.fr.vm_demo ? BA.I18n.t("vm_demo") : "Mode démo : 20 machines inventées. Rien n'est envoyé à Supabase.");
     b.textContent = txt(); document.body.prepend(b); setTimeout(() => { b.textContent = txt(); }, 1500);
   });
   window.addEventListener("load", () => {

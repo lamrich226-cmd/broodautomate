@@ -94,7 +94,7 @@ window.BA = window.BA || {};
       if (o.mode === "detail" && o.rows) {
         const rows = info.concat([[t("hist_x_date"), t("hist_x_time"), t("x_machine"), t("x_address"), t("col_sel"), t("col_type"), t("hist_col_move"), t("hist_col_qty"),
           t("hist_col_lot"), t("hist_col_price"), t("hist_col_by"), t("hist_col_detail"), t("hist_x_stamp")]]);
-        o.rows.forEach(e => rows.push([F.date(e.t), F.clock(e.t), "#" + e.n, addr(e.n), e.s != null ? e.s : "", e.y ? prod(e.y) : "", H.moveName(e), H.qtyNum(e),
+        o.rows.forEach(e => rows.push([F.date(e.t), F.clock(e.t), M.numTxt ? M.numTxt(e.n) : "#" + e.n, addr(e.n), e.s != null ? e.s : "", e.y ? prod(e.y) : "", H.moveName(e), H.qtyNum(e),
           e.l ? dt(e.l) : "", e.k === "sale" && e.p != null ? e.p : "", H.byName(e), H.detailText(e), iso(e.t)]));
         XLSX.utils.book_append_sheet(wb, sheet(rows, [12, 10, 9, 28, 9, 16, 20, 9, 16, 9, 12, 40, 20]), t("x_sheet_hist"));
       }
@@ -104,7 +104,7 @@ window.BA = window.BA || {};
       XLSX.utils.book_append_sheet(wb, sheet(days, [14, 10, 12, 10, 16]), t("x_sheet_hist_day"));
       if (o.daysPerMachine) {
         const pm = [[t("hd_day"), t("x_machine"), t("x_address"), t("hd_sold"), t("hd_rev"), t("hd_loaded"), t("hd_returned")]];
-        o.daysPerMachine.forEach(r => pm.push([F.key(r.k), "#" + r.num, addr(r.num), r.s, Math.round(r.r * 100) / 100, r.l, r.x]));
+        o.daysPerMachine.forEach(r => pm.push([F.key(r.k), M.numTxt ? M.numTxt(r.num) : "#" + r.num, addr(r.num), r.s, Math.round(r.r * 100) / 100, r.l, r.x]));
         XLSX.utils.book_append_sheet(wb, sheet(pm, [14, 9, 28, 10, 12, 10, 16]), t("x_sheet_hist_day_m"));
       }
       save(wb, "broodautomate-historique_" + (o.num ? o.num : t("x_hist_all_file")) + "_" + o.from + "_" + o.to + ".xlsx");

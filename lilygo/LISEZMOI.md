@@ -37,6 +37,17 @@ Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il e
   affiché. Les relevés partent toujours en HTTPS, filtrés, comme avant. Dans Broodautomate, la version s'affiche « v1.5 1NCE ».
 - Un message qui arrive pendant un envoi HTTPS n'est pas perdu ; si le modem ferme la liaison UDP, elle est rouverte (1 min).
 
+### v1.6.2 (14/11/2026) : corrections après la vérification complète
+
+- **N° des envois UDP tiré au hasard au démarrage** (avant : il repartait à 1 ; le serveur, qui garde en mémoire les n° déjà
+  traités, pouvait prendre les premiers envois d'un boîtier redémarré pour des doublons).
+- **Plus de « RECU lire N »** quand tout passe en UDP : le résultat de la lecture (confirmé par « ok n° ») suffit.
+- **Message d'état court** envoyé à Broodautomate (« La machine ne répond pas (10 START sans réponse). ») : l'explication est
+  ajoutée par l'appli ; avant, le texte complet était coupé à 240 caractères et faisait partir chaque signal de vie en 2 paquets.
+  Le Moniteur série affiche toujours le texte complet.
+- Mise à jour : Technique → Boîtiers 4G → 🔑 sur le boîtier → « Télécharger le programme complet » → téléverser. La version
+  affichée dans Broodautomate devient « v1.6.2 1NCE UDP ».
+
 ### v1.6.0 / v1.6.1 : envoi par UDP (carte 1NCE, `ENVOI_UDP 1`)
 
 - Avec `ECOUTE_UDP 1` et `ENVOI_UDP 1` dans `config.h`, le boîtier envoie ses signaux de vie et relevés **en UDP** vers `udp.os.1nce.com:4445` au lieu du HTTPS (~6 Ko par échange à cause du TLS ; en UDP : quelques centaines d'octets).
@@ -80,8 +91,8 @@ Pour une carte Digi (`ECOUTE_UDP 0`), rien ne change.
 8. Si ça ne marche pas : copie tout le texte du Moniteur série (lignes `[UDP]` et `[4G]`) et envoie-le. Le programme
    affiche aussi les messages du modem qu'il ne comprend pas (lignes `[UDP] (modem) …`).
 
-Pendant l'essai, mets « Lire maintenant » sur **1 h** dans Boîtiers 4G (moins de data). La prochaine étape, si l'essai
-marche : le bouton « Lire maintenant » de Broodautomate passe par 1NCE (instantané), puis les relevés en petits paquets UDP.
+*(Historique v1.5 : pendant l'essai, « Lire maintenant » était réglé sur 1 h. Depuis la v1.6, tout passe en UDP : ce réglage
+ne sert plus qu'aux boîtiers en HTTPS et il est caché quand tous les boîtiers ont une carte 1NCE.)*
 Console du Moniteur série : `udp` envoie un petit message de test à 1NCE.
 
 ---

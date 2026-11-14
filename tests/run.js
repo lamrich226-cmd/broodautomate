@@ -206,7 +206,7 @@ async function scenarioPrincipal() {
   await a.waitForSelector("#setup-sql", { timeout: 30000 });
   const sql = await a.innerText("#setup-sql");
   ok("écran d'installation : commandes SQL ba_state, une par une (5 boutons « Copier »)", sql.includes("create table if not exists public.ba_state") && !/supabase_realtime|do \$\$/.test(sql) && (await a.$$("#setup-sql [data-copy-step]")).length === 5, sql.slice(0, 200));
-  ok("écran d'installation : lien vers la v3.2", (await a.innerText("#boot")).includes("v3/index.html"));
+  ok("écran d'installation : plus de lien vers l'ancienne v3.2 (dossier retiré en v5.29)", !(await a.innerText("#boot")).includes("v3/index.html"));
   await shot(a, "01-installation-sql");
   fake.runSetupSql();
   await a.click("#setup-retry");
@@ -229,7 +229,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.28.6, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.28.6") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.29.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.29.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
@@ -1030,21 +1030,6 @@ async function scenarioLocal() {
   await pc.ctx.close();
 }
 
-// =====================================================================
-// 8. Ancienne version 3.2 gardée dans v3/ (secours)
-// =====================================================================
-async function scenarioV3() {
-  if (!fs.existsSync(path.join(ROOT, "v3/index.html"))) { console.log("\n== 8. (pas de dossier v3 ici)"); return; }
-  console.log("\n== 8. Ancienne version 3.2 dans v3/");
-  const fake = new FakeSupabase(v3Data());
-  const pc = await device(fake, "v3");
-  const p = await open(pc, "v3/index.html");
-  await p.waitForFunction(() => window.BA && BA.App && BA.EvaDts && BA.Serial, null, { timeout: 15000 });
-  ok("v3/index.html : la v3.2 se charge", (await p.title()).length > 0 && (await p.evaluate(() => typeof BA.Serial.connect)) === "function");
-  ok("v3/js/serial.js : même fichier que la v5", fs.readFileSync(path.join(ROOT, "v3/js/serial.js")).equals(fs.readFileSync(path.join(ROOT, "js/serial.js"))));
-  await pc.ctx.close();
-}
-
 (async () => {
   await new Promise(r => srv.listen(0, "127.0.0.1", r));
   browser = await chromium.launch();
@@ -1066,7 +1051,6 @@ async function scenarioV3() {
     if (run("opcompte")) await scenarioOperateurCompte();
     if (run("notifs")) await scenarioNotifs();
     if (run("local")) await scenarioLocal();
-    if (run("v3")) await scenarioV3();
   } catch (e) {
     console.log("ARRÊT : " + (e.stack || e));
     fails.push("arrêt : " + e.message.split("\n")[0]);

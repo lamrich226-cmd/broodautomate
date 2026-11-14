@@ -3,8 +3,9 @@
 // L'appli écrit la demande dans ba_demandes (comme avant), puis appelle cette fonction. Elle envoie au boîtier, par
 // l'API 1NCE (Device Controller, UDP, port 3000, « Send now »), le message « lire <n° de la demande> » (« b » en plus
 // pour le relevé complet). Le boîtier lit la machine tout de suite et rend le résultat à la demande n° <n>.
-// Si ce message se perd (1NCE ne confirme jamais la réception d'un message UDP), la demande reste en attente et le
-// boîtier la prend à son prochain passage habituel (15 min, 30 min ou 1 h) : rien n'est perdu.
+// Si ce message se perd (1NCE ne confirme jamais la réception d'un message UDP), la demande reste en attente : l'appli propose
+// 🔁 après 1 min (cette fonction renvoie le même ordre), et « ingest-udp » le renvoie de lui-même au prochain message du boîtier
+// (signal de vie : 30 min au plus). v5.29 : une demande vit 35 min partout (appli, cette fonction, ingest-udp).
 //
 // Supabase → Edge Functions → Deploy a new function → nom « lire-1nce » → coller ce code → Deploy.
 // « Verify JWT » reste ACTIVÉ (l'appli envoie le jeton du compte connecté).
@@ -30,7 +31,7 @@ const reponse = (o: Record<string, unknown>, status = 200) => new Response(JSON.
 // ==== DÉBUT LOGIQUE PURE (testée hors Supabase) ====
 const API_NCE = "https://api.1nce.com/management-api";
 const PORT_BOITIER = 3000;
-const ATTENTE_MAX_MS = 5 * 60 * 1000;                       // une demande plus vieille n'est plus envoyée par UDP (le boîtier la prendra à son passage)
+const ATTENTE_MAX_MS = 35 * 60 * 1000;                      // v5.29 : même durée de vie qu'ailleurs (appli : 35 min, ingest-udp : 35 min)
 
 // ICCID : 18 à 20 chiffres (1NCE : 89882280…)
 const iccidValable = (s: unknown): s is string => typeof s === "string" && /^\d{18,20}$/.test(s);

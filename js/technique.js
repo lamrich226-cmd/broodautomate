@@ -259,7 +259,7 @@ window.BA = window.BA || {};
     let etat = "";
     if (FB.err) etat = "⚠️ " + t("tq_raw_fail", { e: FB.err });
     else if (FB.rep) etat = "✅ " + t("tq_raw_done", { h: at(FB.rep.received_at), n: ko((FB.rep.raw || "").length), l: BA.EvaTrad ? BA.EvaTrad.lignes(FB.rep.raw).length : 0 });
-    else if (pend) etat = cur.statut === "prise" ? "📥 " + t("tq_raw_taken") : "⏳ " + t("tq_raw_wait", { h: at(cur.cree_at), d: BA.Boitiers.delai() });
+    else if (pend) etat = cur.statut === "prise" ? "📥 " + t("tq_raw_taken") : "⏳ " + (BA.Boitiers.estUdp && BA.Boitiers.estUdp(FB.dev) ? t("tq_raw_wait_fast", { h: at(cur.cree_at) }) : t("tq_raw_wait", { h: at(cur.cree_at), d: BA.Boitiers.delai() }));
     else etat = t("tq_raw_none");
     const inst = BA.Boitiers.demInstalled();
     const vivant = !!FB.dev && BA.Boitiers.enLigne(FB.dev);

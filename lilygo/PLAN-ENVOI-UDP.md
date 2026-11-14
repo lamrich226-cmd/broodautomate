@@ -1,4 +1,7 @@
-# Plan « envoi en UDP » (v5.28 / firmware 1.6) — brouillon, rien n'est publié
+# Plan « envoi en UDP » (v5.28 / firmware 1.6) — RÉALISÉ
+
+> **En service depuis le 14/11/2026** (appli v5.28, boîtier v1.6.x ; v5.29 / v1.6.2 : corrections). Ce document garde le plan
+> d'origine comme note de conception ; le fonctionnement actuel est résumé dans `LISEZMOI.md` (« État actuel ») et `lilygo/LISEZMOI.md`.
 
 But : faire passer les envois du boîtier (signal de vie, événements, relevés) par UDP au lieu de HTTPS, pour passer d'environ 6 Ko
 par échange (connexion sécurisée) à quelques dizaines d'octets. Les ordres « lire » restent instantanés (chemin inverse, déjà en place).

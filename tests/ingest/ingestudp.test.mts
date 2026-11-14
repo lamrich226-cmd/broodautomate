@@ -25,7 +25,11 @@ class Q { t: string; op = "select"; p: any = null; f: ((r: any) => boolean)[] = 
   update(p: any) { this.op = "update"; this.p = p; return this; } in(k: string, vs: any[]) { this.f.push(r => vs.includes(r[k])); return this; }
   select() { return this; } insert(p: any) { this.op = "insert"; this.p = p; return this; } upsert(p: any, o: any) { this.op = "upsert"; this.p = p; this.conflict = o.onConflict; return this; } delete() { this.op = "delete"; return this; }
   eq(k: string, v: any) { this.f.push(r => r[k] === v); return this; } lt(k: string, v: any) { this.f.push(r => String(r[k]) < String(v)); return this; } maybeSingle() { this.one = true; return this; }
-  then(res: any) { const tab = T[this.t]; const m = tab.filter(r => this.f.every(g => g(r)));
+  gte(k: string, v: any) { this.f.push(r => r[k] != null && String(r[k]) >= String(v)); return this; } limit(n: number) { this.lim = n; return this; }
+  order(k: string, o: any) { this.tri = { k, asc: !(o && o.ascending === false) }; return this; } lim = 0; tri: any = null;
+  then(res: any) { const tab = T[this.t]; let m = tab.filter(r => this.f.every(g => g(r)));
+    if (this.tri) { const { k, asc } = this.tri; m = m.slice().sort((x, y) => (x[k] > y[k] ? 1 : x[k] < y[k] ? -1 : 0) * (asc ? 1 : -1)); }
+    if (this.lim && this.op === "select") m = m.slice(0, this.lim);
     if (this.op === "update") { m.forEach(r => Object.assign(r, this.p)); return res({ error: null }); }
     if (this.op === "delete") { T[this.t] = tab.filter(r => !m.includes(r)); return res({ error: null }); }
     if (this.op === "insert") { const keys = Object.keys(this.p).filter(k => k === "iccid" || k === "seq"); if (tab.some(r => keys.every(k => r[k] === this.p[k]))) return res({ error: { message: "doublon" } }); tab.push({ fait_at: new Date().toISOString(), ...this.p }); return res({ error: null }); }
@@ -80,6 +84,22 @@ ok("une demande déjà terminée ne change plus", T.ba_demandes[2].statut === "f
 T.ba_demandes.push({ id: 80, device_id: "d1", statut: "prise" });
 x = await envoyer("U1|23|0|1|" + JSON.stringify({ fw: "1.6.1", seq: 23, fait: 80, dok: false, dmsg: "La machine ne répond pas" }));
 ok("échec avec sa raison : statut « echec » et message gardé", T.ba_demandes[3].statut === "echec" && T.ba_demandes[3].message === "La machine ne répond pas", T.ba_demandes[3]);
+// v5.29 : filet de sécurité — à chaque message du boîtier, l'ordre « lire N » est renvoyé pour SA demande encore en attente, de moins de 35 min
+const ilya = (min: number) => new Date(Date.now() - min * 60000).toISOString();
+T.ba_demandes.push({ id: 81, device_id: "d1", statut: "attente", cree_at: ilya(5), brut: false }, { id: 83, device_id: "autre", statut: "attente", cree_at: ilya(1), brut: false });
+let avant = nce.length;
+x = await envoyer("U1|30|0|1|" + JSON.stringify({ fw: "1.6.2", seq: 30, st: "ok" }));
+ok("filet de sécurité : demande de CE boîtier en attente depuis 5 min → « lire 81 » renvoyé", x.s === 200 && nce.slice(avant).some(n => n.corps && n.corps.payload === "lire 81"), nce.slice(avant));
+ok("filet de sécurité : jamais la demande d'un autre boîtier", !nce.slice(avant).some(n => n.corps && n.corps.payload === "lire 83"), nce.slice(avant));
+T.ba_demandes.find(r => r.id === 81).statut = "faite";
+T.ba_demandes.push({ id: 84, device_id: "d1", statut: "attente", cree_at: ilya(40), brut: true });
+avant = nce.length;
+x = await envoyer("U1|31|0|1|" + JSON.stringify({ fw: "1.6.2", seq: 31, st: "ok" }));
+ok("filet de sécurité : demande de plus de 35 min (l'appli la dit « sans réponse ») → plus renvoyée", x.s === 200 && !nce.slice(avant).some(n => n.corps && /^lire/.test(String(n.corps.payload))), nce.slice(avant));
+T.ba_demandes.find(r => r.id === 84).cree_at = ilya(2);
+avant = nce.length;
+x = await envoyer("U1|32|0|1|" + JSON.stringify({ fw: "1.6.2", seq: 32, st: "ok" }));
+ok("filet de sécurité : flux brut → « lire 84 b »", nce.slice(avant).some(n => n.corps && n.corps.payload === "lire 84 b"), nce.slice(avant));
 delete env.INGEST_UDP_SECRET; x = await envoyer("U1|11|0|1|" + msg);
 ok("secret non configuré → 401 (jamais ouvert par défaut)", x.s === 401, x);
 ok("aucun secret écrit dans le code", !/INGEST_UDP_SECRET\s*=\s*["']/.test(src));

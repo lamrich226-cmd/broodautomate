@@ -5,6 +5,7 @@
 (function () {
   const D = BA.I18n.dicts;
   Object.assign(D.fr, {
+    vm_demo: "Mode démo : 20 machines inventées. Rien n'est envoyé à Supabase, tout reste dans cette page.",
     sync_replayed: "{n} [modification faite|modifications faites] sans réseau [a été envoyée|ont été envoyées] (refaite[|s] sur la dernière version des données).",
     it_open_banner: "« Remplir » commencé le {d} (il y a {h}) et pas terminé : la machine reste notée « porte ouverte ».",
     it_open_resume: "Reprendre", it_open_close: "Clore ce Remplir", it_open_close_title: "Clore le Remplir de la machine #{n} ?",
@@ -16,9 +17,8 @@
     ml_layout_aria: "Façon d'afficher les machines", ml_cards: "Cartes", ml_list: "Liste",
     vm_title: "Vue de la machine", vm_floor: "Étage {n}", vm_empty: "Vide", vm_remove: "{n} à retirer", vm_must: "{n} obligatoire", vm_kept: "{n} gardé",
     vm_note: "Chaque case est un tiroir : son numéro, le pain et son prix, puis sous chaque pain ses heures et sa date de livraison. Touchez un tiroir : une fenêtre s'ouvre pour le détail ou pour le modifier. Touchez « Non utilisé » pour ajouter une sélection.",
-    vm_pick: "Touchez un tiroir pour voir son détail.", vm_sel: "Sélection {n}", vm_inside: "Dans le tiroir", vm_lot: "Livraison du {d}", vm_ago: "{h} h", vm_n: "× {n}",
+    vm_sel: "Sélection {n}", vm_inside: "Dans le tiroir", vm_lot: "Livraison du {d}", vm_ago: "{h} h", vm_n: "× {n}",
     vm_legend_old: "à retirer (≥ {h} h)", vm_legend_empty: "place vide", vm_lot_old: "à retirer", vm_lot_kept: "gardé une fois", vm_lot_must: "obligatoire",
-    vm_demo: "Mode démo : 20 machines inventées. Rien n'est envoyé à Supabase, tout reste dans cette page.",
     vm_unused: "Non utilisé", vm_add_short: "＋ Ajouter", vm_add_title: "Ajouter la sélection {n}",
     vm_add_help: "Choisissez le pain, la capacité (nombre de pains) et le prix. Le numéro peut être changé.",
     vm_edit_title: "Modifier la sélection", vm_save: "Enregistrer", vm_price_eur: "Prix (€)",
@@ -38,6 +38,7 @@
     vm_full: "plein", vm_full_sel: "Ce tiroir est plein.", vm_after: "La machine maintenant"
   });
   Object.assign(D.nl, {
+    vm_demo: "Demomodus: 20 verzonnen automaten. Er wordt niets naar Supabase gestuurd, alles blijft op deze pagina.",
     sync_replayed: "{n} [wijziging|wijzigingen] zonder netwerk gemaakt [is|zijn] verzonden (opnieuw toegepast op de laatste versie van de gegevens).",
     it_open_banner: "« Vullen » gestart op {d} ({h} geleden) en niet afgerond: de automaat blijft als « deur open » genoteerd.",
     it_open_resume: "Hervatten", it_open_close: "Dit vullen afsluiten", it_open_close_title: "Het vullen van automaat #{n} afsluiten?",
@@ -49,9 +50,8 @@
     ml_layout_aria: "Hoe de automaten worden getoond", ml_cards: "Kaarten", ml_list: "Lijst",
     vm_title: "Overzicht van de automaat", vm_floor: "Rij {n}", vm_empty: "Leeg", vm_remove: "{n} te verwijderen", vm_must: "{n} verplicht", vm_kept: "{n} bewaard",
     vm_note: "Elk vak is een lade: nummer, brood en prijs, en onder elk brood de uren en de leverdatum. Tik op een lade voor de details of om ze te wijzigen, of op « Niet gebruikt » om een keuze toe te voegen.",
-    vm_pick: "Tik op een lade om de details te zien.", vm_sel: "Keuze {n}", vm_inside: "In de lade", vm_lot: "Levering van {d}", vm_ago: "{h} u", vm_n: "× {n}",
+    vm_sel: "Keuze {n}", vm_inside: "In de lade", vm_lot: "Levering van {d}", vm_ago: "{h} u", vm_n: "× {n}",
     vm_legend_old: "te verwijderen (≥ {h} u)", vm_legend_empty: "lege plaats", vm_lot_old: "te verwijderen", vm_lot_kept: "eenmaal bewaard", vm_lot_must: "verplicht",
-    vm_demo: "Demomodus: 20 verzonnen automaten. Er wordt niets naar Supabase gestuurd, alles blijft op deze pagina.",
     vm_unused: "Niet gebruikt", vm_add_short: "＋ Toevoegen", vm_add_title: "Keuze {n} toevoegen",
     vm_add_help: "Kies het brood, de capaciteit (aantal broden) en de prijs. U kunt het nummer wijzigen.",
     vm_edit_title: "Keuze wijzigen", vm_save: "Opslaan", vm_price_eur: "Prijs (€)",
@@ -71,6 +71,7 @@
     vm_full: "vol", vm_full_sel: "Deze lade is vol.", vm_after: "De automaat nu"
   });
   Object.assign(D.en, {
+    vm_demo: "Demo mode: 20 invented machines. Nothing is sent to Supabase, everything stays in this page.",
     sync_replayed: "{n} [change|changes] made without network [was|were] sent (redone on the latest version of the data).",
     it_open_banner: "« Fill » started on {d} ({h} ago) and not finished: the machine is still marked « door open ».",
     it_open_resume: "Resume", it_open_close: "Close this fill", it_open_close_title: "Close the fill of machine #{n}?",
@@ -82,9 +83,8 @@
     ml_layout_aria: "How machines are shown", ml_cards: "Cards", ml_list: "List",
     vm_title: "Machine view", vm_floor: "Shelf {n}", vm_empty: "Empty", vm_remove: "{n} to remove", vm_must: "{n} mandatory", vm_kept: "{n} kept",
     vm_note: "Each box is a drawer: its number, bread and price, then each bread's hours and delivery date. Tap a drawer for details or to edit it, or “Not used” to add a selection.",
-    vm_pick: "Tap a drawer to see its details.", vm_sel: "Selection {n}", vm_inside: "In the drawer", vm_lot: "Delivery of {d}", vm_ago: "{h} h", vm_n: "× {n}",
+    vm_sel: "Selection {n}", vm_inside: "In the drawer", vm_lot: "Delivery of {d}", vm_ago: "{h} h", vm_n: "× {n}",
     vm_legend_old: "to remove (≥ {h} h)", vm_legend_empty: "empty slot", vm_lot_old: "to remove", vm_lot_kept: "kept once", vm_lot_must: "mandatory",
-    vm_demo: "Demo mode: 20 invented machines. Nothing is sent to Supabase, everything stays in this page.",
     vm_unused: "Not used", vm_add_short: "＋ Add", vm_add_title: "Add selection {n}",
     vm_add_help: "Choose the bread, the capacity (number of breads) and the price. You can change the number.",
     vm_edit_title: "Edit the selection", vm_save: "Save", vm_price_eur: "Price (€)",

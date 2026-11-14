@@ -79,9 +79,9 @@ const etat = {
   console.log("== 0. Fichiers : version, ordre de chargement, programme du boîtier v1.5 dans le dépôt");
   const idx = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), opx = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
   const version = (/version:\s*"([^"]+)"/.exec(fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8")) || [])[1];
-  ok("version 5.28.6 dans config.js", version === "5.28.6", version);
+  ok("version 5.29.0 dans config.js", version === "5.29.0", version);
   const pos = s => idx.indexOf(s);
-  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.28.6") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
+  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.29.0") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
   ok("les deux pages chargent i18n-v521.js juste après i18n-v520.js", /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(idx) && /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(opx));   // version libre (v5.25 : ne casse plus à chaque version)
   ok("page opérateur : pas de fabrication de programme (zip.js, programme.js absents)", !/zip\.js|programme\.js/.test(opx));
   const cfgDepot = fs.readFileSync(path.join(LILY, "config.h"), "utf8");
@@ -150,7 +150,7 @@ const etat = {
   const a = await appareil("pc", { viewport: { width: 1280, height: 900 } });
   await entrer(a);
   const opts = await a.$$eval("#bx-sim option", o => o.map(x => ({ v: x.value, t: x.textContent.trim(), s: x.selected })));
-  ok("liste « Carte SIM » : Digi (choisie par défaut, comme avant) et 1NCE", JSON.stringify(opts) === JSON.stringify([{ v: "digi", t: "Digi", s: true }, { v: "1nce", t: "1NCE", s: false }]), opts);
+  ok("liste « Carte SIM » : 1NCE (choisie par défaut depuis la v5.29) et Digi", JSON.stringify(opts) === JSON.stringify([{ v: "1nce", t: "1NCE", s: true }, { v: "digi", t: "Digi", s: false }]), opts);
   ok("v5.23 : plus de phrase d'aide sous « Ajouter un boîtier » (le formulaire reste)", !/programme complet du boîtier, prêt à téléverser/.test(await a.innerText("#view-technique")));
   await a.fill("#bx-name", "Boîtier essai 1NCE");
   await a.selectOption("#bx-sim", "1nce");
@@ -163,7 +163,7 @@ const etat = {
   const ajoute = fake.t.devices.find(d => d.name === "Boîtier essai 1NCE");
   ok("boîtier créé dans Supabase avec l'empreinte de la clé (jamais la clé elle-même)", !!key && !!ajoute && ajoute.key_hash === sha(key) && !JSON.stringify(fake.t.devices).includes(key), ajoute && ajoute.key_hash);
   const choix = await a.$$eval("input[name=bx-sim-dlg]", r => r.map(x => ({ v: x.value, c: x.checked })));
-  ok("fenêtre : la carte choisie (1NCE) est cochée ; Digi proposée aussi", JSON.stringify(choix) === JSON.stringify([{ v: "digi", c: false }, { v: "1nce", c: true }]), choix);
+  ok("fenêtre : la carte choisie (1NCE) est cochée ; Digi proposée aussi", JSON.stringify(choix) === JSON.stringify([{ v: "1nce", c: true }, { v: "digi", c: false }]), choix);
   ok("fenêtre : bouton « Télécharger le programme complet », ligne DEVICE_KEY toujours là (ancienne méthode), avertissement « une seule fois »",
     /Télécharger le programme complet/.test(await a.innerText("#bx-prog-dl")) && await a.isVisible("#bx-key-copy") && /n'est montrée qu'une fois/.test(await a.innerText(".dlg-body")));
   await sleep(700);                                   // fenêtre complètement affichée (fin de l'animation)

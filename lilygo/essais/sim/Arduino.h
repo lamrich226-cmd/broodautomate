@@ -16,6 +16,7 @@
 extern uint32_t g_millis;
 void simTick();                                   // fait avancer les appareils simulés d'1 ms
 inline uint32_t millis() { return g_millis; }
+inline uint32_t esp_random() { return 0; }   // simulateur : base des n° d'envoi UDP = 100000000 (reproductible)
 inline void delay(uint32_t ms) { for (uint32_t i = 0; i < ms; i++) { g_millis++; simTick(); } }
 inline void pinMode(int, int) {}
 inline void digitalWrite(int, int) {}
