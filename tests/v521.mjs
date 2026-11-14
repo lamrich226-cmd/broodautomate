@@ -79,9 +79,9 @@ const etat = {
   console.log("== 0. Fichiers : version, ordre de chargement, programme du boîtier v1.5 dans le dépôt");
   const idx = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), opx = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
   const version = (/version:\s*"([^"]+)"/.exec(fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8")) || [])[1];
-  ok("version 5.28.1 dans config.js", version === "5.28.1", version);
+  ok("version 5.28.2 dans config.js", version === "5.28.2", version);
   const pos = s => idx.indexOf(s);
-  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.28.1") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
+  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.28.2") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
   ok("les deux pages chargent i18n-v521.js juste après i18n-v520.js", /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(idx) && /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(opx));   // version libre (v5.25 : ne casse plus à chaque version)
   ok("page opérateur : pas de fabrication de programme (zip.js, programme.js absents)", !/zip\.js|programme\.js/.test(opx));
   const cfgDepot = fs.readFileSync(path.join(LILY, "config.h"), "utf8");

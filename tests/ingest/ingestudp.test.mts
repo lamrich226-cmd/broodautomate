@@ -67,9 +67,9 @@ x = await envoyer("U1|9|0|1|" + msg, { iccid: null });
 ok("sans n° de carte → ignoré", x.s === 200 && x.j.ignore === "pas de carte" && transmis.length === nb, x);
 x = await envoyer("U1|10|0|1|pas du json");
 ok("message recollé mais illisible → ignoré sans erreur", x.s === 200 && x.j.ignore === "message illisible" && transmis.length === nb, x);
-T.ba_udp_faits[0].fait_at = new Date(Date.now() - 7 * 3600000).toISOString();
+T.ba_udp_faits[0].fait_at = new Date(Date.now() - 20 * 60000).toISOString();
 x = await envoyer("U1|7|0|1|" + msg);
-ok("boîtier redémarré (séquence 7 vue il y a plus de 6 h) : accepté de nouveau", x.s === 200 && transmis.length === nb + 1, [x, transmis.length]);
+ok("boîtier redémarré (séquence 7 vue il y a plus de 15 min) : accepté de nouveau", x.s === 200 && transmis.length === nb + 1, [x, transmis.length]);
 // v5.28.1 : résultat de « Lire maintenant » dans le message UDP (fait / dok / dmsg)
 x = await envoyer("U1|20|0|1|" + JSON.stringify({ fw: "1.6.1", seq: 20, fait: 77, dok: true, dmsg: "" }));
 ok("résultat « fait » : la demande n°77 de CE boîtier passe à « faite »", x.s === 200 && T.ba_demandes[0].statut === "faite" && typeof T.ba_demandes[0].fini_at === "string", T.ba_demandes[0]);

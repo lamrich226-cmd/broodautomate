@@ -100,8 +100,9 @@ Deno.serve(async (req: Request) => {
   if (!m) return reponse({ ok: true, ignore: "pas un envoi du boîtier" });   // « OUVERT … », « RECU … » : rien à faire
 
   // déjà traité ? (1NCE réessaie jusqu'à 5 fois, le boîtier peut renvoyer)
-  // (la mémoire des séquences traitées ne dure que 6 h : un boîtier redémarré repart de 0 sans être pris pour un doublon)
-  const sixH = new Date(Date.now() - 6 * 3600000).toISOString();
+  // (la mémoire des séquences traitées ne dure que 15 min : les réessais de 1NCE et du boîtier arrivent en quelques secondes ou minutes,
+  //  alors qu'un boîtier redémarré ou reprogrammé repart à la séquence 1 et ne doit JAMAIS être pris pour un doublon)
+  const sixH = new Date(Date.now() - 15 * 60000).toISOString();
   await admin.from("ba_udp_faits").delete().eq("iccid", iccid).eq("seq", m.seq).lt("fait_at", sixH);
   const { data: fait } = await admin.from("ba_udp_faits").select("seq").eq("iccid", iccid).eq("seq", m.seq).maybeSingle();
   if (fait) { await accuserSiPossible(iccid, m.seq); return reponse({ ok: true, deja: true }); }

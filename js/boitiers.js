@@ -877,14 +877,6 @@ window.BA = window.BA || {};
     if (CLOUD() && (installed !== true || Date.now() - lastCheck > 20000)) refresh(true);
   }
 
-  function htmlSteps() {
-    return `<ol class="bx-steps">
-      <li>${E(t("bx_step1"))} <button class="btn petit secondary" data-bx="sql">📋 ${E(t("bx_sql_btn"))}</button></li>
-      <li>${E(t("bx_step2"))} <button class="btn petit secondary" data-bx="fn">📋 ${E(t("bx_fn_btn"))}</button></li>
-      <li>${E(t("bx_step3"))}</li>
-      <li>${E(t("bx_step4"))} <a class="btn petit secondary" href="lilygo/broodautomate_lilygo.zip" download>⬇️ ${E(t("bx_zip"))}</a> <a class="petit" href="https://github.com/lamrich226-cmd/broodautomate/blob/main/lilygo/LISEZMOI.md" target="_blank" rel="noopener">${E(t("bx_guide"))}</a></li>
-    </ol>`;
-  }
   function htmlList() {
     if (!devices.length) return `<p class="note">— ${E(t("bx_none"))} —</p>`;
     const ms = machines();
@@ -944,10 +936,7 @@ window.BA = window.BA || {};
       ${htmlList()}${htmlDetails()}
       ${demInstalled === true ? htmlEcoute() + allCard() : ""}
       <h3>➕ ${E(t("bx_add_title"))}</h3>${htmlAdd()}`;
-    const done = installed === true && devices.length > 0;
-    const install = `<p class="note">${E(t("bx_intro"))}</p>${htmlSteps()}`;
-    return `${done ? "" : install}
-      ${lastError ? `<div class="alert err">${E(t("bx_error", { e: lastError }))}</div>` : ""}
+    return `${lastError ? `<div class="alert err">${E(t("bx_error", { e: lastError }))}</div>` : ""}
       <div class="card">${body}</div>`;
   }
 
