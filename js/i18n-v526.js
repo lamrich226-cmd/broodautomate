@@ -7,7 +7,7 @@
 
   Object.assign(D.fr, {
     tq_tab_usage: "Consommation 4G",
-    bx_conso_note: "Chiffres de 1NCE, carte par carte, jour par jour (1 Ko = 1000 octets). Les chiffres du jour peuvent arriver avec un peu de retard.",
+    bx_conso_note: "Chiffres de 1NCE, carte par carte, jour par jour (1 Ko = 1000 octets). 1NCE compte la consommation quand la connexion du boîtier se ferme, ou dès qu'il a utilisé 100 Ko. Le boîtier reste connecté en permanence (pour « Lire maintenant ») et utilise très peu : le chiffre peut donc rester pareil plusieurs heures, puis monter d'un coup. C'est normal, rien n'est perdu.",
     bx_conso_noiccid: "Renseigne le n° ICCID de ce boîtier (onglet Boîtiers 4G) pour voir sa consommation.",
     bx_conso_day: "Jour",
     bx_conso_total: "Total",
@@ -25,7 +25,7 @@
   });
   Object.assign(D.nl, {
     tq_tab_usage: "Verbruik 4G",
-    bx_conso_note: "Cijfers van 1NCE, kaart per kaart, dag per dag (1 Ko = 1000 bytes). De cijfers van vandaag kunnen wat vertraging hebben.",
+    bx_conso_note: "Cijfers van 1NCE, kaart per kaart, dag per dag (1 Ko = 1000 bytes). 1NCE telt het verbruik wanneer de verbinding van de module sluit, of zodra ze 100 Ko gebruikt heeft. De module blijft altijd verbonden (voor « Nu uitlezen ») en verbruikt heel weinig: het cijfer kan dus uren gelijk blijven en dan in één keer stijgen. Dat is normaal, er gaat niets verloren.",
     bx_conso_noiccid: "Vul het ICCID-nummer van deze module in (tabblad 4G-modules) om het verbruik te zien.",
     bx_conso_day: "Dag",
     bx_conso_total: "Totaal",
@@ -43,7 +43,7 @@
   });
   Object.assign(D.en, {
     tq_tab_usage: "4G usage",
-    bx_conso_note: "Figures from 1NCE, card by card, day by day (1 Ko = 1000 bytes). Today's figures can arrive a little late.",
+    bx_conso_note: "Figures from 1NCE, card by card, day by day (1 Ko = 1000 bytes). 1NCE counts the usage when the box's connection closes, or as soon as it has used 100 KB. The box stays connected all the time (for « Read now ») and uses very little, so the figure can stay the same for hours, then go up at once. That is normal, nothing is lost.",
     bx_conso_noiccid: "Fill in this box's ICCID number (4G boxes tab) to see its usage.",
     bx_conso_day: "Day",
     bx_conso_total: "Total",

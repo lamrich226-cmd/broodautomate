@@ -448,16 +448,25 @@ window.BA = window.BA || {};
   // v5.27 : consommation EXACTE de la carte 1NCE (fonction conso-1nce), en Ko
   const ko = v => v == null ? "—" : new Intl.NumberFormat((BA.I18n && typeof BA.I18n.lang === "string" ? BA.I18n.lang : "fr"), { maximumFractionDigits: 1 }).format(v) + " Ko";
   const cache = new Map();   // n° du boîtier → dernier résultat de conso-1nce
+  // v5.29.1 : quand la fonction répond une erreur (statut ≠ 2xx), on montre SA raison (« 1NCE injoignable … »)
+  // au lieu du message technique « Edge Function returned a non-2xx status code »
+  async function raison(err) {
+    if (!err) return "";
+    try { const c = err.context; if (c && typeof c.clone === "function") { const b = await c.clone().json(); if (b && typeof b.error === "string" && b.error) return b.error; } } catch (e) { /* réponse illisible */ }
+    return err.message || "";
+  }
   async function chargerConso(id) {
     try {
       const r = await sb().functions.invoke("conso-1nce", { body: { device: id } });
       const j = r.data;
-      if (r.error || !j || j.ok !== true) throw new Error((j && j.error) || (r.error && r.error.message) || "?");
+      if (r.error || !j || j.ok !== true) throw new Error((j && j.error) || await raison(r.error) || "?");
       cache.set(id, { j, at: Date.now() });
     } catch (e) { cache.set(id, { err: e.message, at: Date.now() }); }
   }
   function htmlUsage() {
     if (!devices.length) return `<p class="note">${E(t("bx_none"))}</p>`;
+    // v5.29.1 : heure de la dernière lecture réussie chez 1NCE (le chiffre de 1NCE monte par paliers : voir bx_conso_note)
+    const lu = Math.max(0, ...[...cache.values()].filter(c => c && c.j).map(c => c.at || 0));
     return `<p class="note">${E(t("bx_conso_note"))}</p>
       <div class="bx-conso-list">${devices.map(d => {
         const c = cache.get(d.id);
@@ -472,7 +481,7 @@ window.BA = window.BA || {};
         }
         return `<div class="card bx-conso"><h4>📶 ${E(d.name)} <span class="petit">${E(d.iccid || "")}</span></h4>${corps}</div>`;
       }).join("")}</div>
-      <button class="btn petit" data-bxconso-refresh>🔄 ${E(t("bx_conso_refresh"))}</button>`;
+      <button class="btn petit" data-bxconso-refresh>🔄 ${E(t("bx_conso_refresh"))}</button>${lu ? ` <span class="petit bx-conso-lu">${E(t("bx_conso_at", { h: U().F.time(lu) }))}</span>` : ""}`;
   }
   // Onglet « Consommation » de la page Technique (v5.27) : consommation EXACTE de chaque carte 1NCE, en Ko
   async function usage(el) {

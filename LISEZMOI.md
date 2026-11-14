@@ -1,14 +1,15 @@
-> **État actuel (v5.29, 14/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.29.1, 14/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
 >   le boîtier écoute en permanence et répond en quelques secondes. Une demande vit **35 min** partout (appli, `lire-1nce`, filet de
 >   sécurité d'`ingest-udp` qui renvoie l'ordre au prochain message du boîtier) ; sans réponse après 1 min, le bouton devient 🔁.
 > - **Technique** : Boîtiers 4G (liste, n° de carte SIM ✏️, détail), Machines, Câble et clé USB, Journal, Système, Flux brut,
->   **Consommation 4G** (chiffre exact de 1NCE). Le programme du boîtier se télécharge dans la fenêtre de la clé (Ajouter un boîtier
+>   **Consommation 4G** (chiffre exact de 1NCE, mis à jour par paliers : fin de connexion ou 100 Ko). Le programme du boîtier se télécharge dans la fenêtre de la clé (Ajouter un boîtier
 >   ou 🔑) ; programme actuel : **v1.6.2** (`lilygo/`).
 > - **Machine supprimée** : son historique passe sous un numéro fantôme, affiché « #n (supprimée) » ; une nouvelle machine qui reprend
 >   le numéro démarre vide.
+> - **Appli opérateur** : 5 onglets, le **Dashboard** en premier (page d'ouverture), puis À faire, Remplir, Alertes, Plus.
 > - **Nouvelle version publiée** : un bandeau propose de recharger les pages restées ouvertes (PC, téléphone, appli opérateur).
 > - L'ancienne v3.2 (`v3/`) a été retirée en v5.29 (toujours dans l'historique GitHub).
 
@@ -104,6 +105,16 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.29.1 — appli opérateur : le Dashboard en premier ; consommation 1NCE expliquée
+
+- **Appli opérateur (Android et navigateur)** : le **Dashboard** est le premier onglet, et l'appli s'ouvre dessus
+  (puis À faire, Remplir, Alertes, Plus). Pour revenir à l'ancien ordre : dans `js/operateur.js`, remettre la ligne `todo` avant `dashboard`.
+- **Consommation 4G** : 1NCE ne compte la consommation qu'**à la fermeture de la connexion** du boîtier, ou **dès 100 Ko utilisés**
+  (documentation 1NCE, « Usage Records »). Le boîtier reste connecté en permanence (pour « Lire maintenant ») et utilise quelques Ko
+  par heure : le chiffre peut rester pareil des heures, puis monter d'un coup. La note de l'onglet l'explique ; l'heure de la lecture
+  chez 1NCE est affichée à côté de « Actualiser » ; en cas d'erreur, la vraie raison s'affiche (avant : « Edge Function returned a
+  non-2xx status code »).
 
 ## v5.29 — vérification complète du 14/11/2026 : corrections
 

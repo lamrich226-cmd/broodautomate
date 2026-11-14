@@ -1,6 +1,6 @@
 // ============================================================
 // BROODAUTOMATE v5.29 — Textes (FR / NL / EN) : machines supprimées, « Lire maintenant » en UDP (carte 1NCE),
-// avertissement de nouvelle version
+// avertissement de nouvelle version ; v5.29.1 : heure de lecture de la consommation 1NCE
 // ============================================================
 (function () {
   const D = BA.I18n.dicts;
@@ -18,7 +18,8 @@
     bx_hint_nostart: "Menu de réglage ouvert ? Ressors-en et attends un peu. Sinon, vérifier le module MAX3232 et ses fils, la vitesse et la commande 90.",
     tq_raw_wait_fast: "Demande envoyée à {h}. Le boîtier lit la machine tout de suite (quelques secondes).",
     maj_txt: "Une nouvelle version de Broodautomate est publiée ({v}).",
-    maj_btn: "Recharger"
+    maj_btn: "Recharger",
+    bx_conso_at: "🕒 chiffres lus chez 1NCE à {h}"
   });
 
   Object.assign(D.nl, {
@@ -34,7 +35,8 @@
     bx_hint_nostart: "Instellingenmenu open? Verlaat het en wacht even. Anders de MAX3232-module en de draden, de snelheid en commando 90 controleren.",
     tq_raw_wait_fast: "Aanvraag verstuurd om {h}. De module leest de automaat meteen uit (enkele seconden).",
     maj_txt: "Er is een nieuwe versie van Broodautomate gepubliceerd ({v}).",
-    maj_btn: "Herladen"
+    maj_btn: "Herladen",
+    bx_conso_at: "🕒 cijfers gelezen bij 1NCE om {h}"
   });
 
   Object.assign(D.en, {
@@ -50,6 +52,7 @@
     bx_hint_nostart: "Settings menu open? Leave it and wait a little. Otherwise check the MAX3232 module and its wires, the speed and command 90.",
     tq_raw_wait_fast: "Request sent at {h}. The box reads the machine right away (a few seconds).",
     maj_txt: "A new version of Broodautomate is published ({v}).",
-    maj_btn: "Reload"
+    maj_btn: "Reload",
+    bx_conso_at: "🕒 figures read from 1NCE at {h}"
   });
 })();

@@ -4,6 +4,7 @@
 //  2) « Lire maintenant » en UDP (carte 1NCE) : textes « écoute permanente », pas d'estimation de data fausse, état coupé proprement,
 //     aide ajoutée au message court du boîtier v1.6.2, 1NCE par défaut, demande vivante 35 min et bouton 🔁 après 1 min
 //  3) bandeau « nouvelle version publiée »
+//  4) v5.29.1 : consommation 1NCE expliquée (paliers) + heure de lecture ; Dashboard en premier dans l'appli opérateur
 // node v529.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
 import fs from "node:fs"; import path from "node:path"; import http from "node:http";
@@ -161,13 +162,42 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
 
   console.log("== 3. Bandeau « nouvelle version publiée »");
   const v0 = await p.evaluate(async () => { await BA.Maj.verifier(true); return { v: BA.Maj.actuelle(), b: !!document.querySelector(".maj-bandeau") }; });
-  ok("même version publiée : pas de bandeau", v0.v === "5.29.0" && v0.b === false, v0);
+  ok("même version publiée : pas de bandeau", v0.v === "5.29.1" && v0.b === false, v0);
   await p.route(/js\/config\.js\?maj=/, r => r.fulfill({ status: 200, contentType: "application/javascript", body: 'const BA_CONFIG = {\n  app: { name: "Broodautomate", version: "9.9.9" },\n};' }));
   const v1 = await p.evaluate(async () => { await BA.Maj.verifier(true); const b = document.querySelector(".maj-bandeau"); return b ? b.innerText : ""; });
   ok("nouvelle version publiée : bandeau « … (9.9.9) » + bouton « Recharger »", /nouvelle version/i.test(v1) && /9\.9\.9/.test(v1) && /Recharger/.test(v1), v1);
   await p.screenshot({ path: path.join(OUT, "v529-bandeau.png") });
   const ope = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
-  ok("appli opérateur : le bandeau y est aussi (js/maj.js chargé)", /js\/maj\.js\?v=5\.29\.0/.test(ope) && /js\/i18n-v529\.js/.test(ope));
+  ok("appli opérateur : le bandeau y est aussi (js/maj.js chargé)", /js\/maj\.js\?v=5\.29\.1/.test(ope) && /js\/i18n-v529\.js/.test(ope));
+
+  console.log("== 4. v5.29.1 : consommation 1NCE (par paliers, heure de lecture) ; Dashboard en premier dans l'appli opérateur");
+  let nConso = 0, consoKo = false;
+  await ctx.route(/functions\/v1\/conso-1nce/, async r => {
+    if (r.request().method() === "OPTIONS") return r.fulfill({ status: 204, headers: { "access-control-allow-origin": "*", "access-control-allow-headers": "*" } });
+    nConso++;
+    if (consoKo) return r.fulfill({ status: 502, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ ok: false, error: "1NCE injoignable (jeton)" }) });
+    return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ ok: true, jours: [{ date: auj, ko: 76, rx: 30, tx: 46 }], restantKo: 499900, totalKo: 500000 }) });
+  });
+  await p.evaluate(() => { BA.Technique.tab("boxes"); BA.Shell.go("technique"); }); await p.waitForSelector("#view-technique.active");
+  await p.click("[data-tq-tab=usage]"); await sleep(1500);
+  const u1 = await p.innerText("#tq-usage");
+  ok("note : 1NCE compte par paliers (fin de connexion ou 100 Ko) → le chiffre peut rester pareil des heures, c'est normal", /100 Ko/.test(u1) && /plusieurs heures/.test(u1) && /rien n'est perdu/.test(u1) && !/un peu de retard/.test(u1), u1.slice(0, 400));
+  ok("heure de la lecture chez 1NCE affichée près de « Actualiser »", nConso === 1 && /chiffres lus chez 1NCE à \d\d:\d\d/.test(u1) && (await p.$("#tq-usage .bx-conso-lu")) !== null && /76 Ko/.test(u1), [nConso, u1.slice(-200)]);
+  await p.screenshot({ path: path.join(OUT, "v5291-conso.png") });
+  consoKo = true; await p.click("#tq-usage [data-bxconso-refresh]"); await sleep(1200);
+  const u2 = await p.innerText("#tq-usage");
+  ok("1NCE injoignable : erreur affichée, et PAS d'heure de lecture (pas de faux « à jour »)", nConso === 2 && /1NCE injoignable/.test(u2) && !/chiffres lus chez 1NCE/.test(u2), u2.slice(-300));
+
+  const o = await ctx.newPage();
+  o.on("pageerror", e => errs.push("opérateur : " + e.message));
+  await o.goto(URL0 + "operateur.html");
+  await o.waitForSelector("#app-nav button", { timeout: 40000, state: "attached" }); await sleep(2000);
+  const opTabs = await o.$$eval("#app-tabbar [data-view]", l => l.map(b => b.dataset.view).join()), opNav = await o.$$eval("#app-nav [data-view]", l => l.map(b => b.dataset.view).join());
+  ok("appli opérateur : Dashboard en PREMIER onglet (onglets du bas et menu), puis À faire, Remplir, Alertes, Plus", opTabs === "dashboard,todo,fill,alerts,more" && opNav === opTabs, [opTabs, opNav]);
+  ok("appli opérateur : s'ouvre sur le Dashboard (onglet actif), avec les machines", !!(await o.$("#view-dashboard.active")) && !(await o.$("#view-todo.active")) && (await o.$eval("#app-tabbar [data-view=dashboard]", b => b.classList.contains("active"))) && /FAS-529000001|#1/.test(await o.innerText("#view-dashboard")));
+  await o.click("#app-tabbar [data-view=todo]").catch(() => o.click("#app-nav [data-view=todo]")); await sleep(600);
+  ok("l'onglet « À faire » s'ouvre toujours", !!(await o.$("#view-todo.active")));
+  await o.close();
 
   ok("aucune erreur JavaScript", errs.length === 0, errs.slice(0, 6));
   await browser.close(); srv.close();

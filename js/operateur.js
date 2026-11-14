@@ -872,9 +872,10 @@
     role: "op",
     admin: false,
     // v5.10 : 4 onglets seulement (À faire, Remplir, Alertes, Plus) ; les autres pages s'ouvrent depuis « Plus »
+    // v5.29.1 : le Dashboard est le PREMIER onglet, et l'appli s'ouvre dessus (la 1re page de cette liste est la page d'ouverture)
     views: [
-      { id: "todo",      icon: "📋", label: "op_nav_todo",   render: el => renderMissions(el, { todo: true }), live: true },
       { id: "dashboard", icon: "🌍", label: "nav_dashboard", render: U.renderDashboard, live: true },   // v5.25 (design-test) : le Dashboard est un onglet de l'opérateur (machines vides ou pas, pains de chaque tiroir)
+      { id: "todo",      icon: "📋", label: "op_nav_todo",   render: el => renderMissions(el, { todo: true }), live: true },
       { id: "fill",      icon: "🧺", label: "op_nav_fill",   render: renderFill,        live: true },
       { id: "alerts",    icon: "⚠️", label: "op_nav_alerts", render: U.renderAlerts,    live: true },
       { id: "more",      icon: "☰",  label: "op_nav_more",   render: renderMore,        live: false },

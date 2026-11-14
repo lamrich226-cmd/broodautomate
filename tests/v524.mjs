@@ -193,7 +193,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await o.click("#wz-close"); await sleep(300);
 
   await S(o, () => BA.Shell.go("dashboard")); await sleep(500);
-  ok("opérateur : un onglet « Dashboard » (5 onglets), avec les 20 machines et les pains de chaque tiroir", (await o.$$eval("#app-tabbar [data-view]", l => l.map(b => b.dataset.view).join())) === "todo,dashboard,fill,alerts,more" && (await o.$$(".carte-machine .mv-compact")).length === 20);
+  ok("opérateur : un onglet « Dashboard » (5 onglets, v5.29.1 : le premier), avec les 20 machines et les pains de chaque tiroir", (await o.$$eval("#app-tabbar [data-view]", l => l.map(b => b.dataset.view).join())) === "dashboard,todo,fill,alerts,more" && (await o.$$(".carte-machine .mv-compact")).length === 20);
 
   console.log("\n== 3. Vue « Tableau » : le chemin d'avant fonctionne toujours");
   const t2 = await device("tel-tableau", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "operateur.html", "classic");
