@@ -21,7 +21,7 @@ done
 ok "udp : « lire » reçu PENDANT un envoi HTTPS n'est pas perdu (lecture à 18 min)" $(grep -q "^\[18:2.\] \[UDP\] ✔✔ MESSAGE REÇU" build_udp/console.txt && echo 1) "$(grep 'MESSAGE REÇU' build_udp/console.txt | tr '\n' '|')"
 ok "udp : liaison fermée par le modem → réouverte" $(grep -q "a fermé la liaison UDP" build_udp/console.txt && [ "$(grep -c '✔ Le boîtier écoute le port 3000' build_udp/console.txt)" = 2 ] && echo 1) "$(grep -c 'écoute le port' build_udp/console.txt)"
 ok "udp : un autre message (« Hello world ») est seulement affiché, sans lecture" $(grep -q "^RECU hello world" build_udp/udp.txt && echo 1) "$(tr '\n' '|' < build_udp/udp.txt)"
-ok "udp : la version annoncée à Supabase dit « 1NCE »" $(grep -q '"fw":"1.6.0 1NCE"' build_udp/envois.txt && echo 1) "$(head -c 160 build_udp/envois.txt)"
+ok "udp : la version annoncée à Supabase dit « 1NCE »" $(grep -q '"fw":"1.6.1 1NCE"' build_udp/envois.txt && echo 1) "$(head -c 160 build_udp/envois.txt)"
 # v1.5.1 : le vrai modem « colle » une liaison qui a envoyé à 1NCE et refuse ensuite le « lire » : les envois partent par la liaison 1
 ok "udp : aucun message refusé par le modem (envois par une liaison à part)" $(grep -q "^udpRefuses=0" /tmp/essai_udp_udp.txt && echo 1) "$(grep udpRefuses /tmp/essai_udp_udp.txt)"
 ok "udp : liaison d'envoi (1) ouverte, aucun repli" $(! grep -q "Liaison d'envoi (1) impossible" build_udp/console.txt && echo 1)
@@ -37,7 +37,7 @@ ok "udp_dem : aucun redémarrage" $(grep -q "restarts=0" /tmp/essai_udp_dem.txt 
 for s in udp_envoi udp_envoi2 udp_envoi0; do
   ENVOI=1 UDP=1 RELEVE=/dev/null bash lancer.sh $s 0 > /dev/null 2> /tmp/essai_udp_$s.txt || { ok "$s : simulation lancée" 0 "$(tail -3 /tmp/essai_udp_$s.txt)"; continue; }
   ok "$s : aucun redémarrage, aucune trame interdite" $(grep -q "restarts=0" /tmp/essai_udp_$s.txt && ! grep -q "INTERDITE" build_$s/console.txt && echo 1) "$(tail -1 /tmp/essai_udp_$s.txt)"
-  ok "$s : message découpé en morceaux numérotés, sans la clé du boîtier" $(grep -q '^U1|1|0|2|{"fw":"1.6.0 1NCE UDP"' build_$s/udp.txt && ! grep -q 0123456789abcdef build_$s/udp.txt && echo 1) "$(head -c 200 build_$s/udp.txt)"
+  ok "$s : message découpé en morceaux numérotés, sans la clé du boîtier" $(grep -q '^U1|1|0|2|{"fw":"1.6.1 1NCE UDP"' build_$s/udp.txt && ! grep -q 0123456789abcdef build_$s/udp.txt && echo 1) "$(head -c 200 build_$s/udp.txt)"
   ok "$s : aucun paquet UDP de plus de 508 octets" $(awk 'length($0) > 505 { m=1 } END { exit m }' build_$s/udp.txt && echo 1) "paquet trop long"
 done
 ok "udp_envoi : 3 envois confirmés par UDP, aucun HTTPS d'envoi" $([ "$(grep -c 'Confirmé par Supabase (UDP)' build_udp_envoi/console.txt)" = 3 ] && [ "$(grep -c 'Reçu par Supabase' build_udp_envoi/console.txt)" = 0 ] && echo 1) "$(grep -c 'Confirmé' build_udp_envoi/console.txt)"
@@ -51,5 +51,10 @@ ok "udp_envoi0l : en repli, l'UDP est retenté et le boîtier y revient dès qu'
 ok "udp_envoi0l : aucun redémarrage" $(grep -q "restarts=0" /tmp/essai_udp_udp_envoi0l.txt && echo 1) "$(tail -1 /tmp/essai_udp_udp_envoi0l.txt)"
 UDP=1 ENVOI=1 RELEVE=/dev/null bash lancer.sh udp_envoi0r 0 > /dev/null 2> /tmp/essai_udp_udp_envoi0r.txt || ok "udp_envoi0r : simulation lancée" 0 "$(tail -3 /tmp/essai_udp_udp_envoi0r.txt)"
 ok "udp_envoi0r : UDP muet ET HTTPS en panne → c'est le réseau : on reste en UDP, jamais de repli" $(grep -q "c'est le réseau, pas l'UDP. On reste en UDP" build_udp_envoi0r/console.txt && ! grep -q "REPLI\|problème vient de l'UDP" build_udp_envoi0r/console.txt && echo 1) "$(grep -c 'réseau' build_udp_envoi0r/console.txt)"
-rm -rf build_udp_envoi build_udp_envoi2 build_udp_envoi0 build_udp_envoi0l build_udp_envoi0r build_udp_dem build_udp_repli build_udp build_udp_ipd build_udp_ipd_seul build_udp_brut build_udp_manuel
+# v1.6.1 : « Lire maintenant » 100 % UDP : ni vérification HTTPS ni appel ba_boitier ; le résultat repart par UDP (fait / dok)
+ENVOI=1 UDP=1 RELEVE=/dev/null bash lancer.sh udp_envoi_dem 0 > /dev/null 2> /tmp/essai_udp_udp_envoi_dem.txt || ok "udp_envoi_dem : simulation lancée" 0 "$(tail -3 /tmp/essai_udp_udp_envoi_dem.txt)"
+ok "udp_envoi_dem : AUCUN appel HTTPS du tout (ni vérification, ni résultat, ni relevé)" $(grep -q " http=0 rpc=0 " /tmp/essai_udp_udp_envoi_dem.txt && [ ! -s build_udp_envoi_dem/rpc.txt ] && [ ! -s build_udp_envoi_dem/envois.txt ] && echo 1) "$(tail -1 /tmp/essai_udp_udp_envoi_dem.txt)"
+ok "udp_envoi_dem : « lire 77 » et « lire 78 b » reconnus, leurs résultats (fait=77, fait=78) partent en UDP" $(grep -q '"fait":77,"dok":true' build_udp_envoi_dem/udp.txt && grep -q '"fait":78,"dok":true' build_udp_envoi_dem/udp.txt && ! grep -q 'n°99' build_udp_envoi_dem/console.txt && echo 1) "$(grep -o '"fait":[0-9]*' build_udp_envoi_dem/udp.txt | tr '\n' ' ')"
+ok "udp_envoi_dem : aucun redémarrage" $(grep -q "restarts=0" /tmp/essai_udp_udp_envoi_dem.txt && echo 1) "$(tail -1 /tmp/essai_udp_udp_envoi_dem.txt)"
+rm -rf build_udp_envoi_dem build_udp_envoi build_udp_envoi2 build_udp_envoi0 build_udp_envoi0l build_udp_envoi0r build_udp_dem build_udp_repli build_udp build_udp_ipd build_udp_ipd_seul build_udp_brut build_udp_manuel
 if [ $KO = 0 ]; then echo "Essai UDP : TOUT EST OK"; else echo "Essai UDP : $KO ÉCHEC(S)"; exit 1; fi

@@ -19,12 +19,14 @@ ok("recollage : il en manque → null ; totaux incohérents → null", recoller(
 const nce0: any[] = []; const fnce = (async (url: string, init: any) => { nce0.push([String(url), init.body]); return String(url).endsWith("/oauth/token") ? new Response(JSON.stringify({ access_token: "J" })) : new Response("{}", { status: 202 }); }) as unknown as typeof fetch;
 ok("accusé : jeton puis « ok 12 » en UDP port 3000, Send now", (await accuser(fnce, "u", "p", ICCID, 12)) === true && nce0.length === 2 && JSON.parse(nce0[1][1]).payload === "ok 12" && JSON.parse(nce0[1][1]).port === 3000 && JSON.parse(nce0[1][1]).requestMode === "SEND_NOW" && nce0[1][0].endsWith("/v1/integrate/devices/" + ICCID + "/actions/UDP"), nce0);
 // faux Supabase minimal (tables en mémoire, clés composées)
-const T: Record<string, any[]> = { ba_udp_morceaux: [], ba_udp_faits: [] };
+const T: Record<string, any[]> = { ba_udp_morceaux: [], ba_udp_faits: [], devices: [{ id: "d1", iccid: "89882280666680646327" }], ba_demandes: [{ id: 77, device_id: "d1", statut: "attente" }, { id: 78, device_id: "autre", statut: "attente" }, { id: 79, device_id: "d1", statut: "faite" }] };
 class Q { t: string; op = "select"; p: any = null; f: ((r: any) => boolean)[] = []; one = false; conflict = "";
   constructor(t: string) { this.t = t; }
+  update(p: any) { this.op = "update"; this.p = p; return this; } in(k: string, vs: any[]) { this.f.push(r => vs.includes(r[k])); return this; }
   select() { return this; } insert(p: any) { this.op = "insert"; this.p = p; return this; } upsert(p: any, o: any) { this.op = "upsert"; this.p = p; this.conflict = o.onConflict; return this; } delete() { this.op = "delete"; return this; }
   eq(k: string, v: any) { this.f.push(r => r[k] === v); return this; } lt(k: string, v: any) { this.f.push(r => String(r[k]) < String(v)); return this; } maybeSingle() { this.one = true; return this; }
   then(res: any) { const tab = T[this.t]; const m = tab.filter(r => this.f.every(g => g(r)));
+    if (this.op === "update") { m.forEach(r => Object.assign(r, this.p)); return res({ error: null }); }
     if (this.op === "delete") { T[this.t] = tab.filter(r => !m.includes(r)); return res({ error: null }); }
     if (this.op === "insert") { const keys = Object.keys(this.p).filter(k => k === "iccid" || k === "seq"); if (tab.some(r => keys.every(k => r[k] === this.p[k]))) return res({ error: { message: "doublon" } }); tab.push({ fait_at: new Date().toISOString(), ...this.p }); return res({ error: null }); }
     if (this.op === "upsert") { const ks = this.conflict.split(","); const i = tab.findIndex(r => ks.every(k => r[k] === this.p[k])); const ligne = { recu_at: new Date().toISOString(), ...this.p }; if (i >= 0) tab[i] = ligne; else tab.push(ligne); return res({ error: null }); }
@@ -68,6 +70,16 @@ ok("message recollé mais illisible → ignoré sans erreur", x.s === 200 && x.j
 T.ba_udp_faits[0].fait_at = new Date(Date.now() - 7 * 3600000).toISOString();
 x = await envoyer("U1|7|0|1|" + msg);
 ok("boîtier redémarré (séquence 7 vue il y a plus de 6 h) : accepté de nouveau", x.s === 200 && transmis.length === nb + 1, [x, transmis.length]);
+// v5.28.1 : résultat de « Lire maintenant » dans le message UDP (fait / dok / dmsg)
+x = await envoyer("U1|20|0|1|" + JSON.stringify({ fw: "1.6.1", seq: 20, fait: 77, dok: true, dmsg: "" }));
+ok("résultat « fait » : la demande n°77 de CE boîtier passe à « faite »", x.s === 200 && T.ba_demandes[0].statut === "faite" && typeof T.ba_demandes[0].fini_at === "string", T.ba_demandes[0]);
+x = await envoyer("U1|21|0|1|" + JSON.stringify({ fw: "1.6.1", seq: 21, fait: 78, dok: false, dmsg: "x" }));
+ok("la demande d'un AUTRE boîtier n'est jamais touchée", T.ba_demandes[1].statut === "attente", T.ba_demandes[1]);
+x = await envoyer("U1|22|0|1|" + JSON.stringify({ fw: "1.6.1", seq: 22, fait: 79, dok: false, dmsg: "tard" }));
+ok("une demande déjà terminée ne change plus", T.ba_demandes[2].statut === "faite" && !T.ba_demandes[2].message, T.ba_demandes[2]);
+T.ba_demandes.push({ id: 80, device_id: "d1", statut: "prise" });
+x = await envoyer("U1|23|0|1|" + JSON.stringify({ fw: "1.6.1", seq: 23, fait: 80, dok: false, dmsg: "La machine ne répond pas" }));
+ok("échec avec sa raison : statut « echec » et message gardé", T.ba_demandes[3].statut === "echec" && T.ba_demandes[3].message === "La machine ne répond pas", T.ba_demandes[3]);
 delete env.INGEST_UDP_SECRET; x = await envoyer("U1|11|0|1|" + msg);
 ok("secret non configuré → 401 (jamais ouvert par défaut)", x.s === 401, x);
 ok("aucun secret écrit dans le code", !/INGEST_UDP_SECRET\s*=\s*["']/.test(src));

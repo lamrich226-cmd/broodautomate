@@ -99,7 +99,7 @@ const DEFAUTS = `() => {
   ok("les deux pages chargent les mêmes fichiers de textes, dans le même ordre", JSON.stringify(i18n(sIdx)) === JSON.stringify(i18n(sOp)), { admin: i18n(sIdx), op: i18n(sOp) });
   ok("i18n-v520.js est chargé par les deux pages, après i18n-v519.js", i18n(sIdx).indexOf("i18n-v520.js") === i18n(sIdx).indexOf("i18n-v519.js") + 1 && i18n(sIdx).includes("i18n-v520.js") && i18n(sOp).includes("i18n-v520.js"), i18n(sIdx));
   const version = (html("js/config.js").match(/version:\s*"([^"]+)"/) || [])[1];
-  ok("version 5.28.0 dans config.js", version === "5.28.0", version);
+  ok("version 5.28.1 dans config.js", version === "5.28.1", version);
   for (const f of ["index.html", "operateur.html"]) {
     const liens = [...html(f).matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)].map(m => m[1]);
     const mauvais = liens.filter(l => !l.endsWith("?v=" + version));

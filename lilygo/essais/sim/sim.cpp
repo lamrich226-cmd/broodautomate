@@ -272,7 +272,8 @@ int main(int argc, char** argv) {
     if (scen == "udp") { evenements[10UL * 60000UL] = 31; evenements[25UL * 60000UL] = 30; evenements[30UL * 60000UL] = 32; evenements[33UL * 60000UL] = 33; modemSim.udpPendantHttp = 12; duree = 50UL * 60000UL; }
     else if (scen == "udp_dem") { evenements[10UL * 60000UL] = 34; evenements[20UL * 60000UL] = 35; evenements[30UL * 60000UL] = 36; duree = 40UL * 60000UL; }
     else if (scen.compare(0, 8, "udp_envo") == 0) {            // v1.6 : envoi par UDP ; udp_envoi = confirmé, udp_envoi2 = confirmé au 2e essai, udp_envoi0 = jamais (repli HTTPS)
-      modemSim.ackMode = scen == "udp_envoi" ? 1 : scen == "udp_envoi2" ? 2 : 0; evenements[10UL * 60000UL] = 31; duree = 50UL * 60000UL;
+      modemSim.ackMode = (scen == "udp_envoi" || scen == "udp_envoi_dem") ? 1 : scen == "udp_envoi2" ? 2 : 0; evenements[10UL * 60000UL] = 31; duree = 50UL * 60000UL;
+      if (scen == "udp_envoi_dem") { evenements[10UL * 60000UL] = 0; evenements[12UL * 60000UL] = 34; evenements[20UL * 60000UL] = 35; evenements[30UL * 60000UL] = 36; duree = 40UL * 60000UL; }   // v1.6.1 : « lire 77 », « lire 78 b », « lire 99x » : tout par UDP
       if (scen == "udp_envoi0l") { evenements[170UL * 60000UL] = 40; duree = 240UL * 60000UL; }   // jamais de confirmation, puis le serveur revient à 170 min
       if (scen == "udp_envoi0r") { modemSim.code = 500; duree = 200UL * 60000UL; }                  // jamais de confirmation ET l'HTTPS est en panne aussi
     }

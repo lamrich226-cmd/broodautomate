@@ -30,7 +30,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.6.0"
+#define FW_VERSION "1.6.1"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
@@ -290,6 +290,10 @@ static void choisirProtocole(const char* quand) {
 }
 
 // ---------------- Bouton « Lire maintenant » ----------------
+// v1.6.1 : en mode UDP normal (pas en repli HTTPS), le boîtier ne fait PLUS d'appel HTTPS « y a-t-il une demande ? » : la demande arrive
+// par UDP (« lire N ») et le résultat repart par UDP, dans le message suivant (champs fait / dok / dmsg). Plus de HTTPS, donc plus de ~6 Ko par vérification.
+static bool repliHttps = false;                 // vrai : l'UDP est muet depuis UDP_REPLI_MIN min alors que l'HTTPS marche → envois en HTTPS
+static bool toutEnUdp() { return ENVOI_UDP && ECOUTE_UDP && MODE == 0 && !repliHttps; }
 // Résultat d'une demande : annoncé à Supabase au prochain passage (tout de suite)
 static void demandeTerminee(uint32_t d, bool ok, const String& msg) {
   demandeFaite = d; demandeOk = ok;
@@ -350,7 +354,6 @@ static bool demander() {
 
 // ---------------- Envoi vers Supabase ----------------
 static bool envoyerParUdp(const std::string& b, uint32_t sq, int essais);
-static bool repliHttps = false;                 // vrai : l'UDP est muet depuis UDP_REPLI_MIN min alors que l'HTTPS marche → envois en HTTPS
 static uint32_t udpEchecDepuis = 0;             // début de la série d'envois UDP sans confirmation (0 = aucune série en cours)
 static uint32_t dernierEssaiUdp = 0;            // en repli : dernier essai de retour à l'UDP
 static uint32_t udpAttenteMs = 0;               // après un échec UDP : attente avant le prochain essai (remplace l'attente HTTPS)
@@ -376,6 +379,11 @@ static bool envoyer(const Releve* r) {
   b += ",\"hb\":" + std::to_string(HEARTBEAT_MIN) + ",\"rd\":" + std::to_string(READ_EVERY_MIN);
   b += ",\"lu\":" + std::to_string(nbLectures) + ",\"ko\":" + std::to_string(nbEchecs);
   b += std::string(",\"premier\":") + (premierEnvoi ? "true" : "false");
+  bool avecResultat = viaUdp && demandeFaite;      // v1.6.1 : le résultat de « Lire maintenant » voyage dans ce message UDP
+  if (avecResultat) {
+    b += ",\"fait\":" + std::to_string(demandeFaite) + std::string(",\"dok\":") + (demandeOk ? "true" : "false");
+    b += ",\"dmsg\":"; envoi::json(b, demandeMsg.c_str());
+  }
   if (r) {
     b += std::string(",\"role\":\"") + (r->machineMaitre ? "machine" : "boitier") + "\",\"liste\":" + std::to_string(r->liste);
     b += ",\"raw\":"; envoi::json(b, r->texte);
@@ -387,6 +395,7 @@ static bool envoyer(const Releve* r) {
       nbEnvois++; echecsSuite = 0; premierEnvoi = false;
       dernierEnvoiOk = millis(); dernierStatutEnvoye = statut;
       udpEchecDepuis = 0;
+      if (avecResultat) { Serial.printf("[Demande] Résultat de la demande n°%u annoncé à Broodautomate (par UDP).\n", (unsigned)demandeFaite); demandeFaite = 0; demandeOk = true; demandeMsg = ""; }
       if (repliHttps) Serial.println(F("[Envoi] ✔ L'UDP remarche : retour à l'envoi par UDP."));
       repliHttps = false;
       Serial.println(F("[Envoi] ✔ Confirmé par Supabase (UDP)."));
@@ -693,7 +702,8 @@ void loop() {
   if (now >= prochainEssaiEnvoi || (int32_t)(prochainEssaiEnvoi - now) > 900000) {
     bool aEnvoyer = !file.empty();
     uint32_t hb = (MODE == 1 ? 2UL : (uint32_t)HEARTBEAT_MIN) * 60000UL;
-    bool ping = premierEnvoi || dernierEnvoiOk == 0 || now - dernierEnvoiOk >= hb || (statut != dernierStatutEnvoye && now - dernierPing > 120000UL);
+    bool ping = premierEnvoi || dernierEnvoiOk == 0 || now - dernierEnvoiOk >= hb || (statut != dernierStatutEnvoye && now - dernierPing > 120000UL)
+                || (demandeFaite && toutEnUdp());      // v1.6.1 : le résultat d'une demande « lire » part tout de suite, par UDP
     if ((aEnvoyer || ping) && !moteur.occupe()) {
       reseauUtilise = true;
       if (!modem.reseau || !modem.encoreConnecte()) {
@@ -728,7 +738,7 @@ void loop() {
 
   // Bouton « Lire maintenant » : regarder s'il y a une demande (toutes les DEMANDE_EVERY_SEC),
   // ou annoncer tout de suite le résultat d'une demande terminée
-  if (!reseauUtilise && DEMANDE_EVERY_SEC > 0 && !strstr(DEVICE_KEY, "COLLE_ICI") && modem.reseau && !moteur.occupe() && (int32_t)(millis() - prochaineDemande) >= 0) {
+  if (!reseauUtilise && !toutEnUdp() && DEMANDE_EVERY_SEC > 0 && !strstr(DEVICE_KEY, "COLLE_ICI") && modem.reseau && !moteur.occupe() && (int32_t)(millis() - prochaineDemande) >= 0) {
     if (!modem.encoreConnecte()) prochaineDemande = millis() + 30000UL;
     else {
       bool ok = demander();

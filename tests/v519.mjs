@@ -121,7 +121,7 @@ const DEFAUTS = `() => {
   const inutiles = fs.readdirSync(path.join(ROOT, "js")).filter(f => f.endsWith(".js") && !sIdx.includes(f) && !sOp.includes(f));
   ok("chaque fichier js du dossier sert à une page", inutiles.length === 0, inutiles);
   const version = (html("js/config.js").match(/version:\s*"([^"]+)"/) || [])[1];
-  ok("version 5.28.0 dans config.js", version === "5.28.0", version);
+  ok("version 5.28.1 dans config.js", version === "5.28.1", version);
   // v5.19 : chaque fichier js / css est demandé avec « ?v=<version> » : après une publication, un simple
   // rechargement de la page prend TOUS les nouveaux fichiers (plus de mélange ancienne / nouvelle version).
   for (const f of ["index.html", "operateur.html"]) {

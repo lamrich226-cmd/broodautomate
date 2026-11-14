@@ -122,6 +122,15 @@ Deno.serve(async (req: Request) => {
   if (!b || typeof b !== "object" || Array.isArray(b)) return reponse({ ok: true, ignore: "message illisible" });
   delete b.k; b.iccid = iccid;
   const r = await fetch((Deno.env.get("SUPABASE_URL") ?? "") + "/functions/v1/ingest", { method: "POST", headers: { "Content-Type": "application/json", "x-ba-udp": secret }, body: JSON.stringify(b) });
+  // v5.28.1 : le résultat d'un « Lire maintenant » (fait / dok / dmsg) voyage dans le message UDP : on le note dans ba_demandes,
+  // seulement pour une demande de CE boîtier encore en attente (même règle que la fonction SQL ba_boitier).
+  if (r.ok && Number.isInteger(b.fait) && b.fait > 0) {
+    try {
+      const { data: dev } = await admin.from("devices").select("id").eq("iccid", iccid).maybeSingle();
+      if (dev) await admin.from("ba_demandes").update({ statut: b.dok === false ? "echec" : "faite", fini_at: new Date().toISOString(), message: String(b.dmsg ?? "").slice(0, 240) })
+        .eq("id", b.fait).eq("device_id", dev.id).in("statut", ["attente", "prise"]);
+    } catch (_e) { /* le résultat est aussi redemandé en HTTPS en cas de repli */ }
+  }
   if (r.ok) await accuserSiPossible(iccid, m.seq);
   // nettoyage des vieux morceaux et des vieilles séquences (une fois de temps en temps)
   if (m.seq % 20 === 0) {

@@ -37,7 +37,7 @@ Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il e
   affiché. Les relevés partent toujours en HTTPS, filtrés, comme avant. Dans Broodautomate, la version s'affiche « v1.5 1NCE ».
 - Un message qui arrive pendant un envoi HTTPS n'est pas perdu ; si le modem ferme la liaison UDP, elle est rouverte (1 min).
 
-### v1.6.0 : envoi par UDP (carte 1NCE, `ENVOI_UDP 1`)
+### v1.6.0 / v1.6.1 : envoi par UDP (carte 1NCE, `ENVOI_UDP 1`)
 
 - Avec `ECOUTE_UDP 1` et `ENVOI_UDP 1` dans `config.h`, le boîtier envoie ses signaux de vie et relevés **en UDP** vers `udp.os.1nce.com:4445` au lieu du HTTPS (~6 Ko par échange à cause du TLS ; en UDP : quelques centaines d'octets).
 - Le message JSON (sans la clé du boîtier : c'est la carte SIM qui l'identifie) est découpé en morceaux `U1|<n° d'envoi>|<n° du morceau>|<nombre de morceaux>|<texte>` (440 octets au plus ; limite 1NCE : 508).
@@ -46,7 +46,7 @@ Le fichier contient la clé secrète du boîtier : ne le donne à personne. Il e
 - **Repli HTTPS** : seulement après `UDP_REPLI_MIN` (120) minutes sans AUCUNE confirmation **et** si l'HTTPS marche à ce moment-là (réseau et Supabase en bon état : le problème vient donc de l'UDP, de 1NCE ou de son webhook). Si l'HTTPS ne marche pas non plus, c'est le réseau : le boîtier reste en UDP.
 - En repli, la version du boîtier affiche « REPLI » ; l'UDP est retenté toutes les `UDP_REESSAI_MIN` (30) minutes et le boîtier y revient dès qu'il remarche. Au-delà de 40 morceaux (~17 Ko), le message part en HTTPS.
 - À mettre en service seulement après : SQL `v528.sql`, fonctions `ingest-udp` et `ingest`, secret `INGEST_UDP_SECRET`, webhook 1NCE (voir `PLAN-ENVOI-UDP.md`). `ENVOI_UDP 0` = comme la v1.5.2.
-- « lire N » reste instantané. Le résultat d'une demande (`fait`) et la question « y a-t-il une demande ? » restent en HTTPS : mets le réglage « Lire maintenant » sur 1 h.
+- **v1.6.1 : plus aucun appel HTTPS en mode UDP.** La demande arrive par UDP (« lire N »), son résultat repart par UDP (champs `fait`, `dok`, `dmsg` du message suivant, noté dans `ba_demandes` par `ingest-udp`). Le boîtier ne demande plus « y a-t-il une demande ? » en HTTPS : le réglage « Lire maintenant » (15/30/60 min) ne sert plus qu'en repli HTTPS.
 
 ### v1.5.2 : « lire N » (bouton « Lire maintenant » de Broodautomate, instantané)
 Le message UDP peut maintenant être **`lire 42`** (ou `lire 42 b` pour le relevé complet) : le boîtier lit la machine tout de suite

@@ -15,7 +15,18 @@ namespace envoi {
 // exactement les octets de la machine (indispensable pour le contrôle G85).
 inline void json(std::string& o, const std::string& s) {
   o += '"';
-  for (unsigned char c : s) {
+  for (size_t i = 0; i < s.size(); i++) {
+    unsigned char c = (unsigned char)s[i];
+    // v1.6.1 : un caractère UTF-8 valide (é, è, ô…) devient UN \uXXXX (avant : un \u par octet → « dÃ©marrage »)
+    if (c >= 0xC2 && c <= 0xEF && i + 1 < s.size() && ((unsigned char)s[i + 1] & 0xC0) == 0x80) {
+      unsigned cp = 0; size_t n = 0;
+      if (c < 0xE0) { cp = c & 0x1F; n = 1; }
+      else if (i + 2 < s.size() && ((unsigned char)s[i + 2] & 0xC0) == 0x80) { cp = c & 0x0F; n = 2; }
+      if (n) {
+        for (size_t k = 1; k <= n; k++) cp = (cp << 6) | ((unsigned char)s[i + k] & 0x3F);
+        if ((n == 1 && cp >= 0x80) || (n == 2 && cp >= 0x800 && (cp < 0xD800 || cp > 0xDFFF))) { char b[12]; snprintf(b, sizeof b, "\\u%04x", cp); o += b; i += n; continue; }
+      }
+    }
     if (c == '"') o += "\\\"";
     else if (c == '\\') o += "\\\\";
     else if (c == '\n') o += "\\n";
