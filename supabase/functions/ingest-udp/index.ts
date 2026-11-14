@@ -70,21 +70,21 @@ function recoller(morceaux: { idx: number; total: number; data: string }[]): str
 // Accusé de réception : « ok <séquence> » renvoyé au boîtier par l'API 1NCE (même chemin que « lire », mêmes secrets NCE_API_USER / NCE_API_PASSWORD).
 // Sans accusé, le boîtier renvoie son message, puis se rabat sur HTTPS : rien ne se perd.
 const API_NCE = "https://api.1nce.com/management-api";
-async function accuser(fetchFn: typeof fetch, user: string, pass: string, iccid: string, seq: number): Promise<boolean> {
+async function accuser(fetchFn: typeof fetch, user: string, pass: string, iccid: string, seq: number, texte?: string): Promise<boolean> {
   try {
     const r = await fetchFn(API_NCE + "/oauth/token", { method: "POST", headers: { Authorization: "Basic " + btoa(user + ":" + pass), "Content-Type": "application/x-www-form-urlencoded", Accept: "application/json" }, body: "grant_type=client_credentials" });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || typeof j.access_token !== "string") return false;
     const u = await fetchFn(API_NCE + "/v1/integrate/devices/" + iccid + "/actions/UDP", { method: "POST", headers: { Authorization: "Bearer " + j.access_token, "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({ payload: "ok " + Math.floor(seq), payloadType: "STRING", port: 3000, requestMode: "SEND_NOW" }) });
+      body: JSON.stringify({ payload: texte ?? ("ok " + Math.floor(seq)), payloadType: "STRING", port: 3000, requestMode: "SEND_NOW" }) });
     return u.status === 200 || u.status === 201 || u.status === 202;
   } catch (_e) { return false; }
 }
 // ==== FIN LOGIQUE PURE ====
 
-async function accuserSiPossible(iccid: string, seq: number): Promise<void> {
+async function accuserSiPossible(iccid: string, seq: number, texte?: string): Promise<void> {
   const u = Deno.env.get("NCE_API_USER") ?? "", p = Deno.env.get("NCE_API_PASSWORD") ?? "";
-  if (u && p) await accuser(fetch, u, p, iccid, seq);
+  if (u && p) await accuser(fetch, u, p, iccid, seq, texte);
 }
 
 Deno.serve(async (req: Request) => {
@@ -133,6 +133,18 @@ Deno.serve(async (req: Request) => {
     } catch (_e) { /* le résultat est aussi redemandé en HTTPS en cas de repli */ }
   }
   if (r.ok) await accuserSiPossible(iccid, m.seq);
+  // v5.28.3 : filet de sécurité — en mode UDP le boîtier ne consulte plus HTTPS ; si l'envoi immédiat d'un « Lire maintenant » n'est pas parti,
+  // on le renvoie ici, à chaque message du boîtier (demande de CE boîtier, encore en attente, de moins de 6 h).
+  if (r.ok) {
+    try {
+      const { data: dev2 } = await admin.from("devices").select("id").eq("iccid", iccid).maybeSingle();
+      if (dev2) {
+        const depuis = new Date(Date.now() - 6 * 3600000).toISOString();
+        const { data: dem } = await admin.from("ba_demandes").select("id, brut").eq("device_id", dev2.id).eq("statut", "attente").gte("cree_at", depuis).order("id", { ascending: true }).limit(1).maybeSingle();
+        if (dem) await accuserSiPossible(iccid, m.seq, "lire " + Math.floor(Number(dem.id)) + (dem.brut ? " b" : ""));
+      }
+    } catch (_e) { /* sans gravité : le prochain message réessaie */ }
+  }
   // nettoyage des vieux morceaux et des vieilles séquences (une fois de temps en temps)
   if (m.seq % 20 === 0) {
     const limite = new Date(Date.now() - 86400000).toISOString();
