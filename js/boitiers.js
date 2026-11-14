@@ -96,7 +96,8 @@ window.BA = window.BA || {};
   const ECOUTE = [15, 30, 60];
   const ecouteMin = () => { const v = Number((((BA.Store.get() || {}).settings) || {}).ecouteMin); return ECOUTE.includes(v) ? v : 0; };
   const duree = m => m >= 60 ? t("bx_ec_1h") : t("bx_ec_min", { n: m });
-  const delai = () => ecouteMin() ? duree(ecouteMin()) : t("bx_ec_min", { n: 3 });
+  // v5.28.6 : tous les boîtiers en UDP (carte 1NCE) → l'ordre arrive tout de suite, le boîtier écoute toutes les 2 min : « 2 min au plus » partout
+  const delai = () => devices.length && devices.every(d => d.iccid) ? duree(2) : ecouteMin() ? duree(ecouteMin()) : t("bx_ec_min", { n: 3 });
   const nomM = m => m ? "#" + m.num + " — " + (m.street || m.id) + (m.city ? ", " + m.city : "") : "—";
   const seenMs = d => d && d.last_seen ? Date.parse(d.last_seen) || 0 : 0;
   // Boîtier « vivant » : vu depuis moins de 2 signaux de vie (+ 5 min), et au moins 45 min
@@ -404,7 +405,7 @@ window.BA = window.BA || {};
     const d = devices.find(x => x.id === id); if (!d) return null;
     const enCours = demandes.get(id);
     if (pending(enCours)) {
-      // v5.28.5 : carte 1NCE, demande sans réponse depuis plus de 90 s → le bouton renvoie l'ordre « lire » (même demande, rien n'est doublé)
+      // v5.28.6 : carte 1NCE, demande sans réponse depuis plus de 90 s → le bouton renvoie l'ordre « lire » (même demande, rien n'est doublé)
       if (d.iccid && enCours.id && Date.now() - demAt(enCours) > 90000) { U().toast("⚡ " + t("bx_read_sent_fast"), 6000); instantane(d, enCours.id); return null; }
       U().toast("⏳ " + t("bx_read_wait")); return null;
     }
@@ -483,7 +484,7 @@ window.BA = window.BA || {};
     const F = U().F, at = v => F.time(Date.parse(v) || Date.now());
     if (x.statut === "attente" || x.statut === "prise") {
       if (!pending(x)) return "⌛ " + t("bx_read_timeout", { h: at(x.cree_at) });
-      return x.statut === "prise" ? "📥 " + t("bx_read_taken", { h: at(x.prise_at || x.cree_at) }) : "⏳ " + t("bx_read_waiting", { h: at(x.cree_at), d: delai() });
+      return x.statut === "prise" ? "📥 " + t("bx_read_taken", { h: at(x.prise_at || x.cree_at) }) : "⏳ " + t(d.iccid ? "bx_read_waiting_fast" : "bx_read_waiting", { h: at(x.cree_at), d: delai() });
     }
     if (x.statut === "faite") return "✅ " + t("bx_read_ok", { h: at(x.fini_at || x.cree_at) });
     return "⚠️ " + t("bx_read_ko", { h: at(x.fini_at || x.cree_at), e: x.message || "—" });
@@ -610,7 +611,7 @@ window.BA = window.BA || {};
       todo.forEach(d => {
         const row = rows.find(r => r.device_id === d.id) || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
         demandes.set(d.id, row); dem.set(d.id, row.id); rws.set(d.id, row);
-        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.5 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
+        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.6 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
       });
     }
     lot = { at: now, dem, rows: rws, fini: false, finiAt: 0, guess: false };
@@ -629,7 +630,7 @@ window.BA = window.BA || {};
     const F = U().F, x = r.x, last = quand(r.m.lastSeen);
     switch (r.st) {
       case "ok": return "✅ " + t("bx_read_ok", { h: F.time(finAt(x)) });
-      case "wait": return "⏳ " + t("bx_all_st_wait", { d: delai() });
+      case "wait": return "⏳ " + t(boxOf(r.m) && boxOf(r.m).iccid ? "bx_all_st_wait_fast" : "bx_all_st_wait", { d: delai() });
       case "taken": return "📥 " + t("bx_all_st_taken");
       case "ko": return "⚠️ " + t("bx_all_st_ko", { e: x.message || "—", h: last });
       case "timeout": return "⌛ " + t("bx_all_st_timeout", { h: last });
@@ -650,7 +651,7 @@ window.BA = window.BA || {};
     if (running) {
       const mine = rows.filter(r => r.mine), got = mine.filter(r => r.st !== "wait" && r.st !== "taken").length;
       head = `<b>⏳ ${E(t("bx_all_progress", { k: got, n: mine.length }))}</b>
-        <progress max="${mine.length}" value="${got}"></progress> <span class="petit">${E(t("bx_all_wait", { d: delai() }))}</span>`;
+        <progress max="${mine.length}" value="${got}"></progress> <span class="petit">${E(t(devices.some(d => d.iccid) ? "bx_all_wait_fast" : "bx_all_wait", { d: delai() }))}</span>`;
     } else if (lot) {
       const ok = rows.filter(r => r.mine && r.st === "ok").length;
       head = `<b>${ok === n ? "✅" : "⚠️"} ${E(t("bx_all_done", { k: ok, n, h: quand(lot.finiAt) }))}</b>`;
@@ -727,7 +728,7 @@ window.BA = window.BA || {};
     document.addEventListener("click", e => {
       const b = e.target && e.target.closest && e.target.closest("button[data-bxread]");
       if (b && !b.disabled) { b.disabled = true; readNow(b.dataset.bxread).finally(() => showDem()); }
-      // v5.28.5 : le n° de carte (ICCID) se modifie seulement ici (Technique → Boîtiers 4G), après une confirmation
+      // v5.28.6 : le n° de carte (ICCID) se modifie seulement ici (Technique → Boîtiers 4G), après une confirmation
       const ed = e.target && e.target.closest && e.target.closest("button[data-bxiccid-edit]");
       if (ed) {
         const dv = devices.find(x => x.id === ed.dataset.bxiccidEdit);
@@ -915,7 +916,7 @@ window.BA = window.BA || {};
   }
   function htmlEcoute() {
     const cur = ecouteMin();
-    // v5.28.5 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
+    // v5.28.6 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
     const toutUdp = devices.length > 0 && devices.every(d => d.iccid);
     return `<div class="bx-ecoute">${toutUdp ? "" : `<label>⏱ ${E(t("bx_ec_label"))}
       <select id="bx-ec" class="auto-w">${cur ? "" : `<option value="" selected disabled>${E(t("bx_ec_unset"))}</option>`}

@@ -84,7 +84,7 @@ const ICCID = "89882280666680646327";
   ok("message « l'ordre instantané n'est pas parti … prochain passage (15 min au plus) »", (await toasts()).some(x => /pas parti/.test(x) && /15 min/.test(x)), await toasts());
   panne = false; fake.t.ba_demandes.forEach(x => { x.statut = "faite"; x.fini_at = new Date().toISOString(); }); await p.evaluate(() => BA.Boitiers.refresh(true)); await sleep(500);
 
-  console.log("== 4. Saisie de l'ICCID dans Technique → Boîtiers 4G (v5.28.5 : plus dans le détail de la machine)");
+  console.log("== 4. Saisie de l'ICCID dans Technique → Boîtiers 4G (v5.28.6 : plus dans le détail de la machine)");
   await p.evaluate(() => { BA.Technique && BA.Technique.tab("boxes"); BA.Shell.go("technique"); }); await sleep(1200);
   const dans = await p.evaluate(() => BA.Boitiers.detail({ id: "FAS-526000002" }));
   ok("détail machine : plus de champ ICCID (seulement le bouton « Lire maintenant »)", !/bxiccid/.test(dans) && /data-bxread="dev-B"/.test(dans), dans.slice(0, 300));
