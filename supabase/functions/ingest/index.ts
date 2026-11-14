@@ -265,6 +265,14 @@ async function veille(): Promise<void> {
   await envoyerEnAttente();
 }
 
+// comparaison à durée constante (ne révèle pas à partir de quel caractère un faux secret se trompe)
+function egal(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
 Deno.serve(async (req: Request) => {
   const t = Math.floor(Date.now() / 1000);
   if (req.method !== "POST") return reponse({ ok: false, error: "POST seulement", t }, 405);
@@ -277,11 +285,18 @@ Deno.serve(async (req: Request) => {
     try { await veille(); } catch (e) { console.error("veille", e); return reponse({ ok: false, error: String(e).slice(0, 200), t }, 500); }
     return reponse({ ok: true, t });
   }
-  if (!b || typeof b.k !== "string" || b.k.length < 16 || b.k.length > 128) return reponse({ ok: false, error: "clé absente", t }, 401);
+  // v5.28 : envoi par UDP. La fonction « ingest-udp » (webhook 1NCE) recolle les morceaux puis transmet ICI le même message,
+  // sans la clé du boîtier mais avec le n° de carte (iccid) et le secret partagé INGEST_UDP_SECRET dans l'en-tête « x-ba-udp ».
+  const secretUdp = Deno.env.get("INGEST_UDP_SECRET") ?? "";
+  const parUdp = !!b && typeof b.iccid === "string" && /^\d{18,20}$/.test(b.iccid);
+  if (parUdp && !(secretUdp.length >= 16 && egal(req.headers.get("x-ba-udp") || "", secretUdp))) return reponse({ ok: false, error: "secret UDP refusé", t }, 401);
+  if (!parUdp && (!b || typeof b.k !== "string" || b.k.length < 16 || b.k.length > 128)) return reponse({ ok: false, error: "clé absente", t }, 401);
 
-  const { data: boitier, error: e1 } = await admin.from("devices").select("id, machine_id, name, last_seen, info").eq("key_hash", await sha256(b.k)).maybeSingle();
+  const rech = parUdp ? admin.from("devices").select("id, machine_id, name, last_seen, info").eq("iccid", b.iccid)
+                      : admin.from("devices").select("id, machine_id, name, last_seen, info").eq("key_hash", await sha256(b.k));
+  const { data: boitier, error: e1 } = await rech.maybeSingle();
   if (e1) return reponse({ ok: false, error: "base de données : " + e1.message, t }, 500);
-  if (!boitier) return reponse({ ok: false, error: "clé inconnue", t }, 401);
+  if (!boitier) return reponse({ ok: false, error: parUdp ? "carte inconnue" : "clé inconnue", t }, 401);
 
   let raw = "";
   if (typeof b.raw === "string" && b.raw.length > 0) {
