@@ -402,7 +402,12 @@ window.BA = window.BA || {};
   // Renvoie la demande créée (ou null si elle n'a pas pu l'être).
   async function readNow(id, opts) {
     const d = devices.find(x => x.id === id); if (!d) return null;
-    if (pending(demandes.get(id))) { U().toast("⏳ " + t("bx_read_wait")); return null; }
+    const enCours = demandes.get(id);
+    if (pending(enCours)) {
+      // v5.28.4 : carte 1NCE, demande sans réponse depuis plus de 90 s → le bouton renvoie l'ordre « lire » (même demande, rien n'est doublé)
+      if (d.iccid && enCours.id && Date.now() - demAt(enCours) > 90000) { U().toast("⚡ " + t("bx_read_sent_fast"), 6000); instantane(d, enCours.id); return null; }
+      U().toast("⏳ " + t("bx_read_wait")); return null;
+    }
     const brut = !!(opts && opts.brut);
     const res = await sb().from("ba_demandes").insert(brut ? { device_id: d.id, machine_id: d.machine_id, brut: true } : { device_id: d.id, machine_id: d.machine_id }).select(DEM_COLS);
     if (res.error) { U().toast("⚠️ " + t("bx_error", { e: res.error.message })); return null; }
@@ -491,6 +496,7 @@ window.BA = window.BA || {};
     return `<button class="btn petit" data-bxread="${E(d.id)}" ${st.disabled ? "disabled" : ""} title="${E(st.title)}">${E(st.label)}</button>`;
   }
   function btnState(d) {
+    if (pending(demandes.get(d.id)) && d.iccid && demandes.get(d.id).id && Date.now() - demAt(demandes.get(d.id)) > 90000) return { disabled: false, label: "🔁 " + t("bx_read_btn"), title: t("bx_read_btn") };
     if (pending(demandes.get(d.id))) return { disabled: true, label: "⏳ " + t("bx_read_btn"), title: t("bx_read_wait") };
     if (!isAlive(d)) return { disabled: true, label: "📡 " + t("bx_read_btn"), title: t("bx_read_offline") };
     return { disabled: false, label: "📡 " + t("bx_read_btn"), title: t("bx_read_title", { d: delai() }) };
@@ -605,7 +611,7 @@ window.BA = window.BA || {};
       todo.forEach(d => {
         const row = rows.find(r => r.device_id === d.id) || { id: 0, device_id: d.id, machine_id: d.machine_id, statut: "attente", cree_at: new Date().toISOString() };
         demandes.set(d.id, row); dem.set(d.id, row.id); rws.set(d.id, row);
-        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.3 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
+        if (d.iccid && row.id) instantane(d, row.id);   // v5.28.4 : « Lire toutes les machines » envoie aussi « lire » tout de suite (carte 1NCE)
       });
     }
     lot = { at: now, dem, rows: rws, fini: false, finiAt: 0, guess: false };
@@ -902,7 +908,7 @@ window.BA = window.BA || {};
   }
   function htmlEcoute() {
     const cur = ecouteMin();
-    // v5.28.3 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
+    // v5.28.4 : tous les boîtiers sont en UDP (carte 1NCE, ICCID renseigné) → ils ne vérifient plus rien en HTTPS : le réglage ne sert à rien, on le cache
     const toutUdp = devices.length > 0 && devices.every(d => d.iccid);
     return `<div class="bx-ecoute">${toutUdp ? "" : `<label>⏱ ${E(t("bx_ec_label"))}
       <select id="bx-ec" class="auto-w">${cur ? "" : `<option value="" selected disabled>${E(t("bx_ec_unset"))}</option>`}

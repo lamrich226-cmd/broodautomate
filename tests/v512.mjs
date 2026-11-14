@@ -179,7 +179,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   await tab("system");
   await p.waitForFunction(() => !BA.Technique._system().busy && BA.Technique._system().at > 0, null, { timeout: 10000 });
   let sy = await p.innerText("#tq-system");
-  ok("version 5.28.3, Supabase, compte amor@test.be, sauvegardé, taille des données", /Broodautomate v5\.28\.3/.test(sy) && /Supabase \(en ligne/.test(sy) && /amor@test\.be/.test(sy) && /Sauvegardé/.test(sy) && /\d+ Ko · machines : 3/.test(sy), sy.slice(0, 900));
+  ok("version 5.28.4, Supabase, compte amor@test.be, sauvegardé, taille des données", /Broodautomate v5\.28\.4/.test(sy) && /Supabase \(en ligne/.test(sy) && /amor@test\.be/.test(sy) && /Sauvegardé/.test(sy) && /\d+ Ko · machines : 3/.test(sy), sy.slice(0, 900));
   ok("copies de nuit et notifications pas encore installées : dit clairement", /pas installées \(commandes 13 à 18/.test(sy) && /pas installées \(commandes 1 à 12/.test(sy), sy);
   fake.t.ba_state_backup = ["2026-11-05", "2026-11-06"].flatMap(j => ["main", "hist"].map(l => ({ jour: j, ligne: l, version: 3, data: {}, cree_at: j + "T02:30:00.000Z" })));
   fake.t.ba_notifications = [{ id: 3, cle: "x", type: "porte", titre: "Boîtier Kerk : porte ouverte depuis plus de 15 min", texte: "", silencieux: false, cree_at: new Date(now - 30 * MIN).toISOString(), envoye_at: null }];
