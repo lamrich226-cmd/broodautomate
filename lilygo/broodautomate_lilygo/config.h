@@ -22,6 +22,8 @@
 #define SIM_PIN  ""                       // vide si la carte SIM n'a pas de code PIN (conseillé)
 #define ECOUTE_UDP 0                      // v1.5 : 1 = carte 1NCE : le boîtier écoute le port UDP 3000 (« lire » envoyé par le
                                           //        Device Controller de 1NCE = lecture tout de suite) ; 0 = comme avant (Digi…)
+#define ENVOI_UDP  0                      // v1.6 : 1 = (avec ECOUTE_UDP 1) relevés et signaux de vie envoyés par UDP via 1NCE (~15 fois moins
+                                          //        de données qu'en HTTPS) ; sans confirmation du serveur, repli automatique sur HTTPS
 
 // ---------- 4. Supabase (ne pas changer) ----------
 #define SERVER_URL    "https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest"          // relevés et signaux de vie

@@ -1,7 +1,7 @@
 // ============================================================
 // BROODAUTOMATE v5.21 — Programme du boîtier 4G prêt à téléverser
 // « Ajouter un boîtier » (ou 🔑 nouvelle clé) : un clic donne le programme COMPLET du LILYGO dans un .zip,
-// avec config.h déjà rempli : MODE 0, clé secrète du boîtier, carte SIM (APN) et, pour 1NCE, l'écoute UDP.
+// avec config.h déjà rempli : MODE 0, clé secrète du boîtier, carte SIM (APN) et, pour 1NCE, l'écoute et l'envoi par UDP.
 // La clé ne quitte jamais le navigateur : le .zip est fabriqué ici, sur l'ordinateur (rien n'est envoyé).
 // ============================================================
 (function () {
@@ -32,7 +32,11 @@
       ["APN", /^#define APN[ \t]+"[^"\n]*"[^\n]*$/m, `#define APN      "${sim.apn}"   // carte SIM ${sim.nom} (choisie dans Broodautomate). Si ça ne marche pas, le boîtier essaie aussi web.be et mworld.be`],
       ["ECOUTE_UDP", /^#define ECOUTE_UDP[ \t]+\d[^\n]*\n(?:[ \t]+\/\/[^\n]*\n)?/m, `#define ECOUTE_UDP ${sim.udp ? 1 : 0}                      // ${sim.udp
         ? "carte 1NCE : le boîtier écoute le port UDP 3000 (« lire » envoyé par le Device Controller de 1NCE = lecture tout de suite)"
-        : "pas d'écoute UDP : tout marche comme avant (HTTPS)"}\n`]
+        : "pas d'écoute UDP : tout marche comme avant (HTTPS)"}\n`],
+      // v5.28 : carte 1NCE → relevés et signaux de vie envoyés par UDP (repli HTTPS seulement après 2 h d'UDP muet si l'HTTPS marche)
+      ["ENVOI_UDP", /^#define ENVOI_UDP[ \t]+\d[^\n]*\n(?:[ \t]+\/\/[^\n]*\n)?/m, `#define ENVOI_UDP  ${sim.udp ? 1 : 0}                      // ${sim.udp
+        ? "carte 1NCE : relevés et signaux de vie envoyés par UDP (quelques centaines d'octets) ; repli HTTPS seulement après 2 h d'UDP muet si l'HTTPS marche"
+        : "envois en HTTPS (comme avant)"}\n`]
     ];
     let t = String(txt);
     for (const [cle, re, v] of regles) {

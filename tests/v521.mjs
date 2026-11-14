@@ -79,14 +79,14 @@ const etat = {
   console.log("== 0. Fichiers : version, ordre de chargement, programme du boîtier v1.5 dans le dépôt");
   const idx = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), opx = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
   const version = (/version:\s*"([^"]+)"/.exec(fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8")) || [])[1];
-  ok("version 5.27.1 dans config.js", version === "5.27.1", version);
+  ok("version 5.28.0 dans config.js", version === "5.28.0", version);
   const pos = s => idx.indexOf(s);
-  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.27.1") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
+  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.28.0") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
   ok("les deux pages chargent i18n-v521.js juste après i18n-v520.js", /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(idx) && /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(opx));   // version libre (v5.25 : ne casse plus à chaque version)
   ok("page opérateur : pas de fabrication de programme (zip.js, programme.js absents)", !/zip\.js|programme\.js/.test(opx));
   const cfgDepot = fs.readFileSync(path.join(LILY, "config.h"), "utf8");
   ok("dépôt : config.h sans vraie clé (COLLE_ICI…), MODE 1 par défaut, ECOUTE_UDP 0", /#define DEVICE_KEY\s+"COLLE_ICI_LA_CLE_DU_BOITIER"/.test(cfgDepot) && /^#define MODE\s+1\b/m.test(cfgDepot) && /^#define ECOUTE_UDP 0\b/m.test(cfgDepot) && !/"[0-9a-f]{32}"/.test(cfgDepot));
-  ok("dépôt : programme du boîtier v1.5.x", /#define FW_VERSION "1\.5(\.\d+)?"/.test(fs.readFileSync(path.join(LILY, "boitier.cpp"), "utf8")));
+  ok("dépôt : programme du boîtier v1.5.x ou v1.6.x", /#define FW_VERSION "1\.[56](\.\d+)?"/.test(fs.readFileSync(path.join(LILY, "boitier.cpp"), "utf8")));
   const gen = lireZip(path.join(ROOT, "lilygo", "broodautomate_lilygo.zip"));
   ok("dépôt : broodautomate_lilygo.zip = exactement les fichiers du dossier (v1.5.x)", gen.test === null && FICHIERS.every(f => gen.sha["broodautomate_lilygo/" + f] === sha(fs.readFileSync(path.join(LILY, f)))) && Object.keys(gen.sha).length === FICHIERS.length, Object.keys(gen.sha));
 
@@ -138,7 +138,8 @@ const etat = {
       mode0: une(/^#define MODE\s+0\s*$/mg) && !/^#define MODE\s+[12]/m.test(c),
       cle: une(new RegExp(`^#define DEVICE_KEY\\s+"${attendu.key}"\\s*$`, "m")) && !/COLLE_ICI/.test(c) && (c.match(/^#define DEVICE_KEY/mg) || []).length === 1,
       apn: une(new RegExp(`^#define APN\\s+"${attendu.apn.replace(/\./g, "\\.")}"`, "m")) && (c.match(/^#define APN\b/mg) || []).length === 1,
-      udp: une(new RegExp(`^#define ECOUTE_UDP ${attendu.udp}\\b`, "m")) && (c.match(/^#define ECOUTE_UDP/mg) || []).length === 1,
+      udp: une(new RegExp(`^#define ECOUTE_UDP ${attendu.udp}\\b`, "m")) && (c.match(/^#define ECOUTE_UDP/mg) || []).length === 1
+        && une(new RegExp(`^#define ENVOI_UDP\\s+${attendu.udp}\\b`, "m")) && (c.match(/^#define ENVOI_UDP/mg) || []).length === 1,
       entete: c.startsWith("// ==== Programme préparé par Broodautomate le ") && c.includes("« " + attendu.nom + " »") && c.includes("Carte SIM : " + attendu.sim),
       reste: c.includes("#define SERVER_URL") && c.includes("#define MACHINE_RX_PIN     18") && c.includes("#define SIM_PIN  \"\""),
       config: c
@@ -191,7 +192,7 @@ const etat = {
   ok("Digi : zip valide, 8 fichiers identiques, MODE 0, même clé, APN « internet », ECOUTE_UDP 0", v2.valide && v2.autres && v2.mode0 && v2.cle && v2.apn && v2.udp && v2.entete && v2.reste, v2.config.slice(0, 900));
   ok("Digi : se compile aussi", compile(z2.f) === "ok");
   const diff = v1.config.split("\n").filter((l, i) => l !== v2.config.split("\n")[i]);
-  ok("entre Digi et 1NCE, seules 3 lignes changent : la carte (en-tête), l'APN et ECOUTE_UDP", diff.length === 3 && /^\/\/ Carte SIM : 1NCE/.test(diff[0]) && /^#define APN\s+"iot\.1nce\.net"/.test(diff[1]) && /^#define ECOUTE_UDP 1/.test(diff[2]), diff);
+  ok("entre Digi et 1NCE, seules 4 lignes changent : la carte (en-tête), l'APN, ECOUTE_UDP et ENVOI_UDP (v5.28)", diff.length === 4 && /^\/\/ Carte SIM : 1NCE/.test(diff[0]) && /^#define APN\s+"iot\.1nce\.net"/.test(diff[1]) && /^#define ECOUTE_UDP 1/.test(diff[2]) && /^#define ENVOI_UDP\s+1/.test(diff[3]), diff);
   await a.click("#dlg-ok"); await sleep(600);
 
   console.log("\n== 4. 🔑 Nouvelle clé : la carte du boîtier est proposée d'office");

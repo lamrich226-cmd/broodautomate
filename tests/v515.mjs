@@ -90,7 +90,7 @@ const KEY = "0123456789abcdef0123456789abcdef";
   console.log("== 1. L'onglet « Flux brut » est à côté de « Système »");
   await onglet();
   const tabs = await p.$$eval("#app-main .tq-tabs [data-tq-tab]", bs => bs.map(b => b.dataset.tqTab));
-  ok("ordre des onglets : …, Système, Flux brut", tabs.join(",") === "boxes,machines,cable,journal,system,raw", tabs);
+  ok("ordre des onglets : …, Système, Flux brut, Consommation 4G", tabs.join(",") === "boxes,machines,cable,journal,system,raw,usage", tabs);
   ok("le libellé est « Flux brut »", /Flux brut/.test(await p.innerText("#tq-tab-raw")));
   let pane = await p.innerText("#tq-pane-raw");
   ok("explication + bouton + « Aucun flux demandé. »", /allégés/.test(pane) && /Aucun flux demandé/.test(pane) && (await p.$("#tq-raw-go:not([disabled])")) !== null, pane.slice(0, 300));

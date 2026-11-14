@@ -38,12 +38,22 @@ struct FauxModem : Port {
   // format des messages reçus (on ne sait pas encore lequel le vrai modem donne : les cinq sont essayés)
   //   0 = RECV FROM + +RECEIVE,0,n ; 1 = RECV FROM + +IPDn ; 2 = +IPDn seul ; 3 = RECV FROM puis le message seul ; 4 = +CIPRXGET: 1,0 (à demander)
   int udpFormat = 0, udpPendantHttp = 0; std::string udpGarde, udpTexteHttp = "lire";
-  void udpRecoit(const std::string& s) {
+  int ackMode = 0; std::map<std::string,int> essaisVus; int acquittes = 0;   // v1.6 : 1 = le serveur confirme chaque envoi ; 2 = seulement le 2e essai ; 0 = jamais
+  void udpAuto(const std::string& m) {
+    if (!ackMode || m.compare(0, 3, "U1|") != 0) return;
+    size_t a = m.find('|', 3), b = a == std::string::npos ? a : m.find('|', a + 1), c = b == std::string::npos ? b : m.find('|', b + 1);
+    if (c == std::string::npos) return;
+    std::string seq = m.substr(3, a - 3); int idx = atoi(m.c_str() + a + 1), total = atoi(m.c_str() + b + 1);
+    if (idx != total - 1) return;                                  // confirme quand le dernier morceau est arrivé
+    int n = ++essaisVus[seq];
+    if (ackMode == 1 || (ackMode == 2 && n >= 2)) { acquittes++; udpRecoit("ok " + seq, 400); }
+  }
+  void udpRecoit(const std::string& s, int delai = 5) {
     if (!udpOuvert) return;
     if (lien0Colle) { udpRefuses++; return; }          // vrai modem constaté : une liaison qui a envoyé est « collée » à 1NCE (10.60.8.90:4445) et refuse le « lire » venu d'une autre adresse
     udpRecus++;
     const std::string de = "RECV FROM:3.120.5.9:4445\r\n", n = std::to_string(s.size());
-    if (udpFormat == 0) rep("\r\n" + de + "+RECEIVE,0," + n + "\r\n" + s + "\r\n", 5);
+    if (udpFormat == 0) rep("\r\n" + de + "+RECEIVE,0," + n + "\r\n" + s + "\r\n", delai);
     else if (udpFormat == 1) rep("\r\n" + de + "+IPD" + n + "\r\n" + s, 5);
     else if (udpFormat == 2) rep("\r\n+IPD" + n + "\r\n" + s, 5);
     else if (udpFormat == 3) rep("\r\n" + de + s, 5);
@@ -51,7 +61,7 @@ struct FauxModem : Port {
   }
   void recu(const uint8_t* b, size_t n) override {
     for (size_t i = 0; i < n; i++) {
-      if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; if (udpMode) { udpMode = false; udpEnvois.push_back(corps); rep("\r\n+CIPSEND: " + std::to_string(lienEnvoi) + "," + std::to_string(corps.size()) + "," + std::to_string(corps.size()) + "\r\n\r\nOK\r\n", 20); } else { envois.push_back(corps); rep("\r\nOK\r\n", 20); } } continue; }
+      if (data) { corps += (char)b[i]; if (corps.size() == attendus) { data = false; if (udpMode) { udpMode = false; udpEnvois.push_back(corps); udpAuto(corps); rep("\r\n+CIPSEND: " + std::to_string(lienEnvoi) + "," + std::to_string(corps.size()) + "," + std::to_string(corps.size()) + "\r\n\r\nOK\r\n", 20); } else { envois.push_back(corps); rep("\r\nOK\r\n", 20); } } continue; }
       ligne += (char)b[i];
       if (ligne.size() >= 2 && ligne.substr(ligne.size() - 2) == "\r\n") { std::string c = ligne.substr(0, ligne.size() - 2); ligne.clear(); commande(c); }
     }
@@ -233,6 +243,7 @@ void simTick() {
   if (a == 34) modemSim.udpRecoit("lire 77");        // v1.5.2 : la demande n°77 de Broodautomate, par 1NCE
   if (a == 35) modemSim.udpRecoit("lire 78 b");      // … n°78, avec le relevé complet (flux brut)
   if (a == 36) modemSim.udpRecoit("lire 99x");       // … pas une demande valable : seulement affiché
+  if (a == 40) modemSim.ackMode = 1;                // v1.6 : le serveur se remet à confirmer (fin de la panne UDP)
   if (a == 32) { modemSim.udpOuvert = false; modemSim.rep("\r\n+CIPEVENT: NETWORK CLOSED UNEXPECTEDLY\r\n"); }
   if (a == 3) modemSim.reseau = false;
   if (a == 4) modemSim.reseau = true;
@@ -260,6 +271,11 @@ int main(int argc, char** argv) {
     machineSim.rapport = inventerEva();
     if (scen == "udp") { evenements[10UL * 60000UL] = 31; evenements[25UL * 60000UL] = 30; evenements[30UL * 60000UL] = 32; evenements[33UL * 60000UL] = 33; modemSim.udpPendantHttp = 12; duree = 50UL * 60000UL; }
     else if (scen == "udp_dem") { evenements[10UL * 60000UL] = 34; evenements[20UL * 60000UL] = 35; evenements[30UL * 60000UL] = 36; duree = 40UL * 60000UL; }
+    else if (scen.compare(0, 8, "udp_envo") == 0) {            // v1.6 : envoi par UDP ; udp_envoi = confirmé, udp_envoi2 = confirmé au 2e essai, udp_envoi0 = jamais (repli HTTPS)
+      modemSim.ackMode = scen == "udp_envoi" ? 1 : scen == "udp_envoi2" ? 2 : 0; evenements[10UL * 60000UL] = 31; duree = 50UL * 60000UL;
+      if (scen == "udp_envoi0l") { evenements[170UL * 60000UL] = 40; duree = 240UL * 60000UL; }   // jamais de confirmation, puis le serveur revient à 170 min
+      if (scen == "udp_envoi0r") { modemSim.code = 500; duree = 200UL * 60000UL; }                  // jamais de confirmation ET l'HTTPS est en panne aussi
+    }
     else if (scen == "udp_repli") { modemSim.liaison1Impossible = true; evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; }
     else { evenements[10UL * 60000UL] = 31; duree = 15UL * 60000UL; modemSim.udpFormat = scen == "udp_ipd" ? 1 : scen == "udp_ipd_seul" ? 2 : scen == "udp_brut" ? 3 : 4; }
   }
@@ -291,7 +307,7 @@ int main(int argc, char** argv) {
   for (auto& e : modemSim.appelsRpc) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
   o = fopen("udp.txt", "w");
-  fprintf(stderr, "udpRefuses=%d\n", modemSim.udpRefuses);
+  fprintf(stderr, "udpRefuses=%d acquittes=%d\n", modemSim.udpRefuses, modemSim.acquittes);
   for (auto& e : modemSim.udpEnvois) { fputs(e.c_str(), o); fputc('\n', o); }
   fclose(o);
   fprintf(stderr, "RESUME scen=%s envois=%zu lectures=%d sessionsMachine=%d restarts=%d http=%d rpc=%zu rpcSansCle=%d\n", scen.c_str(), modemSim.envois.size(), machineSim.lectures, machineSim.sessionsMachine, g_restarts, modemSim.actions, modemSim.appelsRpc.size(), modemSim.rpcSansCle);

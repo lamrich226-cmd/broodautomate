@@ -201,7 +201,7 @@ bouton **Machine / Classique** (Classique = l'ancien affichage, sans changement)
   l'entretien des 30 s ne recopie plus tout l'historique (1 ms au lieu de 29 ms avec 400 jours × 35 machines).
 - Compte opérateur : il peut LIRE les relevés des boîtiers 4G (sinon son stock n'était pas à jour), toujours sans pouvoir y écrire ni effacer.
 - L'ancien code du simulateur de la version test est retiré (plus utilisé, mais il relisait les données pour rien).
-- Version **5.27.1** partout (`?v=5.27.1`) : après la publication, les téléphones prennent tous les nouveaux fichiers.
+- Version **5.28.0** partout (`?v=5.28.0`) : après la publication, les téléphones prennent tous les nouveaux fichiers.
 
 **Supabase** (rien n'a été changé dans Supabase) :
 - Le jour où cette version remplace le vrai site : remplacer le code de la fonction `ingest` par `supabase/functions/ingest/index.ts`
