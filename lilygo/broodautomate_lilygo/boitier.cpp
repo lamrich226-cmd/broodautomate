@@ -20,6 +20,7 @@
 // ============================================================
 #include <Arduino.h>
 #include <deque>
+#include <vector>
 #include <string>
 #include "config.h"
 #include "ddcmp_moteur.h"
@@ -29,7 +30,7 @@
 #include "dex_moteur.h"
 #include "modem.h"
 
-#define FW_VERSION "1.5.2"
+#define FW_VERSION "1.6.0"
 
 // v1.3 : si ton config.h date d'avant la v1.3 (il n'a pas cette ligne), la valeur par défaut est prise : tu peux garder ton config.h tel quel
 #ifndef SURVEILLE_VENTES_SEC
@@ -57,6 +58,15 @@
 #endif
 #ifndef UDP_VIVANT_MIN
 #define UDP_VIVANT_MIN 0         // petit message « vivant » vers 1NCE toutes les N minutes (0 = jamais : le signal de vie HTTPS suffit)
+#endif
+
+// v1.6 : carte 1NCE : le boîtier envoie ses relevés et signaux de vie en UDP (quelques centaines d'octets) au lieu du HTTPS (~6 Ko).
+// Il faut ECOUTE_UDP 1. Le serveur confirme par « ok <n° d'envoi> » ; sans confirmation après 2 essais, le boîtier envoie en HTTPS.
+#ifndef ENVOI_UDP
+#define ENVOI_UDP 0              // 1 = envoi par UDP (carte 1NCE, avec ECOUTE_UDP 1) ; 0 = HTTPS comme avant
+#endif
+#ifndef UDP_ATTENTE_ACCUSE_SEC
+#define UDP_ATTENTE_ACCUSE_SEC 30   // attente de la confirmation du serveur après chaque essai (2 essais)
 #endif
 
 using namespace ba;
@@ -330,11 +340,15 @@ static bool demander() {
 }
 
 // ---------------- Envoi vers Supabase ----------------
+static bool envoyerParUdp(const std::string& b, uint32_t sq);
+static bool udpEnvoiPossible();
 static bool envoyer(const Releve* r) {
   std::string b;
-  b.reserve(512 + (r ? r->texte.size() * 11 / 10 : 0));
-  b += "{\"k\":"; envoi::json(b, DEVICE_KEY);
-  b += std::string(",\"fw\":\"" FW_VERSION) + (proto == PROTO_DEX ? " DEX" : "") + (ECOUTE_UDP ? " 1NCE" : "") + "\",\"mode\":" + std::to_string(MODE);
+  b.reserve(560 + (r ? r->texte.size() * 11 / 10 : 0));
+  bool viaUdp = udpEnvoiPossible();
+  b += "{";
+  if (!viaUdp) { b += "\"k\":"; envoi::json(b, DEVICE_KEY); b += ","; }   // par UDP, la clé ne voyage pas : la carte SIM identifie le boîtier
+  b += std::string("\"fw\":\"" FW_VERSION) + (proto == PROTO_DEX ? " DEX" : "") + (ECOUTE_UDP ? " 1NCE" : "") + (ENVOI_UDP ? " UDP" : "") + "\",\"mode\":" + std::to_string(MODE);
   b += ",\"seq\":" + std::to_string(++seq);
   b += ",\"ec\":" + std::to_string(ecouteSec);
   b += ",\"up\":" + std::to_string(millis() / 1000);
@@ -351,7 +365,18 @@ static bool envoyer(const Releve* r) {
     b += ",\"raw\":"; envoi::json(b, r->texte);
   }
   b += "}";
-  Serial.printf("[Envoi] %s (%u octets)…\n", r ? "Relevé" : "Signal de vie", (unsigned)b.size());
+  Serial.printf("[Envoi] %s (%u octets)%s…\n", r ? "Relevé" : "Signal de vie", (unsigned)b.size(), viaUdp ? " par UDP" : "");
+  if (viaUdp) {
+    if (envoyerParUdp(b, seq)) {
+      nbEnvois++; echecsSuite = 0; premierEnvoi = false;
+      dernierEnvoiOk = millis(); dernierStatutEnvoye = statut;
+      Serial.println(F("[Envoi] ✔ Confirmé par Supabase (UDP)."));
+      return true;
+    }
+    Serial.println(F("[Envoi] ⚠ Pas de confirmation par UDP : envoi par HTTPS à la place."));
+    std::string cle = "\"k\":"; envoi::json(cle, DEVICE_KEY); cle += ",";
+    b.insert(1, cle);
+  }
   std::string rep;
   int code = modem.post(b, rep);
   uint32_t t;
@@ -401,14 +426,47 @@ static const int UDP_PORT_1NCE = 4445;
 static String udpIp1nce;
 static uint32_t udpProchaineOuverture = 0, udpDernierEnvoi = 0, udpNbRecus = 0, udpNbEnvoyes = 0;
 static bool udpVivantDemande = false;
-static void udpEnvoyerTexte(const String& t) {
-  if (!modem.udpPret) return;
+static uint32_t udpAck = 0;                // dernier « ok <n> » reçu du serveur
+static bool udpEnvoyerTexte(const String& t) {
+  if (!modem.udpPret) return false;
   udpDernierEnvoi = millis();
-  if (!udpIp1nce.length() && !modem.udpResoudre(UDP_HOTE_1NCE, udpIp1nce)) { Serial.println(F("[UDP] ✖ Adresse de udp.os.1nce.com introuvable (DNS) : envoi annulé.")); return; }
+  if (!udpIp1nce.length() && !modem.udpResoudre(UDP_HOTE_1NCE, udpIp1nce)) { Serial.println(F("[UDP] ✖ Adresse de udp.os.1nce.com introuvable (DNS) : envoi annulé.")); return false; }
   bool ok = modem.udpEnvoyer(udpIp1nce, UDP_PORT_1NCE, t);
   if (ok) udpNbEnvoyes++;
   else udpIp1nce = "";                     // l'adresse sera redemandée la prochaine fois
   Serial.printf("[UDP] %s Envoi à 1NCE (%u octets) : « %s »%s\n", ok ? "✔" : "✖", (unsigned)t.length(), t.c_str(), ok ? "" : (" — " + modem.derniereErreur).c_str());
+  return ok;
+}
+static void ecouteUdp();
+static bool udpEnvoiPossible() { return ENVOI_UDP && ECOUTE_UDP && modem.udpPret; }
+// Envoi découpé : « U1|<n° d'envoi>|<n° du morceau>|<nombre de morceaux>|<morceau> », 440 octets au plus par morceau (limite 1NCE : 508).
+// Le serveur recolle les morceaux, traite le message et répond « ok <n° d'envoi> ». Sans réponse : 2e essai, puis échec (→ HTTPS).
+static bool envoyerParUdp(const std::string& b, uint32_t sq) {
+  const size_t MAXC = 440;
+  std::vector<std::string> morceaux;
+  for (size_t i = 0; i < b.size();) {
+    size_t n = b.size() - i < MAXC ? b.size() - i : MAXC;
+    if (i + n < b.size()) while (n > 1 && ((unsigned char)b[i + n] & 0xC0) == 0x80) n--;   // ne pas couper un caractère UTF-8 en deux
+    morceaux.push_back(b.substr(i, n)); i += n;
+  }
+  if (morceaux.size() > 40) { Serial.println(F("[UDP] Message trop long pour l'UDP : envoi par HTTPS.")); return false; }
+  for (int essai = 1; essai <= 2; essai++) {
+    udpAck = 0;
+    for (size_t k = 0; k < morceaux.size(); k++) {
+      String t = String("U1|") + String((unsigned long)sq) + "|" + String((unsigned)k) + "|" + String((unsigned)morceaux.size()) + "|" + morceaux[k].c_str();
+      if (!udpEnvoyerTexte(t)) return false;
+      delay(100);
+    }
+    uint32_t debut = millis();
+    while (millis() - debut < (uint32_t)UDP_ATTENTE_ACCUSE_SEC * 1000UL) {
+      ecouteUdp();
+      if (udpAck == sq) return true;
+      if (!modem.udpPret) return false;
+      delay(50);
+    }
+    Serial.printf("[UDP] Pas de confirmation après %d s (essai %d/2).\n", UDP_ATTENTE_ACCUSE_SEC, essai);
+  }
+  return false;
 }
 static void ecouteUdp() {
   uint32_t now = millis();
@@ -433,6 +491,12 @@ static void ecouteUdp() {
     for (auto& c : m) if (c >= 'A' && c <= 'Z') c = (char)(c - 'A' + 'a');
     std::string vu = d.substr(0, 60); for (auto& c : vu) if ((unsigned char)c < 0x20) c = ' ';   // affichage sur une ligne
     Serial.printf("[UDP] ✔✔ MESSAGE REÇU n°%u (après %lu s de marche) de %s : « %s » (%u octets)\n", (unsigned)udpNbRecus, (unsigned long)(millis() / 1000), de.empty() ? "1NCE" : de.c_str(), vu.c_str(), (unsigned)d.size());
+    // v1.6 : « ok 42 » = le serveur confirme l'envoi n°42 (pas de réponse « RECU » : ça coûterait des octets pour rien)
+    if (m.size() > 3 && m.compare(0, 3, "ok ") == 0) {
+      uint32_t n = 0; for (size_t i = 3; i < m.size() && m[i] >= '0' && m[i] <= '9' && n < 1000000000UL; i++) n = n * 10 + (uint32_t)(m[i] - '0');
+      if (n) { udpAck = n; Serial.printf("[UDP] Confirmation du serveur pour l'envoi n°%u.\n", (unsigned)n); }
+      continue;
+    }
     // v1.5.2 : « lire » seul = lecture tout de suite ; « lire 42 » = la demande n°42 de Broodautomate (le bouton « Lire maintenant »
     // l'a écrite dans ba_demandes) : le résultat lui est rendu tout de suite ; « lire 42 b » = avec le relevé complet (flux brut)
     size_t mot = m.compare(0, 4, "lire") == 0 || m.compare(0, 4, "read") == 0 || m.compare(0, 4, "lees") == 0 ? 4 : 0;
