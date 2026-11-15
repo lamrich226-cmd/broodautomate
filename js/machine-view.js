@@ -166,7 +166,7 @@ window.BA = window.BA || {};
   // ---------------- Dessin ----------------
   function slots(sel, list) {
     if (sel.cap <= MAXSLOTS) {
-      return `<span class="mv-slots" style="--n:${Math.min(sel.cap, 3)}">${Array.from({ length: sel.cap }, (_, i) => {
+      return `<span class="mv-slots" style="--n:${Math.min(sel.cap, 3)};--r:${Math.ceil(sel.cap / 3)}">${Array.from({ length: sel.cap }, (_, i) => {
         const b = list[i];
         if (!b) return `<span class="mv-sw"><span class="mv-loaf"></span><span class="mv-h"></span><span class="mv-d"></span></span>`;
         return `<span class="mv-sw"><span class="mv-loaf f ty-${E(sel.type)} k-${b.k}"></span><span class="mv-h k-${b.k}">${b.k === "new" ? "＋" : t("vm_ago", { h: b.h })}</span><span class="mv-d">${b.d}</span></span>`;
