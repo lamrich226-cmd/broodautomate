@@ -1,4 +1,4 @@
-> **État actuel (v5.29.1, 14/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.29.2, 15/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -105,6 +105,15 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.29.2 — le badge « Hors ligne » ne reste plus affiché quand le réseau est revenu
+
+- **Bug** : si la page (surtout sur téléphone, en veille la nuit) perdait le réseau quelques secondes pendant sa vérification
+  d'une minute, le badge passait à « Hors ligne : modifications gardées sur cet appareil » et **restait rouge** même une fois le réseau
+  revenu, tant qu'aucun autre appareil n'écrivait dans la base. Les données n'étaient pas touchées : seul le badge mentait.
+- **Correction** (`js/store-reel.js`, fonction `pull`) : dès que la base répond, le badge repasse à « Sauvegardé » (ou l'envoi des
+  modifications en attente reprend). Un message est aussi écrit dans la console quand la lecture de la base échoue.
+- Essai ajouté (`tests/v529.mjs`, partie 5) : réseau coupé → « Hors ligne » ; réseau revenu → « Sauvegardé ». Sans le correctif, l'essai échoue.
 
 ## v5.29.1 — appli opérateur : le Dashboard en premier ; consommation 1NCE expliquée
 

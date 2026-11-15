@@ -506,13 +506,19 @@ window.BA = window.BA || {};
     if (pushing) { pullAgain = true; return; }
     try {
       const v = await backend.version();
-      if (v <= base.version) return;
+      // v5.29.2 : la base répond, donc le réseau est revenu. Avant, « Hors ligne » restait affiché tant qu'aucun autre appareil
+      // n'avait écrit (une coupure de quelques secondes, téléphone en veille : le badge restait rouge toute la nuit)
+      if (v <= base.version) {
+        if (status.sync === "offline") { if (pending.length) schedulePush(0); else { setSync("ok"); writeCache(); } }
+        return;
+      }
       if (pushing) { pullAgain = true; return; }
       await rebase();
       writeCache();
       if (pending.length) schedulePush(0);
       setSync(pending.length ? "sending" : "ok");
     } catch (e) {
+      console.warn("Lecture de la base impossible :", e.message);
       setSync("offline", e.message);
     }
   }
