@@ -1,0 +1,47 @@
+// v5.27 (design-test) : plein écran direct depuis le Dashboard (bouton ⛶ dans le coin d'une machine) ; sur téléphone la machine fait exactement la taille de l'écran
+import { createRequire } from "node:module"; import fs from "node:fs"; import path from "node:path"; import http from "node:http"; import { fileURLToPath } from "node:url";
+const here = path.dirname(fileURLToPath(import.meta.url));
+const { chromium } = createRequire(path.join(here, "x.js"))("playwright");
+const ROOT = path.resolve(here, process.argv[2] || ".."), OUT = path.resolve(process.argv[3] || path.join(here, "captures-v527")); fs.mkdirSync(OUT, { recursive: true });
+const NM = path.join(here, "node_modules");
+const LIB = { "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js": "@supabase/supabase-js/dist/umd/supabase.js", "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js": "chart.js/dist/chart.umd.js", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js": "xlsx/dist/xlsx.full.min.js" };
+const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(new URL(q.url, "http://x").pathname)); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end(); return; } r.writeHead(200, { "content-type": f.endsWith(".js") ? "application/javascript; charset=utf-8" : f.endsWith(".css") ? "text/css" : "text/html; charset=utf-8" }); fs.createReadStream(f).pipe(r); });
+await new Promise(r => srv.listen(0, "127.0.0.1", r)); const U = "http://127.0.0.1:" + srv.address().port + "/";
+let bad = 0; const ok = (n, c, d) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c ? "" : " → " + JSON.stringify(d))); if (!c) bad++; };
+const b = await chromium.launch(), errs = [];
+for (const [name, page, opt, tel] of [["tel-390", "operateur.html", { viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true }, true], ["tel-360", "operateur.html", { viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true }, true], ["pc-admin", "index.html", { viewport: { width: 1366, height: 800 } }, false]]) {
+  console.log("\n== " + name);
+  const ctx = await b.newContext({ locale: "fr-BE", ...opt });
+  for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(path.join(NM, f), "utf8") }));
+  const p = await ctx.newPage(); p.on("pageerror", e => errs.push(name + ": " + e.message));
+  await p.goto(U + page + "?demo&tick=0"); await p.waitForSelector("#app-nav button, #app-tabbar button", { state: "attached", timeout: 30000 }); await p.waitForTimeout(2000);
+  await p.evaluate(() => BA.Shell.go("dashboard")); await p.waitForSelector(".carte-machine", { state: "attached" }); await p.waitForTimeout(800);
+  ok("Dashboard : un bouton ⛶ dans le coin de chaque carte", await p.evaluate(() => document.querySelectorAll(".carte-machine .cm-full").length === document.querySelectorAll(".carte-machine").length && document.querySelectorAll(".cm-full").length >= 15));
+  const num = await p.evaluate(() => document.querySelector(".carte-machine [data-mv-open]").dataset.mvOpen);
+  await p.click(`.carte-machine [data-mv-open="${num}"]`); await p.waitForTimeout(600);
+  const m = await p.evaluate(() => { const f = document.querySelector("#mv-fs-root .mv-fs"), r = f && f.getBoundingClientRect(), c = document.querySelector("#mv-fs-root .mv-cab"), t = r && document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return { vue: BA.Shell.state.view, on: !!f, plein: !!r && r.width >= innerWidth - 1 && r.height >= innerHeight - 1, dessus: !!t && f.contains(t), scrollH: f && f.scrollHeight, h: innerHeight, scrollW: document.documentElement.scrollWidth, w: innerWidth, tiroirs: document.querySelectorAll("#mv-fs-root .mv-d-box").length, cab: !!c }; });
+  ok("clic sur ⛶ : plein écran, et on reste sur le Dashboard (pas « Détails »)", m.on && m.plein && m.dessus && m.vue === "dashboard" && m.cab && m.tiroirs >= 15, m);
+  if (tel) ok("téléphone : la machine fait exactement la taille de l'écran (pas de défilement, rien qui dépasse)", m.scrollH <= m.h && m.scrollW <= m.w, m);
+  await p.screenshot({ path: path.join(OUT, name + "-1-plein.png") });
+  await p.click("#mv-fs-root .mv-d-box:not(.ro):not(.mv-free)"); await p.waitForTimeout(500);
+  ok("un tiroir touché : sa fenêtre s'ouvre par-dessus", await p.evaluate(() => { const e = document.querySelector(".mv-pop"), r = e && e.getBoundingClientRect(), t = r && document.elementFromPoint(r.left + r.width / 2, r.top + 20); return !!t && e.contains(t); }));
+  await p.click(".mv-pop-x"); await p.waitForTimeout(300);
+  ok("fenêtre fermée : on reste en plein écran", !!(await p.$("#mv-fs-root .mv-fs")) && !(await p.$(".mv-pop")));
+  await p.evaluate(() => BA.Store.ping()); await p.waitForTimeout(500);
+  ok("après une mise à jour des données : toujours en plein écran", !!(await p.$("#mv-fs-root .mv-fs")));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+  ok("Échap : retour au Dashboard (calque retiré)", !(await p.$("#mv-fs-root")) && await p.evaluate(() => BA.Shell.state.view === "dashboard"));
+  await p.click(`.carte-machine [data-mv-open="${num}"]`); await p.waitForTimeout(400); await p.click("#mv-fs-root [data-mv-full]"); await p.waitForTimeout(300);
+  ok("bouton « Quitter le plein écran » : retour au Dashboard", !(await p.$("#mv-fs-root")) && await p.evaluate(() => BA.Shell.state.view === "dashboard"));
+  await p.click(`.carte-machine[data-machine="${num}"] .cm-addr`); await p.waitForTimeout(600);
+  ok("le reste de la carte ouvre toujours « Détails machine »", await p.evaluate(n => BA.Shell.state.view === "details" && BA.Shell.state.machine === n, Number(num)));
+  await p.evaluate(() => BA.Shell.go("dashboard")); await p.waitForSelector(".carte-machine"); await p.click("[data-dl=list]"); await p.waitForTimeout(400);
+  ok("liste : un bouton ⛶ par ligne, qui ouvre aussi le plein écran", await p.evaluate(() => document.querySelectorAll(".ligne-machine .cm-full").length >= 15));
+  await p.click(".ligne-machine .cm-full"); await p.waitForTimeout(500);
+  ok("… (liste) plein écran ouvert, vue inchangée", !!(await p.$("#mv-fs-root .mv-fs")) && await p.evaluate(() => BA.Shell.state.view === "dashboard"));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(200);
+  await p.evaluate(() => localStorage.removeItem("ba_dash_layout"));
+  await ctx.close();
+}
+ok("aucune erreur dans les pages", errs.length === 0, errs.slice(0, 5));
+await b.close(); srv.close(); console.log(bad ? `\n${bad} ÉCHEC(S)` : "\nTOUT EST BON"); process.exit(bad ? 1 : 0);

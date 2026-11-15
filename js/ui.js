@@ -195,7 +195,7 @@ window.BA = window.BA || {};
     const right = admin ? `🧾 ${today ? today.s : 0} · ${F.eur(today ? today.r : 0)}` : (m.online ? "🟢 " + t("online") : "⚪ " + t("offline"));   // v5 : état réel
     return `<div class="card carte-machine st-${x.st}" tabindex="0" role="button" data-machine="${m.num}">
       ${m.door ? `<div class="door-banner">🚪 ${t("door_banner")}${m.doorAt ? " · " + t("door_since", { d: F.age(Math.max(0, s.now - m.doorAt)) }) : ""}</div>` : ""}
-      <div class="cm-top"><span class="cm-num">#${m.num}</span>${pill(x.st)}</div>
+      ${fullBtn(m)}<div class="cm-top"><span class="cm-num">#${m.num}</span>${pill(x.st)}</div>
       <div class="cm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></div>
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
       <div class="cm-row"><span>${x.total}/${x.cap} ${t("breads")}</span><span>${x.pct} %</span></div>
@@ -208,6 +208,9 @@ window.BA = window.BA || {};
   // v5.24 (design-test) : le Dashboard peut aussi se lire en liste (une ligne par machine, comme « Détails » dans l'explorateur Windows)
   const dashLayout = () => { try { return localStorage.getItem("ba_dash_layout") === "list" ? "list" : "cards"; } catch (e) { return "cards"; } };
 
+  // v5.27 : petit bouton ⛶ dans le coin d'une machine : plein écran direct (le reste de la carte ouvre « Détails », comme avant)
+  const fullBtn = m => BA.MachineView && BA.MachineView.on() ? `<button type="button" class="cm-full" data-mv-open="${m.num}" title="${E(t("vm_full_on"))}" aria-label="${E(t("vm_full_on"))} #${m.num}">⛶</button>` : "";
+
   function machineRow(s, m, x, admin) {
     const M2 = BA.MachineView && BA.MachineView.on();
     const today = (s.daily[M.dayKey(s.now)] || {})[m.num];
@@ -218,7 +221,7 @@ window.BA = window.BA || {};
     if (x.keptOnce) alerts.push(t("chip_kept", { n: x.keptOnce }));
     const last = !m.online ? seenTxt(s, m) : m.door ? t("foot_door") : m.power ? t("foot_power") : x.total === 0 ? t("foot_empty") : seenTxt(s, m);
     return `<tr class="ligne-machine st-${x.st}" tabindex="0" role="button" data-machine="${m.num}">
-      <td class="lm-num">#${m.num}</td>
+      <td class="lm-num">#${m.num}${fullBtn(m)}</td>
       <td class="lm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></td>
       <td class="lm-st">${pill(x.st)}</td>
       <td class="lm-stock"><b>${x.total}/${x.cap}</b> <span class="petit">${x.pct} %</span><div class="gauge"><span style="width:${x.pct}%"></span></div></td>
@@ -1024,6 +1027,7 @@ window.BA = window.BA || {};
       document.addEventListener("focusout", e => { if (e.target === u.pickEl) u.pickEl = null; }, true);
       // clic sur une carte machine → détails
       document.addEventListener("click", e => {
+        if (e.target.closest("[data-mv-open]")) return;             // petit bouton ⛶ : plein écran, pas « Détails »
         const card = e.target.closest("[data-machine]");
         if (card && $("#app-main").contains(card)) { this.state.machine = Number(card.dataset.machine); this.go("details"); }
       });
