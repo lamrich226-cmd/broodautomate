@@ -373,6 +373,7 @@ window.BA = window.BA || {};
       const b = e.target.closest && e.target.closest("[data-mv-full]"); if (!b || !wrap.contains(b)) return;
       S.mvFull = b.dataset.mvFull === "1" ? { num, view: curView() } : null;
       S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0;
+      if (wrap.classList.contains("mv-ov")) return closeFull();          // ouvert depuis le Dashboard : on referme et on revient au Dashboard
       const { s, m } = cur(); if (!m) return;
       wrap.classList.toggle("mv-fs", isFull(num));
       wrap.innerHTML = blockInner(s, m, { title: !!wrap.querySelector("h3") });
@@ -489,6 +490,44 @@ window.BA = window.BA || {};
     });
   }
 
+  // v5.27 : plein écran ouvert directement depuis le Dashboard (petit bouton ⛶ dans le coin d'une machine).
+  // La machine est dessinée dans un calque posé par-dessus toute la page ; fermer = retour au Dashboard, tel qu'il était.
+  let ovFrom = null, ovSub = false;
+  const ovRoot = () => document.getElementById("mv-fs-root");
+  function closeFull() {
+    const S = st(); S.mvFull = null; S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0;
+    const r = ovRoot(); if (r) r.remove();
+    document.documentElement.classList.remove("mv-ov-on");
+    if (ovFrom && document.body.contains(ovFrom)) ovFrom.focus({ preventScroll: true });
+    ovFrom = null;
+  }
+  function drawFull(first) {
+    const S = st(), f = S.mvFull, r = ovRoot(); if (!f || !r) return;
+    const s = BA.Store.get(), m = M.machine(s, f.num); if (!m) return closeFull();
+    if (!first && r.contains(document.activeElement) && /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;   // on ne dérange pas une saisie
+    r.innerHTML = block(s, m, { title: false });
+    const w = r.querySelector(".mv-wrap"); if (w) w.classList.add("mv-ov");
+    bind(r, m);
+  }
+  function openFull(num, from) {
+    const S = st(); if (!M.machine(BA.Store.get(), num)) return;
+    ovFrom = from || null;
+    S.mvFull = { num, view: curView() }; S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0;
+    let r = ovRoot(); if (!r) { r = document.createElement("div"); r.id = "mv-fs-root"; document.body.appendChild(r); }
+    r.querySelector(".mv-wrap") && (r.innerHTML = "");
+    document.documentElement.classList.add("mv-ov-on");
+    drawFull(true);
+    if (!ovSub && BA.Store && BA.Store.subscribe) { ovSub = true; BA.Store.subscribe(() => { if (ovRoot()) drawFull(false); }); }
+    const q = r.querySelector("[data-mv-full]"); if (q) q.focus({ preventScroll: true });
+  }
+  if (!window.__mvOv) {
+    window.__mvOv = true;
+    document.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("[data-mv-open]"); if (!b) return;
+      e.preventDefault(); e.stopPropagation(); openFull(Number(b.dataset.mvOpen), b);
+    }, true);
+  }
+
   // « Remplir » : redessine un bloc en gardant la position de la fenêtre du tiroir (touches + et − sur un petit téléphone)
   function keepPopScroll(box, draw) {
     const p = box.querySelector(".mv-pop"), top = p ? p.scrollTop : 0;
@@ -496,5 +535,5 @@ window.BA = window.BA || {};
     const q = box.querySelector(".mv-pop"); if (q && top) q.scrollTop = top;
   }
 
-  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop, big, keepPopScroll };
+  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop, big, keepPopScroll, openFull, closeFull };
 })();
