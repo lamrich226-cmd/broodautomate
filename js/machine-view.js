@@ -318,6 +318,7 @@ window.BA = window.BA || {};
 
   // Un tiroir touché ouvre une fenêtre pop-up (S.mvSel = { num, key, open, view }) ; seulement sur la page où on l'a ouverte
   const curView = () => (BA.Shell && BA.Shell.state && BA.Shell.state.view) || "";
+  const isFull = num => { const f = st().mvFull; return !!(f && f.num === num && f.view === curView()); };
   function area(s, m) {
     const S = st(), L = layout(m, true), cells = L.rows.flatMap(r => r.cells);
     let key = S.mvSel && S.mvSel.num === m.num && S.mvSel.open && (!S.mvSel.view || S.mvSel.view === curView()) ? S.mvSel.key : null;
@@ -334,9 +335,18 @@ window.BA = window.BA || {};
     // position de la fenêtre lue juste avant que la page soit redessinée (l'événement « scroll » peut arriver trop tard)
     const S = st(), old = document.querySelector(`.mv-wrap[data-mv-num="${m.num}"] .mv-pop`);
     if (old && S.mvSel && S.mvSel.open && S.mvSel.num === m.num) S.mvPopTop = old.scrollTop;
-    return `<div class="mv-wrap" data-mv-num="${m.num}">
-      ${o.title === false ? "" : `<h3>🧩 ${t("vm_title")}</h3>`}<p class="note">${t("vm_note")}</p>
-      <div class="mv-area">${area(s, m)}</div></div>`;
+    // v5.26 : plein écran (même bloc, agrandi par-dessus la page : tout le reste marche pareil)
+    return `<div class="mv-wrap${isFull(m.num) ? " mv-fs" : ""}" data-mv-num="${m.num}">${blockInner(s, m, o)}</div>`;
+  }
+  function blockInner(s, m, o) {
+    const full = isFull(m.num);
+    return `<div class="mv-head">${o.title === false ? "" : `<h3>🧩 ${t("vm_title")}</h3>`}
+        <button type="button" class="btn secondary mv-fs-btn" data-mv-full="${full ? 0 : 1}">${full ? "✖ " + t("vm_full_off") : "⛶ " + t("vm_full_on")}</button></div>
+      ${full ? `<div class="mv-cab">
+        <div class="mv-cab-main"><div class="mv-area">${area(s, m)}</div></div>
+        <aside class="mv-cab-side" aria-hidden="true"><div class="mv-scr">#${m.num}</div><div class="mv-keys">${"<i></i>".repeat(12)}</div><div class="mv-coin"></div></aside>
+        <div class="mv-sign">#${m.num} · ${E(m.street)}, ${E(m.city)}</div></div>`
+        : `<p class="note">${t("vm_note")}</p><div class="mv-area">${area(s, m)}</div>`}`;
   }
 
   function bind(el, m0) {
@@ -359,6 +369,16 @@ window.BA = window.BA || {};
     };
     putTop();                                                          // page entière redessinée : même position qu'avant
     wrap.addEventListener("scroll", e => { if (e.target.classList && e.target.classList.contains("mv-pop")) S.mvPopTop = e.target.scrollTop; }, true);
+    wrap.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("[data-mv-full]"); if (!b || !wrap.contains(b)) return;
+      S.mvFull = b.dataset.mvFull === "1" ? { num, view: curView() } : null;
+      S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0;
+      const { s, m } = cur(); if (!m) return;
+      wrap.classList.toggle("mv-fs", isFull(num));
+      wrap.innerHTML = blockInner(s, m, { title: !!wrap.querySelector("h3") });
+      bindInputs();
+      const nb = wrap.querySelector("[data-mv-full]"); if (nb) nb.focus({ preventScroll: true });
+    });
     const later = () => U.afterClick(() => redraw());
     function bindInputs() {
       wrap.querySelectorAll("[data-mvx]").forEach(i => {
@@ -449,6 +469,8 @@ window.BA = window.BA || {};
     window.__mvGlobal = true;
     document.addEventListener("keydown", e => {
       if (e.key !== "Escape") return;
+      const quit = document.querySelector(".mv-wrap.mv-fs [data-mv-full]");      // plein écran sans fenêtre par-dessus : Échap le quitte
+      if (quit && ![...document.querySelectorAll(".mv-pop-x")].some(x => x.getClientRects().length > 0) && !document.querySelector("#modal-root .modal-back")) { e.preventDefault(); e.stopPropagation(); quit.click(); return; }
       const xs = [...document.querySelectorAll(".mv-pop-x")].filter(x => x.getClientRects().length > 0); if (!xs.length) return;
       const top = document.querySelector("#modal-root .modal-back");     // une fenêtre (Retirer, confirmation…) est par-dessus : Échap la ferme, elle
       if (top && !top.contains(xs[xs.length - 1])) return;
