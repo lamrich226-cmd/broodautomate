@@ -25,6 +25,8 @@ for (const [name, page, opt] of [["tel-operateur", "operateur.html", { viewport:
   await p.click(".mv-fs .mv-d-box:not(.ro):not(.mv-free)"); await p.waitForTimeout(500);
   const pop = await p.evaluate(() => { const e = document.querySelector(".mv-pop"), r = e && e.getBoundingClientRect(), t = r && document.elementFromPoint(r.left + r.width / 2, r.top + 20); return { ouvert: !!e, dessus: !!(t && t.closest(".mv-pop")) }; });
   ok("un tiroir touché : sa fenêtre s'ouvre par-dessus le plein écran", pop.ouvert && pop.dessus, pop);
+  const pains = await p.evaluate(() => [...document.querySelectorAll(".mv-pop .mv-loaf")].map(e => Math.round(e.getBoundingClientRect().height)));
+  ok("fenêtre du tiroir en plein écran : pains de belle taille (≥ 45 px)", pains.length > 0 && pains.every(h => h >= 45), pains);
   await p.screenshot({ path: path.join(OUT, name + "-2-tiroir.png") });
   await p.click(".mv-pop-x"); await p.waitForTimeout(300);
   ok("fenêtre fermée : on reste en plein écran", !!(await p.$(".mv-wrap.mv-fs")) && !(await p.$(".mv-pop")));

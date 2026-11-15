@@ -1216,3 +1216,13 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
   .mv-fs .mv-loaf { min-height: 16px; }
 }
 .carte-machine .door-banner { margin-right: 52px; }
+
+/* v5.31.1 : la fenêtre d'un tiroir ouverte PAR-DESSUS le plein écran garde sa taille normale (les pains y étaient écrasés par les règles du plein écran) */
+.mv-fs .mv-big .mv-slots { flex: none; min-height: 0; align-items: stretch; gap: 8px; grid-template-rows: none; margin-top: 2px; }
+.mv-fs .mv-big .mv-sw { height: auto; min-height: 0; justify-content: flex-start; gap: 2px; }
+.mv-fs .mv-big .mv-loaf { height: 54px; flex: none; min-height: 0; max-height: none; border-radius: 26px 26px 10px 10px; }
+.mv-fs .mv-big .mv-loaf.f { filter: none; background-image: none; }
+.mv-fs .mv-big .mv-ty { display: inline; }
+.mv-fs .mv-big .mv-d { display: block; }
+.mv-fs .mv-big .mv-top { flex-wrap: wrap; justify-content: flex-start; padding: 0; }
+.mv-fs .mv-big .mv-d-box { overflow: visible; }
