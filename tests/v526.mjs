@@ -1,0 +1,44 @@
+// v5.26 (design-test) : machine en plein écran (admin et opérateur, téléphone et ordinateur), données de démonstration
+import { createRequire } from "node:module"; import fs from "node:fs"; import path from "node:path"; import http from "node:http"; import { fileURLToPath } from "node:url";
+const here = path.dirname(fileURLToPath(import.meta.url));
+const { chromium } = createRequire(path.join(here, "x.js"))("playwright");
+const ROOT = path.resolve(here, process.argv[2] || ".."), OUT = path.resolve(process.argv[3] || path.join(here, "captures-v526")); fs.mkdirSync(OUT, { recursive: true });
+const NM = path.join(here, "node_modules");
+const LIB = { "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js": "@supabase/supabase-js/dist/umd/supabase.js", "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js": "chart.js/dist/chart.umd.js", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js": "xlsx/dist/xlsx.full.min.js" };
+const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(new URL(q.url, "http://x").pathname)); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end(); return; } r.writeHead(200, { "content-type": f.endsWith(".js") ? "application/javascript; charset=utf-8" : f.endsWith(".css") ? "text/css" : "text/html; charset=utf-8" }); fs.createReadStream(f).pipe(r); });
+await new Promise(r => srv.listen(0, "127.0.0.1", r)); const U = "http://127.0.0.1:" + srv.address().port + "/";
+let bad = 0; const ok = (n, c, d) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c ? "" : " → " + JSON.stringify(d))); if (!c) bad++; };
+const b = await chromium.launch(), errs = [];
+for (const [name, page, opt] of [["tel-operateur", "operateur.html", { viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true }], ["pc-admin", "index.html", { viewport: { width: 1366, height: 800 } }]]) {
+  console.log("\n== " + name);
+  const ctx = await b.newContext({ locale: "fr-BE", ...opt });
+  for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(path.join(NM, f), "utf8") }));
+  const p = await ctx.newPage(); p.on("pageerror", e => errs.push(name + ": " + e.message));
+  await p.goto(U + page + "?demo&tick=0"); await p.waitForSelector("#app-nav button, #app-tabbar button", { state: "attached", timeout: 30000 }); await p.waitForTimeout(2000);
+  await p.evaluate(() => { BA.Shell.state.machine = 105; BA.Shell.go("details"); }); await p.waitForTimeout(900);
+  ok("Détails : bouton « Plein écran » présent, pas encore en plein écran", !!(await p.$("#view-details [data-mv-full='1']")) && !(await p.$(".mv-wrap.mv-fs")));
+  await p.click("#view-details [data-mv-full]"); await p.waitForTimeout(500);
+  const fsx = await p.evaluate(() => { const w = document.querySelector(".mv-wrap.mv-fs"), r = w && w.getBoundingClientRect(); return { on: !!w, plein: !!r && r.width >= innerWidth - 1 && r.height >= innerHeight - 1, tiroirs: document.querySelectorAll(".mv-fs .mv-d-box").length, cab: !!document.querySelector(".mv-fs .mv-cab .mv-sign"), dessus: (() => { const e = document.elementFromPoint(innerWidth / 2, innerHeight / 2); return !!(e && e.closest(".mv-fs")); })() }; });
+  ok("plein écran : la machine couvre tout l'écran, au-dessus de la barre latérale / des onglets", fsx.on && fsx.plein && fsx.dessus, fsx);
+  ok("… avec ses tiroirs et le panneau « machine » (écran, clavier, adresse)", fsx.tiroirs >= 15 && fsx.cab, fsx);
+  await p.screenshot({ path: path.join(OUT, name + "-1-plein-ecran.png") });
+  await p.click(".mv-fs .mv-d-box:not(.ro):not(.mv-free)"); await p.waitForTimeout(500);
+  const pop = await p.evaluate(() => { const e = document.querySelector(".mv-pop"), r = e && e.getBoundingClientRect(), t = r && document.elementFromPoint(r.left + r.width / 2, r.top + 20); return { ouvert: !!e, dessus: !!(t && t.closest(".mv-pop")) }; });
+  ok("un tiroir touché : sa fenêtre s'ouvre par-dessus le plein écran", pop.ouvert && pop.dessus, pop);
+  await p.screenshot({ path: path.join(OUT, name + "-2-tiroir.png") });
+  await p.click(".mv-pop-x"); await p.waitForTimeout(300);
+  ok("fenêtre fermée : on reste en plein écran", !!(await p.$(".mv-wrap.mv-fs")) && !(await p.$(".mv-pop")));
+  await p.evaluate(() => BA.Store.ping()); await p.waitForTimeout(900);
+  ok("l'écran se redessine (nouvelle donnée) : toujours en plein écran", !!(await p.$(".mv-wrap.mv-fs")));
+  await p.keyboard.press("Escape"); await p.waitForTimeout(300);
+  ok("Échap quitte le plein écran", !(await p.$(".mv-wrap.mv-fs")) && !!(await p.$("#view-details [data-mv-full='1']")));
+  await p.click("#view-details [data-mv-full]"); await p.waitForTimeout(300);
+  await p.click(".mv-fs [data-mv-full]"); await p.waitForTimeout(300);
+  ok("le bouton « Quitter le plein écran » aussi", !(await p.$(".mv-wrap.mv-fs")));
+  await p.click("#view-details [data-mv-full]"); await p.waitForTimeout(300);
+  await p.evaluate(() => BA.Shell.go("products")); await p.waitForTimeout(700);
+  ok("autre page : aucun plein écran visible", await p.evaluate(() => ![...document.querySelectorAll(".mv-wrap.mv-fs")].some(w => w.getClientRects().length > 0)));
+  await ctx.close();
+}
+ok("aucune erreur dans les pages", errs.length === 0, errs.slice(0, 5));
+await b.close(); srv.close(); console.log(bad ? `\n${bad} ÉCHEC(S)` : "\nTOUT EST BON"); process.exit(bad ? 1 : 0);

@@ -1069,7 +1069,7 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .mv-c.st-empty { border-style: dashed; }
 .mv-c.st-free { border-style: dashed; border-color: var(--line); background: transparent; } .mv-c.st-free small, .mv-c.st-free b { color: var(--text-faint); font-weight: 500; }
 /* fenêtre pop-up d'un tiroir (Détail machine, Produits, Remplir) : par-dessus la page, rien ne s'élargit */
-.mv-pop-back { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8, 6, 4, .58); overscroll-behavior: contain; }
+.mv-pop-back { position: fixed; inset: 0; z-index: 62; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8, 6, 4, .58); overscroll-behavior: contain; }
 .mv-pop { width: 100%; max-width: 480px; max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: auto; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 16px; padding: 12px 16px 16px; box-shadow: var(--shadow-lg); display: grid; gap: 8px; animation: ba-pop .15s var(--ease); }
 /* « Remplir » : le flou du fond de la fenêtre empêchait la fenêtre du tiroir de couvrir tout l'écran du téléphone */
 .modal-back:has(.mv-pop-back) { -webkit-backdrop-filter: none; backdrop-filter: none; overflow: hidden; }
@@ -1102,3 +1102,61 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 }
 .lm-sels { min-width: 190px; max-width: 260px; } .lm-sels .mv-compact { margin: 0; }
 .demo-banner { position: relative; z-index: 40; background: var(--c-info, #1d5fd6); color: #fff; font-weight: 650; font-size: .85rem; text-align: center; padding: 6px 12px; }
+
+/* v5.26 : machine en plein écran, dessinée comme la vraie (cadre blanc, vitre éclairée, étagères en métal, clavier à droite) */
+.mv-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.mv-head h3 { margin: 0; }
+.mv-fs-btn { min-height: 40px; padding: 0 14px; white-space: nowrap; }
+.mv-fs { position: fixed; inset: 0; z-index: 61; overflow: auto; overscroll-behavior: contain; background: #0e1013; padding: 12px max(14px, env(safe-area-inset-right, 0px)) 28px max(14px, env(safe-area-inset-left, 0px)); padding-top: max(12px, env(safe-area-inset-top, 0px)); }
+.mv-fs .mv-head { position: sticky; top: 0; z-index: 3; justify-content: flex-end; padding: 2px 0 10px; background: #0e1013; max-width: 1000px; margin: 0 auto; }
+.mv-fs .mv-head h3 { display: none; }
+.mv-fs .mv-fs-btn { background: #23262b; color: #f2f4f6; border-color: #3b4047; }
+.mv-cab { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 0 12px; max-width: 1000px; margin: 0 auto; padding: 14px 14px 0; border-radius: 12px; background: linear-gradient(145deg, #f6f7f8, #c3c8cd 60%, #e4e7ea); box-shadow: 0 10px 40px rgba(0, 0, 0, .6), inset 0 0 0 2px rgba(255, 255, 255, .7); }
+.mv-cab-main { min-width: 0; }
+.mv-cab-main .mv-mach { min-width: 0; } .mv-cab-main .mv-lg { color: #2b2f33; font-size: .78rem; } .mv-cab-main .mv-legend, .mv-cab-main .mv-leg { padding: 4px 2px 0; }
+.mv-cab-side { align-self: start; display: grid; gap: 14px; justify-items: center; align-content: start; padding: 16px 10px; border-radius: 8px; background: linear-gradient(#17191c, #0b0c0e); color: #cfd8e3; min-height: 60%; }
+.mv-scr { width: 100%; text-align: center; padding: 10px 4px; border-radius: 4px; background: linear-gradient(#1f6fd6, #1553a8); color: #fff; font-weight: 700; font-size: .85rem; box-shadow: 0 0 10px rgba(40, 120, 230, .6); }
+.mv-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px; border-radius: 6px; background: #1b2640; }
+.mv-keys i { width: 22px; height: 16px; border-radius: 3px; background: #2b3f78; box-shadow: inset 0 0 0 1px #5a78d0, 0 0 4px rgba(90, 120, 220, .5); }
+.mv-coin { width: 46px; height: 46px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #c9ccd0, #6c7075); box-shadow: inset 0 0 0 5px #2a2c2f, 0 1px 2px #000; margin-top: 12px; }
+.mv-sign { grid-column: 1 / -1; justify-self: center; margin: 12px 0 14px; padding: 8px 18px; background: #fbfbfb; color: #14161a; font-weight: 800; font-size: 1.05rem; letter-spacing: .03em; border: 2px solid #14161a; text-align: center; max-width: 100%; overflow-wrap: anywhere; }
+/* la vitre : intérieur sombre, bords éclairés ; chaque étage = une étagère en métal ; chaque tiroir = un compartiment */
+.mv-fs .mv-glass { padding: 10px 10px 0; border: 0; border-radius: 4px;
+  background: radial-gradient(120% 60% at 50% 0, #3a3f46 0, #1b1e23 55%, #121418 100%);
+  box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .7), inset 0 0 26px rgba(255, 255, 255, .28);
+  --text: #f1f3f5; --text-dim: #c9ced4; --text-faint: #99a1a9; --line-strong: rgba(255, 255, 255, .38); --line: rgba(255, 255, 255, .2);
+  --c-remove: #ffae42; --c-empty: #ff7b6e; --c-ok: #62d68f; --c-info: #78a8ff; --surface: #1f2227; --surface-3: #262a30; }
+.mv-fs .mv-grid { gap: 0; }
+.mv-fs .mv-etage { position: relative; gap: 0; padding: 8px 0 18px; border-bottom: 0; }
+.mv-fs .mv-etage::after { content: ""; position: absolute; left: -10px; right: -10px; bottom: 0; height: 9px; background: linear-gradient(#f4f5f6, #9aa0a6 70%, #6d7378); box-shadow: 0 3px 6px rgba(0, 0, 0, .5); }
+.mv-fs .mv-lvl { align-self: end; margin: 0 0 4px; font-size: .7rem; color: #aab1b8; }
+.mv-fs .mv-d-box { background: transparent; border: 0; border-left: 1px solid rgba(255, 255, 255, .22); border-radius: 0; padding: 4px 8px 2px; gap: 4px; }
+.mv-fs .mv-etage .mv-d-box:last-child { border-right: 1px solid rgba(255, 255, 255, .22); }
+.mv-fs .mv-slots { order: 1; gap: 6px; margin-top: 4px; }
+.mv-fs .mv-sw { gap: 2px; }
+.mv-fs .mv-loaf { height: 58px; border-radius: 28px 28px 10px 10px; }
+.mv-fs .mv-loaf.f { filter: drop-shadow(0 5px 4px rgba(0, 0, 0, .55)); background-image: linear-gradient(100deg, rgba(255, 255, 255, .38), rgba(255, 255, 255, 0) 38%, rgba(0, 0, 0, .25)); }
+.mv-fs .mv-h { font-size: .88rem; } .mv-fs .mv-d { font-size: .74rem; }
+.mv-fs .mv-top { order: 3; margin-top: 2px; padding: 3px 7px; border-radius: 3px; background: #f3f4f5; color: #17191c; --text: #17191c; --text-dim: #4b5057; font-size: .8rem; }
+.mv-fs .mv-top b { font-size: 1.05rem; }
+.mv-fs .mv-st { order: 4; font-size: .82rem; }
+.mv-fs .mv-d-box.mv-free { border-color: rgba(255, 255, 255, .22); } .mv-fs .mv-free .mv-top { background: rgba(243, 244, 245, .55); }
+.mv-fs .mv-plus { color: #99a1a9; }
+@media (max-width: 600px) {     /* téléphone : le panneau du clavier devient une bande étroite, tiroirs et textes resserrés */
+  .mv-cab { grid-template-columns: minmax(0, 1fr) 46px; gap: 0 6px; padding: 8px 8px 0; }
+  .mv-cab-side { padding: 8px 4px; gap: 10px; }
+  .mv-scr { font-size: .62rem; padding: 6px 2px; } .mv-keys { grid-template-columns: repeat(2, 1fr); gap: 4px; padding: 5px; } .mv-keys i { width: 10px; height: 9px; } .mv-coin { width: 30px; height: 30px; box-shadow: inset 0 0 0 3px #2a2c2f; }
+  .mv-fs .mv-glass { padding: 6px 4px 0; }
+  .mv-fs .mv-etage { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+  .mv-fs .mv-lvl { display: none; }
+  .mv-fs .mv-etage::after { left: -4px; right: -4px; height: 7px; }
+  .mv-fs .mv-d-box { padding: 3px 3px 2px; } .mv-fs .mv-slots { gap: 2px; } .mv-fs .mv-loaf { height: 44px; border-radius: 22px 22px 8px 8px; }
+  .mv-fs .mv-h { font-size: .66rem; } .mv-fs .mv-d { font-size: .56rem; } .mv-fs .mv-st { font-size: .66rem; }
+  .mv-fs .mv-top { font-size: .66rem; padding: 2px 4px; } .mv-fs .mv-top b { font-size: .85rem; }
+  .mv-sign { font-size: .8rem; padding: 6px 10px; margin: 8px 0 10px; }
+}
+.mv-fs i.mv-loaf { width: 14px; height: 14px; border-radius: 7px 7px 3px 3px; filter: none; background-image: none; }
+.mv-fs .mv-lg { font-size: .78rem; } .mv-fs .mv-lg-free { border-color: #5a5f66; }
+.mv-fs .mv-free .mv-top b, .mv-fs .mv-free .mv-ty { color: #2b2f33; }
+.mv-fs .mv-free .mv-top { background: rgba(243, 244, 245, .75); }
+.mv-fs .mv-free .mv-st { color: #d5d8dc; }
