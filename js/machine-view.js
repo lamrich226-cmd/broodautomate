@@ -15,7 +15,7 @@ window.BA = window.BA || {};
   const pad = n => String(n).padStart(2, "0");
   const dd = ms => { const d = new Date(ms); return pad(d.getDate()) + "/" + pad(d.getMonth() + 1); };
   const hrs = (s, ms) => Math.max(0, Math.floor((s.now - ms) / H));
-  const MAXSLOTS = 6;     // jusqu'à 6 pains par tiroir : un dessin par pain (1 à 4 sur une ligne ; 5 et 6 sur deux lignes de 3) ; au-delà : une barre et une puce par livraison
+  const MAXSLOTS = 6;     // jusqu'à 6 pains par tiroir : un dessin par pain (1 à 3 sur une ligne ; 4 à 6 sur deux lignes de 3 max) ; au-delà : une barre et une puce par livraison
   const isWide = () => !!(window.matchMedia && window.matchMedia("(min-width: 900px)").matches);
 
   // ---------------- Choix d'affichage : « Machine » (la maquette) ou « Classique » (l'ancien design, tel qu'il était) ----------------
@@ -166,7 +166,7 @@ window.BA = window.BA || {};
   // ---------------- Dessin ----------------
   function slots(sel, list) {
     if (sel.cap <= MAXSLOTS) {
-      return `<span class="mv-slots" style="--n:${sel.cap <= 4 ? sel.cap : 3}">${Array.from({ length: sel.cap }, (_, i) => {
+      return `<span class="mv-slots" style="--n:${Math.min(sel.cap, 3)}">${Array.from({ length: sel.cap }, (_, i) => {
         const b = list[i];
         if (!b) return `<span class="mv-sw"><span class="mv-loaf"></span><span class="mv-h"></span><span class="mv-d"></span></span>`;
         return `<span class="mv-sw"><span class="mv-loaf f ty-${E(sel.type)} k-${b.k}"></span><span class="mv-h k-${b.k}">${b.k === "new" ? "＋" : t("vm_ago", { h: b.h })}</span><span class="mv-d">${b.d}</span></span>`;

@@ -69,7 +69,7 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   });
   console.log(JSON.stringify(r));
   ok("3 pains : 1 ligne de 3", r[0] && r[0].n === 3 && r[0].cols === 3 && r[0].rows === 1, r[0]);
-  ok("4 pains : 1 ligne de 4", r[1] && r[1].n === 4 && r[1].cols === 4 && r[1].rows === 1, r[1]);
+  ok("4 pains : 2 lignes (3 puis 1)", r[1] && r[1].n === 4 && r[1].cols === 3 && r[1].rows === 2, r[1]);
   ok("5 pains : 2 lignes de 3 (3 puis 2)", r[2] && r[2].n === 5 && r[2].cols === 3 && r[2].rows === 2, r[2]);
   ok("6 pains : 2 lignes de 3", r[3] && r[3].n === 6 && r[3].cols === 3 && r[3].rows === 2, r[3]);
   ok("7 pains : repli sur la barre (pas de dessins)", r.length === 4, r);
