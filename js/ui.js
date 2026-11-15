@@ -571,7 +571,7 @@ window.BA = window.BA || {};
   const groupKey = e => e.code + "|" + (e.key || "");
   function detailAlerts(s, m, evs, ctx) {
     if (!evs.length) {
-      const arch = s.events.filter(e => e.num === m.num && e.archived).length;
+      const arch = s.events.filter(e => e.num === m.num && e.archived && !e.deleted).length;
       return `<p class="note">${t("no_alerts")}${ctx.admin && arch ? ` <button class="link-btn" data-det-archived="1">${t("det_al_see_archived", { n: arch })}</button>` : ""}</p>`;
     }
     const act = evs.filter(e => !e.resolved), done = evs.filter(e => e.resolved);
@@ -579,7 +579,7 @@ window.BA = window.BA || {};
     done.forEach(e => { const k = groupKey(e); let g = groups.find(x => x.k === k); if (!g) groups.push(g = { k, list: [] }); g.list.push(e); });
     groups.forEach(g => g.list.sort((a, b) => b.t - a.t));
     groups.sort((a, b) => b.list[0].t - a.list[0].t);
-    const arch = s.events.filter(e => e.num === m.num && e.archived).length;
+    const arch = s.events.filter(e => e.num === m.num && e.archived && !e.deleted).length;
     const tools = ctx.admin && (done.length || arch) ? `<div class="al-tools">
         ${done.length ? `<button class="btn secondary petit" id="det-arch-done">📦 ${t("det_al_arch_done", { n: done.length })}</button>` : ""}
         ${arch ? `<button class="link-btn" data-det-archived="1">${t("det_al_see_archived", { n: arch })}</button>` : ""}</div>` : "";
@@ -823,17 +823,20 @@ window.BA = window.BA || {};
     return vars;
   }
   const evTitle = (s, e) => t("ev_" + e.code, evVars(s, e));
-  function eventHtml(s, e, withActions) {
+  function eventHtml(s, e, withActions, withTrash) {
     const cls = e.resolved ? "info fini" : e.level === "err" ? "err" : e.level === "warn" ? "warn" : "info";
     const vars = evVars(s, e);
     const state = e.resolved ? `<span class="tag c-ok">${t("ev_resolved")} ${e.resolvedAt ? F.dt(e.resolvedAt) : ""}</span>` : `<span class="tag c-active">${t("ev_active")}</span>`;
-    const actions = withActions
-      ? (e.archived ? `<button class="btn petit secondary" data-unarchive="${e.id}">${t("btn_unarchive")}</button>` : `<button class="btn petit secondary" data-archive="${e.id}">📦 ${t("btn_archive")}</button>`)
-      : "";
+    // v5.30 : dans la corbeille : Restaurer / Effacer pour de bon ; ailleurs (page Alertes) : Archiver ou Désarchiver, et Supprimer
+    const left = e.deleted ? Math.max(0, Math.ceil((e.deleted + BA.Actions.TRASH_DAYS * 86400000 - s.now) / 86400000)) : 0;
+    const actions = !withActions ? ""
+      : e.deleted ? `<button class="btn petit secondary" data-restore="${e.id}">↩️ ${t("btn_restore")}</button><button class="btn petit secondary" data-purge="${e.id}">❌ ${t("btn_purge")}</button>`
+      : (e.archived ? `<button class="btn petit secondary" data-unarchive="${e.id}">${t("btn_unarchive")}</button>` : `<button class="btn petit secondary" data-archive="${e.id}">📦 ${t("btn_archive")}</button>`)
+        + (withTrash ? `<button class="btn petit secondary" data-delete="${e.id}">🗑 ${t("btn_delete")}</button>` : "");
     return `<div class="alert ${cls}">
       <div class="ev-head"><b>${t("ev_" + e.code, vars)}</b><span class="petit">#${e.num} · ${F.dt(e.t)}</span></div>
       <div class="sous">${t("evd_" + e.code, vars)}</div>
-      <div class="ev-foot">${state}<span class="tag">${t("cat_" + e.cat)}</span>${e.archived ? `<span class="tag">${t("ev_archived")}</span>` : ""}${actions}</div>
+      <div class="ev-foot">${state}<span class="tag">${t("cat_" + e.cat)}</span>${e.deleted ? `<span class="tag">🗑 ${t("ev_trash_left", { n: left })}</span>` : e.archived ? `<span class="tag">${t("ev_archived")}</span>` : ""}${actions}</div>
     </div>`;
   }
 
@@ -845,30 +848,42 @@ window.BA = window.BA || {};
     const cats = ctx.admin ? [...M.OPERATOR_CATS, "business"] : M.OPERATOR_CATS;
     let list = s.events.filter(e => cats.includes(e.cat));
     if (!ctx.admin) list = list.filter(e => !e.archived);
+    // v5.30 : filtre par machine (les numéros de machines supprimées y sont aussi, pour retrouver leurs anciennes alertes)
+    const nums = [...new Set([...s.machines.map(m => m.num), ...list.map(e => e.num)])].sort((x, y) => x - y);
+    if (st.alertMachine !== undefined && st.alertMachine !== "all" && !nums.includes(Number(st.alertMachine))) st.alertMachine = "all";
+    st.alertMachine = st.alertMachine === undefined ? "all" : st.alertMachine;
+    if (st.alertMachine !== "all") list = list.filter(e => e.num === Number(st.alertMachine));
     const counts = {
       active: list.filter(e => !e.resolved && !e.archived).length,
       resolved: list.filter(e => e.resolved && !e.archived).length,
-      archived: list.filter(e => e.archived).length,
-      all: list.length
+      archived: list.filter(e => e.archived && !e.deleted).length,
+      all: list.filter(e => !e.deleted).length,
+      trash: list.filter(e => e.deleted).length
     };
-    const f = st.alertFilter;
-    list = list.filter(e => f === "all" ? true : f === "active" ? !e.resolved && !e.archived : f === "resolved" ? e.resolved && !e.archived : e.archived);
+    const f = ctx.admin || ["active", "resolved", "all"].includes(st.alertFilter) ? st.alertFilter : "active";   // l'opérateur n'a ni « Archivées » ni « Corbeille »
+    list = list.filter(e => f === "all" ? !e.deleted : f === "active" ? !e.resolved && !e.archived : f === "resolved" ? e.resolved && !e.archived : f === "trash" ? !!e.deleted : e.archived && !e.deleted);
     if (st.alertCat !== "all") list = list.filter(e => e.cat === st.alertCat);
-    const filters = ctx.admin ? ["active", "resolved", "archived", "all"] : ["active", "resolved", "all"];
-    // archivage en lot : exactement les alertes affichées dans cet onglet (sans celles déjà archivées)
-    const bulk = ctx.admin && f !== "archived" ? list.filter(e => !e.archived) : [];
+    const filters = ctx.admin ? ["active", "resolved", "archived", "all", "trash"] : ["active", "resolved", "all"];
+    // archivage / suppression en lot : exactement les alertes affichées dans cet onglet (sans celles déjà archivées ; la suppression garde aussi les archivées)
+    const bulk = ctx.admin && f !== "archived" && f !== "trash" ? list.filter(e => !e.archived) : [];
+    const bulkDel = ctx.admin && f !== "trash" ? list.filter(e => !e.deleted) : [];
+    const mSel = `<select id="alert-machine" class="auto-w" aria-label="${E(t("alert_machine"))}"><option value="all">${t("alert_machine_all")}</option>${nums.map(n => `<option value="${n}" ${String(st.alertMachine) === String(n) ? "selected" : ""}>${M.numTxt ? M.numTxt(n) : "#" + n}</option>`).join("")}</select>`;
     el.innerHTML = `
       <h2>⚠️ ${t("nav_alerts")}</h2>
       ${ctx.admin ? "" : `<p class="note">${t("alerts_op_note")}</p>`}
       <div class="toolbar">
-        <div class="seg">${filters.map(k => `<button data-filter="${k}" class="${f === k ? "active" : ""}">${t("af_" + k)} (${counts[k]})</button>`).join("")}</div>
+        <div class="seg">${filters.map(k => `<button data-filter="${k}" class="${f === k ? "active" : ""}">${k === "trash" ? "🗑 " : ""}${t("af_" + k)} (${counts[k]})</button>`).join("")}</div>
+        ${mSel}
         <select id="alert-cat" class="auto-w"><option value="all">${t("cat_all")}</option>${cats.map(c => `<option value="${c}" ${st.alertCat === c ? "selected" : ""}>${t("cat_" + c)}</option>`).join("")}</select>
         ${bulk.length ? `<button class="btn secondary" id="archive-shown">📦 ${t("btn_archive_shown", { n: bulk.length })}</button>` : ""}
+        ${bulkDel.length ? `<button class="btn secondary" id="delete-shown">🗑 ${t("btn_delete_shown", { n: bulkDel.length })}</button>` : ""}
+        ${f === "trash" && list.length ? `<button class="btn secondary" id="empty-trash">❌ ${t("btn_empty_trash", { n: list.length })}</button>` : ""}
       </div>
-      ${ctx.admin ? `<p class="note">${t("archive_note")}</p>` : ""}
-      ${list.length ? list.slice(0, 120).map(e => eventHtml(s, e, ctx.admin)).join("") : `<div class="alert info">${t("no_alerts")}</div>`}`;
+      ${ctx.admin ? `<p class="note">${t(f === "trash" ? "trash_note" : "archive_note", { d: BA.Actions.TRASH_DAYS })}</p>` : ""}
+      ${list.length ? list.slice(0, 120).map(e => eventHtml(s, e, ctx.admin, ctx.admin)).join("") : `<div class="alert info">${t(f === "trash" ? "trash_empty" : "no_alerts")}</div>`}`;
     el.querySelectorAll("[data-filter]").forEach(b => b.onclick = () => { st.alertFilter = b.dataset.filter; renderAlerts(el, ctx); });
     el.querySelector("#alert-cat").onchange = e => { st.alertCat = e.target.value; renderAlerts(el, ctx); };
+    el.querySelector("#alert-machine").onchange = e => { st.alertMachine = e.target.value; renderAlerts(el, ctx); };
     if (ctx.admin) {
       // après chaque action, l'écran est redessiné tout de suite (sans attendre la mise à jour suivante)
       const done = msg => { renderAlerts(el, ctx); toast(msg); };
@@ -882,6 +897,22 @@ window.BA = window.BA || {};
       };
       el.querySelectorAll("[data-archive]").forEach(b => b.onclick = () => { BA.Actions.archiveEvent(b.dataset.archive, true); done(t("archive_done")); });
       el.querySelectorAll("[data-unarchive]").forEach(b => b.onclick = () => { BA.Actions.archiveEvent(b.dataset.unarchive, false); done(t("unarchive_done")); });
+      // v5.30 : corbeille. Supprimer demande toujours confirmation (une alerte encore active le dit en plus) ; restaurer ne demande rien
+      const delAsk = (ids, nAct) => confirmDialog({ title: t("delete_confirm_t", { n: ids.length }),
+        html: `<p>${t("delete_confirm", { n: ids.length, d: BA.Actions.TRASH_DAYS })}</p>${nAct ? `<p>${t("delete_confirm_act", { a: nAct })}</p>` : ""}`,
+        ok: "🗑 " + t("btn_delete"), onOk: () => { const n = BA.Actions.deleteEvents(ids); done(t("delete_done_n", { n, d: BA.Actions.TRASH_DAYS })); } });
+      const dsh = el.querySelector("#delete-shown");
+      if (dsh) dsh.onclick = () => delAsk(bulkDel.map(e => e.id), bulkDel.filter(e => !e.resolved).length);
+      el.querySelectorAll("[data-delete]").forEach(b => b.onclick = () => {
+        const e = s.events.find(x => x.id === Number(b.dataset.delete));
+        delAsk([Number(b.dataset.delete)], e && !e.resolved ? 1 : 0);
+      });
+      el.querySelectorAll("[data-restore]").forEach(b => b.onclick = () => { BA.Actions.restoreEvents([b.dataset.restore]); done(t("restore_done")); });
+      const purgeAsk = ids => confirmDialog({ title: t("purge_confirm_t", { n: ids.length }), html: `<p>${t("purge_confirm", { n: ids.length })}</p>`,
+        ok: "❌ " + t("btn_purge"), danger: true, onOk: () => { const n = BA.Actions.purgeEvents(ids); done(t("purge_done_n", { n })); } });
+      el.querySelectorAll("[data-purge]").forEach(b => b.onclick = () => purgeAsk([Number(b.dataset.purge)]));
+      const et = el.querySelector("#empty-trash");
+      if (et) et.onclick = () => purgeAsk(list.map(e => e.id));
     }
   }
 
@@ -1051,7 +1082,7 @@ window.BA = window.BA || {};
         <h1 id="page-title"></h1>
         <div id="status-bar">
           <span id="sync-status" class="badge"></span>
-          ${admin ? `<span id="serial-status" class="badge off">RS232 : ${t("rs_disconnected")}</span>` : ""}
+          ${admin ? `<span id="serial-status" class="badge off" style="display:none">RS232 : ${t("rs_disconnected")}</span>` : ""}
           <span id="online-status" class="badge on"></span>
           <span id="notif-slot"></span>
         </div>`;

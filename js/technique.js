@@ -149,7 +149,7 @@ window.BA = window.BA || {};
   }
   function htmlAlertes() {
     const s = BA.Store.get(), F = U().F;
-    const list = s.events.filter(e => TECH.includes(e.code)).slice(0, 20);
+    const list = s.events.filter(e => TECH.includes(e.code) && !e.deleted).slice(0, 20);
     if (!list.length) return `<p class="note">— ${E(t("tq_j_alerts_none"))} —</p>`;
     return `<div class="table-scroll"><table class="compact tq-table tbl-tel">
       <thead><tr><th>${E(t("tq_j_col_at"))}</th><th>${E(t("machine"))}</th><th>${E(t("tq_j_col_alert"))}</th><th>${E(t("tq_j_col_state"))}</th></tr></thead>

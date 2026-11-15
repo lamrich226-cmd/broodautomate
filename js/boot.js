@@ -92,6 +92,9 @@ window.BA = window.BA || {};
       // v5.29 : historique resté sous le numéro d'une machine supprimée → numéro fantôme (voir BA.Reel.reparerNumeros)
       try { if (BA.Reel && BA.Reel.aReparer && BA.Reel.aReparer(BA.Store.get())) BA.Store.update(s => { BA.Reel.reparerNumeros(s); }, true); }
       catch (e) { console.warn("Réparation des numéros de machine :", e); }
+      // v5.30 : corbeille des alertes : celles supprimées depuis plus de 30 jours sont effacées pour de bon (à l'ouverture, puis toutes les 6 h)
+      const viderCorbeille = () => { try { BA.Actions.purgeTrash(); } catch (e) { console.warn("Corbeille des alertes :", e); } };
+      viderCorbeille(); setInterval(viderCorbeille, 6 * 3600000);
       close();
       BA.Shell.init(ctx);
       if (BA.Boitiers) BA.Boitiers.start();          // boîtiers 4G : relevés reçus par la 4G

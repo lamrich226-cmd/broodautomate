@@ -1,4 +1,4 @@
-> **État actuel (v5.29.2, 15/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.30.0, 15/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -105,6 +105,20 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.30.0 — Alertes : filtre par machine, « Supprimer » avec Corbeille de 30 jours ; badge RS232 caché
+
+- **Alertes → filtre par machine** : un menu « Toutes les machines / #1 / #2 … » à côté du filtre par catégorie ; les compteurs des onglets
+  (Actives, Résolues, Archivées, Toutes, Corbeille) suivent la machine choisie. Les numéros de machines supprimées y sont aussi.
+- **Supprimer une alerte** (admin) : bouton « 🗑 Supprimer » sur chaque alerte, et « Supprimer ces N alertes » pour toutes celles affichées.
+  Une confirmation est toujours demandée (elle prévient si une alerte est encore active). L'alerte disparaît partout (elle est aussi marquée
+  « archivée » : `deleted` = date de suppression) et va dans l'onglet **🗑 Corbeille**.
+- **Corbeille** : une alerte y reste **30 jours** (le nombre de jours restants est affiché). Dedans : « ↩️ Restaurer » (elle revient comme avant),
+  « ❌ Effacer pour de bon » (confirmation) et « Vider la corbeille ». Passé 30 jours, elle est **effacée pour de bon** automatiquement
+  (`BA.Actions.purgeTrash`, à l'ouverture de l'appli puis toutes les 6 h). Les alertes supprimées ne comptent plus dans « Technique » ni dans les
+  statistiques d'alertes. L'opérateur ne voit ni la Corbeille ni les boutons de suppression.
+- **Badge « RS232 : déconnecté »** : caché tant que le câble n'est pas branché (il réapparaît « connecté », ou en erreur). Le câble sert peu.
+- Textes : `js/i18n-v530.js` (FR / NL / EN). Essais : `tests/v530.mjs` (31 vérifications).
 
 ## v5.29.2 — le badge « Hors ligne » ne reste plus affiché quand le réseau est revenu
 

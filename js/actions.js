@@ -8,6 +8,7 @@ window.BA = window.BA || {};
 
 (function () {
   const M = BA.Model, Store = BA.Store;
+  const TRASH_DAYS = 30, TRASH_MS = TRASH_DAYS * 86400000;      // v5.30 : durée de la corbeille des alertes
 
   function findLot(m, selN, lotId) {
     const sel = M.sel(m, selN);
@@ -191,6 +192,7 @@ window.BA = window.BA || {};
     },
 
     // ---------- Alertes ----------
+    TRASH_DAYS,
     archiveEvent(id, value) {
       Store.update(s => { const e = s.events.find(x => x.id === Number(id)); if (e) e.archived = !!value; });
     },
@@ -198,6 +200,29 @@ window.BA = window.BA || {};
     archiveEvents(ids) {
       const want = new Set((ids || []).map(Number));
       return Store.update(s => { let n = 0; s.events.forEach(e => { if (want.has(e.id) && !e.archived) { e.archived = true; n++; } }); return n; });
+    },
+    // v5.30 : CORBEILLE. « Supprimer » = l'alerte disparaît partout (elle est aussi marquée archivée, donc cachée comme une archivée)
+    // et reste 30 jours dans Alertes → Corbeille (e.deleted = date de suppression). Passé 30 jours, elle est effacée pour de bon.
+    deleteEvents(ids) {
+      const want = new Set((ids || []).map(Number));
+      return Store.update(s => { let n = 0; s.events.forEach(e => { if (want.has(e.id) && !e.deleted) { e.deleted = s.now || Date.now(); e.archived = true; n++; } }); return n; });
+    },
+    // remet des alertes de la corbeille dans « Actives » / « Résolues » (comme avant leur suppression)
+    restoreEvents(ids) {
+      const want = new Set((ids || []).map(Number));
+      return Store.update(s => { let n = 0; s.events.forEach(e => { if (want.has(e.id) && e.deleted) { e.deleted = null; e.archived = false; n++; } }); return n; });
+    },
+    // efface pour de bon des alertes qui sont dans la corbeille (jamais une alerte qui n'y est pas)
+    purgeEvents(ids) {
+      const want = new Set((ids || []).map(Number));
+      return Store.update(s => { const n0 = s.events.length; s.events = s.events.filter(e => !(want.has(e.id) && e.deleted)); return n0 - s.events.length; });
+    },
+    // effacement final des alertes de la corbeille depuis plus de 30 jours (appelé à l'ouverture de l'appli puis toutes les 6 h) ; renvoie le nombre effacé
+    purgeTrash() {
+      const dueNow = (s, now) => s.events.some(e => e.deleted && now - e.deleted >= TRASH_MS);
+      const cur = Store.get();
+      if (!cur || !Array.isArray(cur.events) || !dueNow(cur, Date.now())) return 0;        // rien à faire : aucune écriture
+      return Store.update(s => { const now = Date.now(), n0 = s.events.length; s.events = s.events.filter(e => !(e.deleted && now - e.deleted >= TRASH_MS)); return n0 - s.events.length; });
     },
 
     // ---------- Paramètres ----------

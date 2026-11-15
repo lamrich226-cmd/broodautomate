@@ -85,6 +85,7 @@ window.BA = window.BA || {};
     if (b) {
       b.textContent = "RS232 : " + (s === "connecté" ? t("rs_connected") : String(s).startsWith("erreur") ? t("rs_error") : t("rs_disconnected"));
       b.className = "badge " + (s === "connecté" ? "on" : String(s).startsWith("erreur") ? "err" : "off");
+      b.style.display = s === "connecté" || String(s).startsWith("erreur") ? "" : "none";     // v5.30 : le câble sert rarement : le badge n'apparaît que branché (ou en erreur)
     }
   }
   function majStatut(s) {

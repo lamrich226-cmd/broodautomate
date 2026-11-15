@@ -291,7 +291,7 @@ window.BA = window.BA || {};
       return d;
     });
     const t0 = FC.keyMs(w.from), t1 = FC.keyMs(FC.addDays(w.to, 1));
-    const alerts = s.events.filter(e => e.t >= t0 && e.t < t1).length;
+    const alerts = s.events.filter(e => e.t >= t0 && e.t < t1 && !e.deleted).length;
     return {
       w, pw, tot, ptot, tg, machines, perDay, alerts, acc: acc.tot,
       inT: active.filter(x => x.rate <= tg + 1e-9).length, active: active.length,
