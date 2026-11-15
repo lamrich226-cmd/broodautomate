@@ -1200,7 +1200,7 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
   .mv-fs .mv-sw { height: 100%; justify-content: flex-end; min-height: 0; }
   .mv-fs .mv-slots { grid-template-rows: repeat(var(--r, 1), minmax(0, 1fr)); }   /* 4 à 6 pains : deux lignes qui se partagent la hauteur */
   .mv-fs .mv-etage:has(.mv-slots[style*="--r:2"]) { flex-grow: 2; }
-  .mv-fs .mv-loaf { height: auto; flex: 1 1 0; min-height: 10px; max-height: 44px; }
+  .mv-fs .mv-loaf { height: auto; flex: 1 1 0; min-height: 10px; max-height: 96px; }
   .mv-fs .mv-cab-side { align-self: stretch; min-height: 0; overflow: hidden; }
   .mv-fs .mv-sign { margin: 6px 0 8px; padding: 4px 10px; font-size: .74rem; }
 }
@@ -1214,6 +1214,8 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
   .mv-fs .mv-top { flex-wrap: nowrap; justify-content: space-between; align-items: baseline; }
   .mv-fs .mv-slots { min-height: 22px; }
   .mv-fs .mv-loaf { min-height: 16px; }
+  .mv-fs .mv-d, .mv-fs .mv-h:empty { display: none; }   /* les pains passent avant : on garde seulement l'âge en heures sous les pains */
+  .mv-fs .mv-big .mv-d { display: block; }
 }
 .carte-machine .door-banner { margin-right: 52px; }
 
