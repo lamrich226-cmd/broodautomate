@@ -223,11 +223,11 @@ window.BA = window.BA || {};
   function compact(s, m) {
     const L = layout(m, true);
     return `<div class="mv-compact" role="group" aria-label="${E(t("vm_title"))}">${L.rows.map(r => `<div class="mv-crow"><span class="mv-cl">${r.e}</span>${r.cells.map(c => {
-      if (c.free) return `<span class="mv-c st-free" title="${E(t("vm_unused"))}"><small>${c.n}</small><b>–</b></span>`;
+      if (c.free) return `<span class="mv-cw"><small class="mv-cn">${t("vm_sel_c", { n: c.n })}</small><span class="mv-c st-free" title="${E(t("vm_unused"))}"><b>–</b></span></span>`;
       const B = breads(s, m, c.sel), stt = status.view(c.sel, B).k, q = B.length;
       const flag = stt === "must" ? "⛔" : stt === "old" ? "⚠" : stt === "kept" ? "⏳" : "";
       const fill = q <= 0 ? "none" : q >= c.sel.cap ? "full" : "part";     // vide : rouge · plein : vert · entre les deux : orange
-      return `<span class="mv-c st-${stt} fill-${fill}" title="${E(t("vm_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><small>${c.sel.n}</small><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span>`;
+      return `<span class="mv-cw"><small class="mv-cn">${t("vm_sel_c", { n: c.sel.n })}</small><span class="mv-c st-${stt} fill-${fill}" title="${E(t("vm_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span></span>`;
     }).join("")}</div>`).join("")}</div>`;
   }
 

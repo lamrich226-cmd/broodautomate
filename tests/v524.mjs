@@ -52,8 +52,8 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   console.log("== 1. Admin (ordinateur) : Dashboard et Détail machine");
   const a = await device("pc", { viewport: { width: 1440, height: 900 } }, "index.html");
   ok("Dashboard : une petite machine sur chaque carte (20)", (await a.$$(".carte-machine .mv-compact")).length === 20);
-  const c0 = await a.$eval(".carte-machine .mv-compact", e => ({ cells: [...e.querySelectorAll(".mv-c:not(.st-free)")].map(x => x.querySelector("small").textContent + ":" + x.querySelector("b").textContent), colored: [...e.querySelectorAll(".mv-c")].some(x => /ty-/.test(x.className)) }));
-  ok("Dashboard : chaque tiroir montre son numéro et son nombre de pains (pas de couleurs de pain)", c0.cells.length >= 9 && c0.cells.every(x => /^\d+:\d+\/\d+/.test(x)) && !c0.colored, c0);
+  const c0 = await a.$eval(".carte-machine .mv-compact", e => ({ cells: [...e.querySelectorAll(".mv-c:not(.st-free)")].map(x => x.parentElement.querySelector(".mv-cn").textContent.replace(/\D/g, "") + ":" + x.querySelector("b").textContent), colored: [...e.querySelectorAll(".mv-c")].some(x => /ty-/.test(x.className)) }));
+  ok("Dashboard : chaque tiroir montre « Sel : n » au-dessus de sa case et son nombre de pains dedans (pas de couleurs de pain)", c0.cells.length >= 9 && c0.cells.every(x => /^\d+:\d+\/\d+/.test(x)) && !c0.colored, c0);
   await shot(a, "v524-00-dashboard-cartes-pc");
   await a.click('[data-dl="list"]'); await sleep(400);
   ok("Dashboard : « Liste » = une ligne par machine (20), avec les tiroirs en nombres", (await a.$$("tr.ligne-machine")).length === 20 && (await a.$$("tr.ligne-machine .mv-compact")).length === 20 && !(await a.$(".carte-machine")));

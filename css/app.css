@@ -1059,7 +1059,9 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .mv-crow { display: flex; gap: 3px; align-items: stretch; }
 .mv-cl { flex: none; width: 1.1em; display: grid; place-items: center; font-size: .62rem; font-weight: 700; color: var(--text-faint); }
 .mv-c { position: relative; flex: 1; min-width: 0; min-height: 34px; display: grid; place-items: center; align-content: center; line-height: 1.05; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); padding: 2px 1px; }
-.mv-c small { font-size: .6rem; font-weight: 650; color: var(--text-dim); }
+.mv-cw { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mv-cn { font-size: .62rem; font-weight: 650; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
+.mv-cw .mv-c { flex: none; min-height: 28px; }
 .mv-c b { font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums; } .mv-c b i { font-style: normal; font-size: .62rem; font-weight: 600; color: var(--text-dim); }
 .mv-c em { position: absolute; top: -5px; right: -3px; font-style: normal; font-size: .62rem; line-height: 1; }
 .mv-c.st-old b, .mv-c.st-must b { text-decoration: underline; text-underline-offset: 2px; }
