@@ -251,12 +251,18 @@ window.BA = window.BA || {};
           <div class="legend">${["door", "empty", "error", "remove", "low", "ok"].map(pill).join("")}</div>
           <div class="seg dash-layout" role="group" aria-label="${E(t("ml_layout_aria"))}"></div>
           ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
+          <div class="seg dash-sel" role="group" aria-label="${E(t("ss_aria"))}"></div>
         </div>
         <div id="dash-body"></div>`;
       el.querySelector("#dash-search").addEventListener("input", () => renderDashboard(el, ctx));
       el.querySelector(".dash-layout").addEventListener("click", e => {
         const b = e.target.closest("[data-dl]"); if (!b) return;
         try { localStorage.setItem("ba_dash_layout", b.dataset.dl); } catch (x) { /* préférence non gardée */ }
+        renderDashboard(el, ctx);
+      });
+      el.querySelector(".dash-sel").addEventListener("click", e => {      // v5.32 : style du numéro « Sel » sur les cases du Dashboard
+        const b = e.target.closest("[data-ss]"); if (!b) return;
+        BA.MachineView.setSelStyle(b.dataset.ss);
         renderDashboard(el, ctx);
       });
       // v4.8.9 : lignes « À faire aujourd'hui » (admin) — un seul écouteur, le bloc est redessiné chaque seconde
@@ -275,7 +281,11 @@ window.BA = window.BA || {};
       .sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct || a.m.num - b.m.num);
     const lay = dashLayout();
     el.querySelector(".dash-layout").innerHTML = ["cards", "list"].map(v => `<button type="button" data-dl="${v}" class="${lay === v ? "active" : ""}" aria-pressed="${lay === v}">${v === "cards" ? "▦ " + t("ml_cards") : "☰ " + t("ml_list")}</button>`).join("");
+    const MVw = BA.MachineView, ss = MVw ? MVw.selStyle() : "tab", showSS = !!MVw && MVw.on() && lay !== "list";
+    el.querySelector(".dash-sel").innerHTML = showSS ? ["tab", "bloc", "coin"].map(v => `<button type="button" data-ss="${v}" class="${ss === v ? "active" : ""}" aria-pressed="${ss === v}">${t("ss_" + v)}</button>`).join("") : "";
+    el.querySelector(".dash-sel").style.display = showSS ? "" : "none";
     const body = el.querySelector("#dash-body");
+    body.className = "ss-" + ss;
     const focused = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.machine : null;
     body.innerHTML = shown.length
       ? (lay === "list" ? machineList(s, shown, ctx.admin) : `<div class="cards machines-grid">${shown.map(o => machineCard(s, o.m, o.x, ctx.admin)).join("")}</div>`)

@@ -23,6 +23,10 @@ window.BA = window.BA || {};
   const mode = () => { try { return localStorage.getItem(MODEKEY) === "classic" ? "classic" : "machine"; } catch (e) { return "machine"; } };
   const on = () => mode() === "machine";
   function setMode(v) { try { localStorage.setItem(MODEKEY, v === "classic" ? "classic" : "machine"); } catch (e) { /* préférence non gardée */ } }
+  // v5.32 : style du numéro de sélection sur les cases du Dashboard : « tab » (languette sous la case), « bloc » (un seul rectangle), « coin » (petit, dans le coin)
+  const SSKEY = "ba_sel_style";
+  const selStyle = () => { try { const v = localStorage.getItem(SSKEY); return v === "bloc" || v === "coin" ? v : "tab"; } catch (e) { return "tab"; } };
+  function setSelStyle(v) { try { localStorage.setItem(SSKEY, v === "bloc" || v === "coin" ? v : "tab"); } catch (e) { /* préférence non gardée */ } }
   function modeSwitch() {
     const cur = mode();
     const b = (v, ico, k) => `<button type="button" data-mvmode="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${ico} ${t(k)}</button>`;
@@ -223,11 +227,11 @@ window.BA = window.BA || {};
   function compact(s, m) {
     const L = layout(m, true);
     return `<div class="mv-compact" role="group" aria-label="${E(t("vm_title"))}">${L.rows.map(r => `<div class="mv-crow"><span class="mv-cl">${r.e}</span>${r.cells.map(c => {
-      if (c.free) return `<span class="mv-cw"><small class="mv-cn">${t("vm_sel_c", { n: c.n })}</small><span class="mv-c st-free" title="${E(t("vm_unused"))}"><b>–</b></span></span>`;
+      if (c.free) return `<span class="mv-cw"><small class="mv-cn"><span class="mv-sw0">${t("vm_sel_w")}</span>${c.n}</small><span class="mv-c st-free" title="${E(t("vm_unused"))}"><b>–</b></span></span>`;
       const B = breads(s, m, c.sel), stt = status.view(c.sel, B).k, q = B.length;
       const flag = stt === "must" ? "⛔" : stt === "old" ? "⚠" : stt === "kept" ? "⏳" : "";
       const fill = q <= 0 ? "none" : q >= c.sel.cap ? "full" : "part";     // vide : rouge · plein : vert · entre les deux : orange
-      return `<span class="mv-cw"><small class="mv-cn">${t("vm_sel_c", { n: c.sel.n })}</small><span class="mv-c st-${stt} fill-${fill}" title="${E(t("vm_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span></span>`;
+      return `<span class="mv-cw"><small class="mv-cn"><span class="mv-sw0">${t("vm_sel_w")}</span>${c.sel.n}</small><span class="mv-c st-${stt} fill-${fill}" title="${E(t("vm_sel", { n: c.sel.n }) + " · " + U.prod(c.sel.type))}"><b>${q}<i>/${c.sel.cap}</i></b>${flag ? `<em>${flag}</em>` : ""}</span></span>`;
     }).join("")}</div>`).join("")}</div>`;
   }
 
@@ -535,5 +539,5 @@ window.BA = window.BA || {};
     const q = box.querySelector(".mv-pop"); if (q && top) q.scrollTop = top;
   }
 
-  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, fold, foldOpen, pop, big, keepPopScroll, openFull, closeFull };
+  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, selStyle, setSelStyle, fold, foldOpen, pop, big, keepPopScroll, openFull, closeFull };
 })();

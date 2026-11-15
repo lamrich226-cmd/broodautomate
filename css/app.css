@@ -1059,9 +1059,29 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .mv-crow { display: flex; gap: 3px; align-items: stretch; }
 .mv-cl { flex: none; width: 1.1em; display: grid; place-items: center; font-size: .62rem; font-weight: 700; color: var(--text-faint); }
 .mv-c { position: relative; flex: 1; min-width: 0; min-height: 34px; display: grid; place-items: center; align-content: center; line-height: 1.05; border-radius: 6px; border: 1px solid var(--line-strong); background: var(--surface); padding: 2px 1px; }
-.mv-cw { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mv-cw { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 0; }
 .mv-cn { font-size: .62rem; font-weight: 650; color: var(--text-dim); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; line-height: 1.2; }
 .mv-cw .mv-c { flex: none; min-height: 28px; }
+/* v5.32 : 3 styles pour le numéro « Sel » (choix dans le Dashboard, gardé sur l'appareil) */
+/* 1) languette collée sous la case, de la couleur de l'état du tiroir */
+.ss-tab .mv-compact { gap: 6px; }
+.ss-tab .mv-cw .mv-c { border-radius: 8px 8px 0 0; border-bottom: 0; min-height: 30px; }
+.ss-tab .mv-cw .mv-cn { order: 2; font-size: .68rem; font-weight: 800; padding: 2px 0 3px; border: 1px solid var(--line-strong); border-top: 0; border-radius: 0 0 8px 8px; background: var(--text); color: var(--surface); letter-spacing: .02em; }
+.ss-tab .mv-cw:has(.fill-none) .mv-cn { background: var(--c-empty); border-color: var(--c-empty); color: #fff; }
+.ss-tab .mv-cw:has(.fill-part) .mv-cn { background: var(--c-remove); border-color: var(--c-remove); color: #fff; }
+.ss-tab .mv-cw:has(.fill-full) .mv-cn { background: var(--c-ok); border-color: var(--c-ok); color: #fff; }
+.ss-tab .mv-cw:has(.st-free) .mv-cn { background: transparent; border: 1px dashed var(--line); border-top: 0; color: var(--text-faint); }
+/* 2) un seul rectangle : le numéro (sans « Sel ») dans un carré sombre à gauche */
+.ss-bloc .mv-sw0 { display: none; }
+.ss-bloc .mv-cw { flex-direction: row; align-items: stretch; border: 1px solid var(--line-strong); border-radius: 8px; overflow: hidden; background: var(--surface); }
+.ss-bloc .mv-cw .mv-cn { flex: none; width: 2.1em; display: grid; place-items: center; background: var(--text); color: var(--surface); font-size: .8rem; font-weight: 800; text-overflow: clip; }
+.ss-bloc .mv-cw .mv-c { flex: 1; border: 0; border-radius: 0; min-height: 30px; }
+.ss-bloc .mv-cw:has(.fill-none) { border-color: var(--c-empty); } .ss-bloc .mv-cw:has(.fill-part) { border-color: var(--c-remove); } .ss-bloc .mv-cw:has(.fill-full) { border-color: var(--c-ok); }
+.ss-bloc .mv-cw:has(.st-free) { border-style: dashed; border-color: var(--line); } .ss-bloc .mv-cw:has(.st-free) .mv-cn { background: var(--line); color: var(--text-faint); }
+/* 3) numéro en petit dans le coin de la case */
+.ss-coin .mv-cw { position: relative; }
+.ss-coin .mv-cw .mv-cn { position: absolute; top: 3px; left: 6px; z-index: 1; text-align: left; opacity: .85; }
+.ss-coin .mv-cw .mv-c { min-height: 40px; padding-top: 10px; }
 .mv-c b { font-size: .95rem; font-weight: 800; font-variant-numeric: tabular-nums; } .mv-c b i { font-style: normal; font-size: .62rem; font-weight: 600; color: var(--text-dim); }
 .mv-c em { position: absolute; top: -5px; right: -3px; font-style: normal; font-size: .62rem; line-height: 1; }
 .mv-c.st-old b, .mv-c.st-must b { text-decoration: underline; text-underline-offset: 2px; }
