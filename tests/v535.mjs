@@ -1,8 +1,6 @@
-// Essais de la v5.30 — vraie appli dans Chromium, faux Supabase, données inventées.
-//  1) badge « RS232 : déconnecté » caché quand le câble n'est pas branché
-//  2) Alertes : filtre par machine (les compteurs suivent)
-//  3) Alertes : « Supprimer » → Corbeille 30 jours (restaurer, effacer pour de bon, vider) ; effacement automatique après 30 jours
-//  4) appli opérateur : ni Corbeille ni boutons de suppression ; les alertes supprimées n'y sont pas
+// AUDIT (v5.32.3) — « Remplir » de l'appli opérateur poussé dans ses coins, vraie appli dans Chromium, faux Supabase, données inventées :
+//  tiroirs de 3 à 6 pains, vue Machine et compteurs − / + (bornés à la capacité), retour en arrière entre les étapes,
+//  double appui, annuler puis rouvrir, chargement complet ; le stock final est vérifié à chaque fois.
 // node v535.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
 import fs from "node:fs"; import path from "node:path"; import http from "node:http";

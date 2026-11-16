@@ -403,15 +403,16 @@ window.BA = window.BA || {};
     function save(n) {
       const { m } = cur(), sel = m && M.sel(m, n), e = S.mvEdit;
       if (!sel || !e || e.num !== num || e.n !== n) return;
+      // v5.33 : tout en une fois (type, capacité, prix) : si une valeur est refusée, rien n'est changé
+      // (avant : le type ou la capacité étaient déjà enregistrés quand le prix était refusé)
       let err = null, other = false, p = null;
-      if (e.type === "__new") { const v = String(e.newType || "").trim(); err = v ? A.updateSelection(num, n, { newType: v }) : "err_type"; other = true; }
-      else if (e.type && e.type !== sel.type) { err = A.updateSelection(num, n, { type: e.type }); other = true; }
-      if (!err && Number(e.cap) !== sel.cap) { err = A.updateSelection(num, n, { cap: Number(e.cap) }); other = true; }
-      if (!err) {
-        const v = Number(e.price);
-        if (e.price === "" || !(v >= 0) || !isFinite(v)) err = "err_price";
-        else if (Math.round(v * 100) !== Math.round(Number(sel.price) * 100)) { p = v; err = A.updateSelection(num, n, { price: v }); }
-      }
+      const vals = {}, v = Number(e.price);
+      if (e.type === "__new") { const nt = String(e.newType || "").trim(); if (nt) vals.newType = nt; else err = "err_type"; other = true; }
+      else if (e.type && e.type !== sel.type) { vals.type = e.type; other = true; }
+      if (!err && Number(e.cap) !== sel.cap) { vals.cap = Number(e.cap); other = true; }
+      if (!err && (e.price === "" || !(v >= 0) || !isFinite(v))) err = "err_price";
+      if (!err && Math.round(v * 100) !== Math.round(Number(sel.price) * 100)) { p = v; vals.price = v; }
+      if (!err && Object.keys(vals).length) err = A.updateSelection(num, n, vals);
       if (!err) S.mvEdit = null;
       say(num, err, p != null && !other ? "saved_price" : "saved_sel", { n, p: F.eur(p) });
       later();

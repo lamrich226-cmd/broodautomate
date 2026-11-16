@@ -898,9 +898,11 @@ li.bx-sum.on { border-left-color: var(--c-ok); }
   .seg.tabs.tq-tabs { flex-wrap: wrap; gap: 6px; border: 0; background: transparent; overflow: visible; }
   .seg.tabs.tq-tabs button { border: 1px solid var(--line-strong); border-radius: 999px; min-height: 40px; padding: 0 12px; }
   .seg.tabs.tq-tabs button + button { border-left: 1px solid var(--line-strong); }
-  dl.bx-dl, .tq-grid { grid-template-columns: 1fr; }
+  dl.bx-dl, .tq-grid { grid-template-columns: minmax(0, 1fr); }
   dl.bx-dl > div { grid-template-columns: 1fr; gap: 2px; }
   ul.bx-sum-list { grid-template-columns: 1fr; }
+  /* v5.33 : un bouton au texte long (« 🧹 Effacer les relevés bruts de plus de 30 jours ») passe à la ligne au lieu de dépasser l'écran */
+  .carte-actions .btn { white-space: normal; max-width: 100%; }
 }
 table.rs-machines .plaque-in { width: 130px; }
 /* v5.12 : téléphone — ces tableaux deviennent des cartes (titre de chaque case au-dessus de sa valeur) */

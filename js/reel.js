@@ -285,7 +285,9 @@ window.BA = window.BA || {};
         // v5.25 : relevé reçu AVANT un inventaire fait ensuite sur cette machine, mais traité APRÈS (page admin fermée,
         // téléphone hors ligne…) : l'opérateur a déjà compté les pains restants, ces ventes y sont donc déjà. La vente est
         // notée (chiffres, historique) mais le stock n'est pas diminué une 2e fois (avant : stock trop bas et faux « manquants »).
-        const dejaCompte = (s.interventions || []).some(it => it.num === m.num && it.start > x.t && Array.isArray(it.inv) && it.inv.length > 0 && !it.invSkipped);
+        // v5.33 : comparé à l'heure de l'INVENTAIRE (avant : au début de « Remplir ») : un relevé pris entre le moment où l'opérateur
+        // touche « Remplir » et la fin de son comptage (la porte s'ouvre, le boîtier relit la machine) est lui aussi déjà compté
+        const dejaCompte = (s.interventions || []).some(it => it.num === m.num && (it.invAt || it.start) > x.t && Array.isArray(it.inv) && it.inv.length > 0 && !it.invSkipped);
         const sell = (sel, nSel, price) => {
           let lotDate = null;
           if (sel && !dejaCompte) {

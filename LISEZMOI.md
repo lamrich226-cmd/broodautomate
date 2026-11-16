@@ -1,4 +1,4 @@
-> **État actuel (v5.32.2, 15/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.32.3, 16/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -105,6 +105,23 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.32.3 — Audit complet (admin + opérateur) et corrections
+
+Audit de toute l'appli : un robot (`tests/v537.mjs` + `tests/audit-page.js`) ouvre chaque onglet admin et opérateur en FR / NL / EN,
+sur téléphone et sur PC, clique sur chaque bouton, liste et case (puis sur chaque bouton de la fenêtre ouverte, avec des valeurs
+bizarres dans les cases) et relève erreurs JavaScript, textes cassés (undefined, NaN, {variable}), clés de traduction manquantes,
+pages qui débordent et données impossibles. `tests/v538.mjs` enchaîne des milliers d'actions au hasard (Remplir complet ou interrompu,
+retours en arrière, retraits, déplacements, sélections…) et vérifie après chacune que le stock a bougé exactement comme prévu.
+Corrigé (essai : `tests/v539.mjs`) :
+- **Une modification refusée ne change plus rien** : sélection (numéro / type / capacité), fenêtre du tiroir (type ou capacité
+  enregistrés même quand le prix était refusé), calendrier (effet changé puis dates refusées).
+- **« Remplir »** : une valeur qui n'est pas un nombre (inventaire, retrait, chargement) ne met plus « NaN » dans le stock ;
+  l'heure de l'inventaire est gardée (`invAt`) : un relevé 4G pris après le début de « Remplir » mais avant la fin du comptage,
+  et traité ensuite, ne retire plus les ventes une deuxième fois (avant : stock trop bas d'autant de ventes).
+- **Téléphone** : Technique › Système ne dépasse plus de l'écran (bouton long qui ne passait pas à la ligne).
+Essais du « Remplir » poussé dans ses coins : `tests/v535.mjs` (tiroirs de 3 à 6, retours, double appui, annuler) et
+`tests/v536.mjs` (18 tiroirs de 3, tous vides).
 
 ## v5.32.2 — Technique › Affichage : un exemple dessiné pour chaque choix
 

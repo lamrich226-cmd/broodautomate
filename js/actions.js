@@ -246,24 +246,29 @@ window.BA = window.BA || {};
       return Store.update(s => {
         const m = M.machine(s, num); const sel = m && M.sel(m, selN);
         if (!sel) return "err_sel_missing";
-        if (values.n != null) {
-          const n = Number(values.n);
+        // v5.33 : tout est contrôlé AVANT de changer quoi que ce soit : une valeur refusée ne laisse plus
+        // la sélection à moitié modifiée (avant : numéro ou type déjà changé, puis « capacité refusée »)
+        const n = values.n != null ? Number(values.n) : null;
+        if (n != null) {
           if (!Number.isInteger(n) || n < 1 || n > 999) return "err_sel_number";
           if (n !== sel.n && M.sel(m, n)) return "err_sel_exists";
+        }
+        const c = values.cap != null ? Math.round(Number(values.cap)) : null;
+        if (c != null) {
+          if (!(c >= 1 && c <= 50)) return "err_cap";
+          if (c < M.qty(sel)) return "err_cap_stock";
+        }
+        if (values.newType != null && values.newType !== "" && !String(values.newType).trim()) return "err_type";
+        if (values.newType) { const id = M.ensureType(s, values.newType); if (!id) return "err_type"; sel.type = id; }
+        else if (values.type) sel.type = values.type;
+        if (n != null && n !== sel.n) {
           // (les déplacements demandés qui parlent de cette sélection suivent son nouveau numéro)
           (s.moves || []).forEach(r => { if (r.num === m.num) { if (r.from === sel.n) r.from = n; if (r.to === sel.n) r.to = n; } });
           sel.n = n;
           m.sels.sort((a, b) => a.n - b.n);
         }
-        if (values.newType) { const id = M.ensureType(s, values.newType); if (!id) return "err_type"; sel.type = id; }
-        else if (values.type) sel.type = values.type;
-        if (values.cap != null) {
-          const c = Math.round(Number(values.cap));
-          if (!(c >= 1 && c <= 50)) return "err_cap";
-          if (c < M.qty(sel)) return "err_cap_stock";
-          sel.cap = c;
-        }
-        if (values.price != null && Number(values.price) >= 0) {
+        if (c != null) sel.cap = c;
+        if (values.price != null && values.price !== "" && Number(values.price) >= 0 && isFinite(Number(values.price))) {
           const p0 = sel.price, p1 = Math.round(Number(values.price) * 100) / 100;
           sel.price = p1;
           // v5.11.1 : l'opérateur peut aussi changer le prix ; chaque changement est noté dans l'Historique (qui, quand, avant → après)
@@ -283,7 +288,7 @@ window.BA = window.BA || {};
         let type = values.type;
         if (type === "__new") { type = M.ensureType(s, values.newType); if (!type) return "err_type"; }
         if (!type) return "err_type";
-        const price = values.price != null && values.price !== "" && Number(values.price) >= 0 ? Number(values.price) : s.settings.salePrice;
+        const price = values.price != null && values.price !== "" && Number(values.price) >= 0 && isFinite(Number(values.price)) ? Number(values.price) : s.settings.salePrice;
         m.sels.push({ n, type, cap: c, price: Math.round(price * 100) / 100, lots: [] });
         m.sels.sort((a, b) => a.n - b.n);
         M.addEvent(s, m.num, "SEL_EMPTY", { sel: n, type });
@@ -412,17 +417,14 @@ window.BA = window.BA || {};
       return Store.update(s => {
         const e = s.calendar.find(x => x.id === Number(id));
         if (!e) return "err_cal_missing";
-        if (v.effect != null) {
-          const n = Number(v.effect);
-          if (!isFinite(n) || n < -100 || n > 300) return "err_cal_effect";
-          e.effect = Math.round(n); e.perMachine = null;
-        }
-        if (v.from != null || v.to != null) {
-          const from = v.from || e.from, to = v.to || e.to;
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from) return "err_cal_dates";
-          e.from = from; e.to = to;
-          BA.Forecast.sortCal(s.calendar);
-        }
+        // v5.33 : contrôles d'abord (une date refusée ne garde plus l'effet changé juste avant)
+        const n = v.effect != null ? Number(v.effect) : null;
+        if (n != null && (!isFinite(n) || n < -100 || n > 300)) return "err_cal_effect";
+        const dates = v.from != null || v.to != null;
+        const from = v.from || e.from, to = v.to || e.to;
+        if (dates && (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to) || to < from)) return "err_cal_dates";
+        if (n != null) { e.effect = Math.round(n); e.perMachine = null; }
+        if (dates) { e.from = from; e.to = to; BA.Forecast.sortCal(s.calendar); }
         if (v.confirmed != null) e.confirmed = !!v.confirmed;
         return null;
       });
@@ -562,7 +564,9 @@ window.BA = window.BA || {};
         (it.snaps = it.snaps || {})[1] = snapLots(m);   // pour pouvoir revenir en arrière
         it.inv = m.sels.map(sel => {
           const exp = M.qty(sel);
-          const real = skipped || counts[sel.n] == null ? exp : Math.max(0, Math.min(sel.cap, Math.round(counts[sel.n])));
+          // v5.33 : une valeur qui n'est pas un nombre (vide, texte…) = « pas compté » (avant : NaN enregistré)
+          const c = counts && counts[sel.n] != null && counts[sel.n] !== "" ? Number(counts[sel.n]) : NaN;
+          const real = skipped || !isFinite(c) ? exp : Math.max(0, Math.min(sel.cap, Math.round(c)));
           const diff = real - exp;
           if (diff < 0) { M.sortLots(sel); const l0 = sel.lots[0]; M.takeOldest(sel, -diff); lost += -diff; M.log(s, { k: "inv", n: m.num, s: sel.n, y: sel.type, q: diff, l: l0 ? l0.date : null, it: it.id, st: 1 }); }
           if (diff > 0) {
@@ -576,6 +580,7 @@ window.BA = window.BA || {};
           return { sel: sel.n, type: sel.type, exp, real };
         });
         it.invSkipped = !!skipped;
+        it.invAt = s.now;           // v5.33 : heure de l'inventaire (relevé 4G pris avant, traité après : déjà compté, voir reel.js)
         if (lost || gained) M.addEvent(s, m.num, "STOCK_GAP", { lost, gained, key: "i" + it.id });
         it.step = 2;
       });
@@ -596,7 +601,8 @@ window.BA = window.BA || {};
           const { sel, lot, i } = findLot(m, r.sel, r.lotId);
           if (!lot) return { sel: r.sel, lotDate: r.date, planned: r.planned, removed: 0, kept: false };
           const mand = M.isMandatory(s, lot);
-          const removed = mand ? lot.qty : mode === "none" ? 0 : Math.max(0, Math.min(lot.qty, Math.round(r.removed)));
+          const want = Number(r.removed);       // v5.33 : pas un nombre → rien retiré (avant : stock NaN)
+          const removed = mand ? lot.qty : mode === "none" || !isFinite(want) ? 0 : Math.max(0, Math.min(lot.qty, Math.round(want)));
           const lotDate = lot.date;
           lot.qty -= removed; total += removed;
           if (removed) M.log(s, { k: "rm", n: m.num, s: sel.n, y: sel.type, q: removed, l: lotDate, r: mand ? "kept2" : "old", it: it.id, st: 2 });
@@ -629,13 +635,15 @@ window.BA = window.BA || {};
         const dates = [];
         it.load = m.sels.map(sel => {
           const before = M.qty(sel);
-          let parts = loads[sel.n];
+          let parts = loads ? loads[sel.n] : 0;
           if (!Array.isArray(parts)) parts = [{ qty: parts || 0, date: deliveryMs }];
           let room = sel.cap - before, q = 0;
           parts.forEach(p => {
-            const k = Math.max(0, Math.min(room, Math.round(p.qty || 0)));
+            if (!p) return;
+            const v = Number(p.qty);       // v5.33 : pas un nombre → 0 (avant : lot de NaN pains)
+            const k = isFinite(v) ? Math.max(0, Math.min(room, Math.round(v))) : 0;
             if (k <= 0) return;
-            const d = isFinite(p.date) ? p.date : deliveryMs;
+            const d = isFinite(p.date) ? p.date : isFinite(deliveryMs) ? deliveryMs : s.now;
             sel.lots.push({ id: s.seq++, qty: k, date: d, kept: false });
             M.log(s, { k: "load", n: m.num, s: sel.n, y: sel.type, q: k, l: d, it: it.id, st: 3 });
             room -= k; q += k; dates.push(d);
@@ -644,7 +652,7 @@ window.BA = window.BA || {};
           return { sel: sel.n, type: sel.type, cap: sel.cap, before, qty: q };
         });
         if (n) M.addDaily(s, s.now, m.num, { l: n, c: Math.round(cost * 100) / 100 });
-        it.delivery = dates.length ? Math.min.apply(null, dates) : deliveryMs;
+        it.delivery = dates.length ? Math.min.apply(null, dates) : isFinite(deliveryMs) ? deliveryMs : null;
         it.deliveries = dates.filter((d, i) => dates.indexOf(d) === i).sort((a, b) => a - b);
         it.end = s.now; it.status = "done"; it.step = 4;
         m.door = false;

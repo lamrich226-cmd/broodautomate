@@ -1,9 +1,6 @@
-// Essais de la v5.30 — vraie appli dans Chromium, faux Supabase, données inventées.
-//  1) badge « RS232 : déconnecté » caché quand le câble n'est pas branché
-//  2) Alertes : filtre par machine (les compteurs suivent)
-//  3) Alertes : « Supprimer » → Corbeille 30 jours (restaurer, effacer pour de bon, vider) ; effacement automatique après 30 jours
-//  4) appli opérateur : ni Corbeille ni boutons de suppression ; les alertes supprimées n'y sont pas
-// node v535.mjs <dossier du site> <dossier des captures>
+// AUDIT (v5.32.3) — « Remplir » sur une machine de 18 tiroirs de 3 pains, tous vides (comme la machine d'essai), sur téléphone.
+//  Inventaire « Oui », rien à retirer, chargement avec « + » puis « Tout remplir » : 54 pains dans la machine à la fin.
+// node v536.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
 import fs from "node:fs"; import path from "node:path"; import http from "node:http";
 const require = createRequire(import.meta.url);
@@ -87,5 +84,5 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   await p.click("#wz-close"); await sleep(300);
   ok("aucune erreur JavaScript", errs.length === 0, errs);
   await browser.close(); srv.close();
-  console.log(ko ? "v5.35 : " + ko + " ÉCHEC(S)" : "v5.35 : TOUT EST OK"); process.exit(ko ? 1 : 0);
+  console.log(ko ? "v5.36 : " + ko + " ÉCHEC(S)" : "v5.36 : TOUT EST OK"); process.exit(ko ? 1 : 0);
 })();
