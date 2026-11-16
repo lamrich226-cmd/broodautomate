@@ -1,4 +1,4 @@
-> **État actuel (v5.32.1, 15/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.32.2, 15/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -105,6 +105,10 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.32.2 — Technique › Affichage : un exemple dessiné pour chaque choix
+
+Chaque choix (Cartes / Liste, Machine / Classique, Languette / Bloc / Coin) est une petite tuile avec son exemple dessiné ; la tuile choisie est entourée. Les boutons du Dashboard restent. Essai : `tests/v534.mjs`.
 
 ## v5.32.1 — « Bloc » par défaut + onglet Technique › Affichage
 

@@ -1255,3 +1255,16 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
 .tq-disp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
 .tq-disp-row:first-of-type { border-top: 0; }
 .tq-disp-t { flex: 1 1 200px; font-weight: 650; }
+
+/* v5.32.2 : exemples dessinés dans Technique › Affichage */
+.tq-disp-opts { display: flex; flex-wrap: wrap; gap: 10px; flex: 1 1 100%; }
+.tq-disp-opt { flex: 1 1 130px; max-width: 220px; display: flex; flex-direction: column; gap: 8px; padding: 10px; background: var(--surface); border: 2px solid var(--line); border-radius: 12px; cursor: pointer; text-align: center; color: var(--text); font: inherit; }
+.tq-disp-opt.active { border-color: var(--text); box-shadow: 0 0 0 1px var(--text) inset; }
+.tq-disp-ex { display: block; pointer-events: none; min-height: 64px; }
+.tq-disp-lab { font-weight: 700; }
+.ex-box { padding: 6px; background: var(--surface-2); border-radius: 8px; display: flex; flex-direction: column; gap: 4px; min-height: 64px; justify-content: center; }
+.ex-row { display: flex; gap: 4px; }
+.ex-cards { flex-direction: row; flex-wrap: wrap; } .ex-cards i { flex: 1 1 40%; height: 26px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 6px; }
+.ex-list i { height: 11px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 4px; }
+.ex-table b { height: 9px; background: var(--text); border-radius: 3px; } .ex-table i { height: 9px; background: var(--surface); border-bottom: 1px solid var(--line-strong); }
+.tq-disp-ex .mv-c b { font-size: .8rem; }

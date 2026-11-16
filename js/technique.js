@@ -75,10 +75,24 @@ window.BA = window.BA || {};
   // Ils sont gardés sur cet appareil (comme les boutons du Dashboard) et s'appliquent tout de suite.
   const LAYKEY = "ba_dash_layout";
   const layout = () => { try { return localStorage.getItem(LAYKEY) === "list" ? "list" : "cards"; } catch (e) { return "cards"; } };
+  // petits exemples dessinés avec les vrais styles de l'appli
+  const exCell = (n, q, cap) => `<span class="mv-cw"><small class="mv-cn"><span class="mv-sw0">${E(t("vm_sel_w"))}</span>${n}</small><span class="mv-c st-ok fill-${q <= 0 ? "none" : q >= cap ? "full" : "part"}"><b>${q}<i>/${cap}</i></b></span></span>`;
+  const exSel = cls => `<div class="${cls} ex-box"><div class="ex-row">${exCell(11, 0, 3)}${exCell(15, 2, 3)}${exCell(19, 3, 3)}</div></div>`;
+  const EX = {
+    layout: {
+      cards: `<div class="ex-box ex-cards"><i></i><i></i><i></i><i></i></div>`,
+      list: `<div class="ex-box ex-list"><i></i><i></i><i></i><i></i></div>`
+    },
+    mode: {
+      machine: `<div class="ss-bloc ex-box"><div class="ex-row">${exCell(11, 3, 3)}${exCell(15, 1, 3)}</div><div class="ex-row">${exCell(21, 0, 3)}${exCell(25, 3, 3)}</div></div>`,
+      classic: `<div class="ex-box ex-table"><b></b><i></i><i></i><i></i></div>`
+    },
+    sel: { tab: exSel("ss-tab"), bloc: exSel("ss-bloc"), coin: exSel("ss-coin") }
+  };
   function drawDisplay() {
     const z = _el && _el.querySelector("#tq-display"); if (!z) return;
     const MV = BA.MachineView;
-    const grp = (key, titre, opts, cur) => `<div class="tq-disp-row"><div class="tq-disp-t">${E(titre)}</div><div class="seg" role="group" aria-label="${E(titre)}">${opts.map(([v, lab]) => `<button type="button" data-disp="${key}" data-v="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${lab}</button>`).join("")}</div></div>`;
+    const grp = (key, titre, opts, cur) => `<div class="tq-disp-row"><div class="tq-disp-t">${E(titre)}</div><div class="tq-disp-opts" role="group" aria-label="${E(titre)}">${opts.map(([v, lab]) => `<button type="button" class="tq-disp-opt${cur === v ? " active" : ""}" data-disp="${key}" data-v="${v}" aria-pressed="${cur === v}"><span class="tq-disp-ex">${EX[key][v]}</span><span class="tq-disp-lab">${lab}</span></button>`).join("")}</div></div>`;
     z.innerHTML = `<div class="card tq-card"><h3>🎨 ${E(t("tq_d_title"))}</h3><p class="petit">${E(t("tq_d_note"))}</p>
       ${grp("layout", t("tq_d_layout"), [["cards", "▦ " + E(t("ml_cards"))], ["list", "☰ " + E(t("ml_list"))]], layout())}
       ${MV ? grp("mode", t("tq_d_mode"), [["machine", "🧩 " + E(t("vm_vue_machine"))], ["classic", "📋 " + E(t("vm_vue_table"))]], MV.mode()) : ""}
