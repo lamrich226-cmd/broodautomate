@@ -353,7 +353,7 @@
     },
 
     loadCtx(s, m) {
-      const def = M.lastDelivery(s.now);
+      const def = M.lastDelivery(s.now, M.deliveryHour(s));     // v5.33 : heure de récupération du pain (Paramètres)
       if (!this.w.delivery) this.w.delivery = def;
       // Charge envoyée par l'admin « selon le besoin » (ventes prévues jusqu'au prochain passage + marge) :
       // on propose la quantité de la mission, corrigée avec le stock réel (pas forcément « remplir à fond »)

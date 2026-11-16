@@ -15,7 +15,7 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate", version: "5.32.3" },
+  app: { name: "Broodautomate", version: "5.33.0" },
   currency: "EUR",
 
   supabase: {
@@ -48,6 +48,8 @@ const BA_CONFIG = {
     thrHours: 48,          // un lot devient « à retirer » après 48 h
     dayHour: 4,            // le « jour suivant » commence à 4 h : un pain gardé une fois (« encore bon »)
                            // devient invalide au jour suivant (retrait obligatoire à la tournée du lendemain)
+    deliveryHour: 19,      // v5.33 : heure de récupération du pain chez le boulanger (19 h) : date proposée pour le pain chargé
+                           // dans « Remplir » = la dernière fois qu'il était 19 h (tournée de nuit : la veille au soir)
     emptyPct: 0,           // machine « vide » (rouge) à 0 % de remplissage
     tempMin: 14,           // température normale (°C)
     tempMax: 18,

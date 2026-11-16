@@ -15,16 +15,17 @@ window.BA = window.BA || {};
     const d = new Date(ms);
     return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
   }
-  // 06:00 du jour (moins n jours) : heure de livraison habituelle
-  // Dernière livraison de pain de 06:00 déjà passée à cet instant (avant 06:00 : celle d'hier)
-  function lastDelivery(ms) {
-    const d = delivery6(ms, 0);
-    return d <= ms ? d : delivery6(ms, 1);
+  // Heure habituelle où l'on a le pain neuf (récupéré chez le boulanger) : « hour » h du jour (moins n jours).
+  // v5.33 : l'heure se règle dans Paramètres (settings.deliveryHour, voir Model.deliveryHour) ; avant : 6 h fixe.
+  // Dernière fois qu'il était cette heure-là à cet instant (ex. 19 h : à 3 h du matin → la veille à 19 h)
+  function lastDelivery(ms, hour) {
+    const d = delivery6(ms, 0, hour);
+    return d <= ms ? d : delivery6(ms, 1, hour);
   }
-  function delivery6(ms, daysBack) {
+  function delivery6(ms, daysBack, hour) {
     const d = new Date(ms);
     d.setDate(d.getDate() - (daysBack || 0));
-    d.setHours(6, 0, 0, 0);
+    d.setHours(hour == null ? 6 : hour, 0, 0, 0);
     return d.getTime();
   }
   const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
@@ -130,6 +131,13 @@ window.BA = window.BA || {};
     dayHour(s) {
       const v = s.settings.dayHour, h = Math.round(Number(v));
       return v != null && v !== "" && isFinite(h) && h >= 0 && h <= 23 ? h : 4;
+    },
+    // v5.33 : heure de récupération du pain (date proposée pour le pain chargé dans « Remplir »), Paramètres
+    deliveryHour(s) {
+      const v = s && s.settings ? s.settings.deliveryHour : null, h = Math.round(Number(v));
+      if (v != null && v !== "" && isFinite(h) && h >= 0 && h <= 23) return h;
+      const d = Math.round(Number(C.defaults.deliveryHour));
+      return isFinite(d) && d >= 0 && d <= 23 ? d : 6;
     },
     // Prochain changement de jour après ms
     nextDayAt(s, ms) {
@@ -330,8 +338,8 @@ window.BA = window.BA || {};
       const removeBefore = opts.withRemoval
         ? (opts.removeBefore != null ? opts.removeBefore : passage - s.settings.thrHours * H)
         : null;
-      // le pain neuf est livré le matin du passage (06:00) et devient « à retirer » après le seuil
-      const delivery = lastDelivery(passage);
+      // le pain neuf est daté de la dernière heure de récupération avant le passage (Paramètres) et devient « à retirer » après le seuil
+      const delivery = lastDelivery(passage, Model.deliveryHour(s));
       const coverEnd = Math.min(next, delivery + s.settings.thrHours * H);
       const safety = Math.max(0, Number(ctx.F.safetyPct) || 0) / 100;
       const loadMode = opts.loadMode === "full" ? "full" : "need";

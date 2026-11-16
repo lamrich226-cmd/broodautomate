@@ -563,6 +563,8 @@
           <p class="petit">${t("set_thr_help")}</p>
           <label class="field-row">${t("set_day_hour")} <input id="set-day-h" class="num-in" type="number" min="0" max="23" step="1" value="${M.dayHour(s)}"> h</label>
           <p class="petit">${t("set_day_hour_help")}</p>
+          <label class="field-row">${t("set_deliv_hour")} <input id="set-deliv-h" class="num-in" type="number" min="0" max="23" step="1" value="${M.deliveryHour(s)}"> h</label>
+          <p class="petit">${t("set_deliv_hour_help")}</p>
           <label class="field-row">${t("set_empty")} <input id="set-empty" class="num-in" type="number" min="0" max="50" value="${P.emptyPct}"> %</label>
           <p class="petit">${t("set_empty_help")}</p>
         </div>
@@ -598,6 +600,7 @@
       const values = {
         thrHours: Math.round(n("#set-thr", P2.thrHours, 1, 200)),
         dayHour: Math.round(n("#set-day-h", M.dayHour(BA.Store.get()), 0, 23)),
+        deliveryHour: Math.round(n("#set-deliv-h", M.deliveryHour(BA.Store.get()), 0, 23)),
         emptyPct: n("#set-empty", P2.emptyPct, 0, 50),
         tempMin: n("#set-tmin", P2.tempMin, -30, 60), tempMax: n("#set-tmax", P2.tempMax, -30, 60),
         purchase, fixedMonthly: n("#set-fixed", P2.fixedMonthly, 0, 100000), cardFeePct: n("#set-fee", P2.cardFeePct, 0, 100),

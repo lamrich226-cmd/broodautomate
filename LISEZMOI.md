@@ -1,4 +1,4 @@
-> **État actuel (v5.32.3, 16/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.33.0, 16/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -105,6 +105,15 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.33.0 — Heure de récupération du pain (Paramètres)
+
+« Remplir » proposait toujours la date « 6 h du matin » pour le pain chargé (avant 6 h : la veille à 6 h). Avec la tournée de nuit
+(pain récupéré chez le boulanger vers 19 h, chargé la nuit), le pain neuf affichait déjà « 22 h » juste après le chargement et passait
+« à retirer » trop tôt. Nouveau réglage **Paramètres › Pain › Heure de récupération du pain** (19 h par défaut) : la date proposée est
+la dernière fois qu'il était cette heure-là (à 3 h du matin : la veille à 19 h ; à 20 h 30 : le jour même à 19 h). L'opérateur peut
+toujours changer la date dans « Remplir ». La commande (prévision jusqu'au passage suivant) utilise la même heure. Mettre 6 pour
+revenir à l'ancien calcul. Essai : `tests/v540.mjs`.
 
 ## v5.32.3 — Audit complet (admin + opérateur) et corrections
 

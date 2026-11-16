@@ -226,7 +226,7 @@ window.BA = window.BA || {};
         const price = Number(p.price);
         const sel = { n, type: typeFromName(s, p.name), cap, price: isFinite(price) && price >= 0 ? Math.round(price * 100) / 100 : s.settings.salePrice, lots: [] };
         // date de livraison inconnue : « (estimé) », à corriger dans Détails machine
-        if (qty > 0) sel.lots.push({ id: s.seq++, qty, date: M.lastDelivery(s.now), kept: false, estimated: true });
+        if (qty > 0) sel.lots.push({ id: s.seq++, qty, date: M.lastDelivery(s.now, M.deliveryHour(s)), kept: false, estimated: true });
         m.sels.push(sel);
       });
       s.machines.push(m);
