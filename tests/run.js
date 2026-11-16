@@ -229,7 +229,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.32.0, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.32.0") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.32.1, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.32.1") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
@@ -880,7 +880,7 @@ async function scenarioOperateurCompte() {
   await login(o, "op@test.be", "Secret-456");
   await ready(o);
   ok("compte opérateur sur l'appli opérateur : accepté (5 onglets, v5.25 : avec le Dashboard)", !!(await o.$("nav button[data-view=todo]")) && (await o.$$("nav#app-nav button[data-view]")).length === 5);
-  ok("appli opérateur : s'ouvre sur le Dashboard, 1er onglet (v5.32.0)", (await o.$eval("nav#app-nav button[data-view]", x => x.dataset.view)) === "dashboard" && !!(await o.$("#view-dashboard.active")) && !(await o.$("#view-todo.active")));
+  ok("appli opérateur : s'ouvre sur le Dashboard, 1er onglet (v5.32.1)", (await o.$eval("nav#app-nav button[data-view]", x => x.dataset.view)) === "dashboard" && !!(await o.$("#view-dashboard.active")) && !(await o.$("#view-todo.active")));
   ok("navigateur normal : lien « Logiciel admin » présent", !!(await o.$("a[href='index.html']")));
   // appli Android (agent utilisateur de l'appli)
   const d3 = await device(fake, "op57c", { ctx: { userAgent: "Mozilla/5.0 (Linux; Android 14) BroodautomateOperateurApp" } });
@@ -975,7 +975,7 @@ async function scenarioOpSimple(ctx) {
   await view(o, "todo");
   // v5.11 : sur téléphone, les onglets sont en bas (#app-tabbar), avec leur nom
   const tabs = await o.$$eval("#app-tabbar button[data-view]", l => l.map(b => ({ v: b.dataset.view, t: b.innerText.trim(), w: b.querySelector("span") ? getComputedStyle(b.querySelector("span")).display : "" })));
-  ok("5 onglets : Dashboard (v5.32.0 : en premier), À faire, Remplir, Alertes, Plus — tous avec leur nom", tabs.map(x => x.v).join(",") === "dashboard,todo,fill,alerts,more" && tabs.every(x => x.t && x.w !== "none"), tabs);
+  ok("5 onglets : Dashboard (v5.32.1 : en premier), À faire, Remplir, Alertes, Plus — tous avec leur nom", tabs.map(x => x.v).join(",") === "dashboard,todo,fill,alerts,more" && tabs.every(x => x.t && x.w !== "none"), tabs);
   const h = await o.evaluate(() => Math.round(document.getElementById("app-header").getBoundingClientRect().height));
   ok("en-tête sur une seule ligne (langue, thème, déconnexion dans « Plus »)", h <= 64 && !(await o.isVisible("#lang-select")), h);
   await shot(o, "70-op-a-faire", false);

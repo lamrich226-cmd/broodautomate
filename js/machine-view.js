@@ -23,10 +23,10 @@ window.BA = window.BA || {};
   const mode = () => { try { return localStorage.getItem(MODEKEY) === "classic" ? "classic" : "machine"; } catch (e) { return "machine"; } };
   const on = () => mode() === "machine";
   function setMode(v) { try { localStorage.setItem(MODEKEY, v === "classic" ? "classic" : "machine"); } catch (e) { /* préférence non gardée */ } }
-  // v5.32 : style du numéro de sélection sur les cases du Dashboard : « tab » (languette sous la case), « bloc » (un seul rectangle), « coin » (petit, dans le coin)
+  // v5.32 : style du numéro de sélection sur les cases du Dashboard : « bloc » (un seul rectangle, par défaut), « tab » (languette sous la case), « coin » (petit, dans le coin)
   const SSKEY = "ba_sel_style";
-  const selStyle = () => { try { const v = localStorage.getItem(SSKEY); return v === "bloc" || v === "coin" ? v : "tab"; } catch (e) { return "tab"; } };
-  function setSelStyle(v) { try { localStorage.setItem(SSKEY, v === "bloc" || v === "coin" ? v : "tab"); } catch (e) { /* préférence non gardée */ } }
+  const selStyle = () => { try { const v = localStorage.getItem(SSKEY); return v === "tab" || v === "coin" ? v : "bloc"; } catch (e) { return "bloc"; } };
+  function setSelStyle(v) { try { localStorage.setItem(SSKEY, v === "tab" || v === "coin" ? v : "bloc"); } catch (e) { /* préférence non gardée */ } }
   function modeSwitch() {
     const cur = mode();
     const b = (v, ico, k) => `<button type="button" data-mvmode="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${ico} ${t(k)}</button>`;

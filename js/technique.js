@@ -31,7 +31,7 @@ window.BA = window.BA || {};
   const quand = ms => { const F = U().F; return ms ? (BA.Model.dayKey(ms) === BA.Model.dayKey(Date.now()) ? F.clock(ms) : F.dt(ms) + F.clock(ms).slice(5)) : "—"; };
 
   // ---------------- Onglets ----------------
-  const TABS = [["boxes", "📡", "tq_tab_boxes"], ["machines", "🏭", "tq_tab_machines"], ["cable", "🔌", "tq_tab_cable"], ["journal", "📜", "tq_tab_journal"], ["system", "🖥", "tq_tab_system"], ["raw", "🧾", "tq_tab_raw"], ["usage", "📊", "tq_tab_usage"]];
+  const TABS = [["boxes", "📡", "tq_tab_boxes"], ["machines", "🏭", "tq_tab_machines"], ["cable", "🔌", "tq_tab_cable"], ["journal", "📜", "tq_tab_journal"], ["system", "🖥", "tq_tab_system"], ["raw", "🧾", "tq_tab_raw"], ["usage", "📊", "tq_tab_usage"], ["display", "🎨", "tq_tab_display"]];
   let _el = null, _tab = null;                              // _tab : null tant que rien n'est choisi
   const defaut = () => !machines().length ? "machines" : CLOUD() ? "boxes" : "cable";
 
@@ -44,7 +44,7 @@ window.BA = window.BA || {};
       <div class="seg tabs tq-tabs" role="tablist" aria-label="${E(t("nav_technique"))}">${TABS.map(([id, ic, k]) =>
         `<button type="button" role="tab" id="tq-tab-${id}" data-tq-tab="${id}" aria-controls="tq-pane-${id}" class="${id === tab ? "active" : ""}" aria-selected="${id === tab}" tabindex="${id === tab ? 0 : -1}">${ic} ${E(t(k))}</button>`).join("")}</div>
       ${TABS.map(([id]) => `<section class="tq-pane" id="tq-pane-${id}" data-pane="${id}" role="tabpanel" aria-labelledby="tq-tab-${id}">${
-        id === "boxes" ? `<div id="rs-boitiers"></div>` : id === "journal" ? `<div id="tq-journal"></div>` : id === "system" ? `<div id="tq-system"></div>` : id === "raw" ? `<div id="tq-raw-pane"></div>` : id === "usage" ? `<div id="tq-usage"></div>` : ""}</section>`).join("")}`;
+        id === "boxes" ? `<div id="rs-boitiers"></div>` : id === "journal" ? `<div id="tq-journal"></div>` : id === "system" ? `<div id="tq-system"></div>` : id === "raw" ? `<div id="tq-raw-pane"></div>` : id === "display" ? `<div id="tq-display"></div>` : id === "usage" ? `<div id="tq-usage"></div>` : ""}</section>`).join("")}`;
     const bar = el.querySelector(".tq-tabs");
     bar.querySelectorAll("[data-tq-tab]").forEach(b => b.onclick = () => show(b.dataset.tqTab));
     // clavier : flèches gauche / droite, début / fin (comme des onglets)
@@ -67,7 +67,30 @@ window.BA = window.BA || {};
     if (_tab === "journal") loadJournal(false);
     if (_tab === "system") loadSystem(false);
     if (_tab === "raw") drawRaw();
+    if (_tab === "display") drawDisplay();
     if (_tab === "usage" && BA.Boitiers && BA.Boitiers.usage) BA.Boitiers.usage(_el.querySelector("#tq-usage"));
+  }
+  // ---------------- 🎨 Affichage (v5.32.1) ----------------
+  // Les choix d'affichage du Dashboard au même endroit : cartes / liste, Machine / Classique, style du numéro « Sel ».
+  // Ils sont gardés sur cet appareil (comme les boutons du Dashboard) et s'appliquent tout de suite.
+  const LAYKEY = "ba_dash_layout";
+  const layout = () => { try { return localStorage.getItem(LAYKEY) === "list" ? "list" : "cards"; } catch (e) { return "cards"; } };
+  function drawDisplay() {
+    const z = _el && _el.querySelector("#tq-display"); if (!z) return;
+    const MV = BA.MachineView;
+    const grp = (key, titre, opts, cur) => `<div class="tq-disp-row"><div class="tq-disp-t">${E(titre)}</div><div class="seg" role="group" aria-label="${E(titre)}">${opts.map(([v, lab]) => `<button type="button" data-disp="${key}" data-v="${v}" class="${cur === v ? "active" : ""}" aria-pressed="${cur === v}">${lab}</button>`).join("")}</div></div>`;
+    z.innerHTML = `<div class="card tq-card"><h3>🎨 ${E(t("tq_d_title"))}</h3><p class="petit">${E(t("tq_d_note"))}</p>
+      ${grp("layout", t("tq_d_layout"), [["cards", "▦ " + E(t("ml_cards"))], ["list", "☰ " + E(t("ml_list"))]], layout())}
+      ${MV ? grp("mode", t("tq_d_mode"), [["machine", "🧩 " + E(t("vm_vue_machine"))], ["classic", "📋 " + E(t("vm_vue_table"))]], MV.mode()) : ""}
+      ${MV ? grp("sel", t("tq_d_sel"), [["tab", E(t("ss_tab"))], ["bloc", E(t("ss_bloc"))], ["coin", E(t("ss_coin"))]], MV.selStyle()) : ""}</div>`;
+    z.onclick = e => {
+      const b = e.target.closest("[data-disp]"); if (!b) return;
+      const v = b.dataset.v;
+      if (b.dataset.disp === "layout") { try { localStorage.setItem(LAYKEY, v === "list" ? "list" : "cards"); } catch (x) { /* préférence non gardée */ } }
+      else if (b.dataset.disp === "mode") MV.setMode(v);
+      else MV.setSelStyle(v);
+      drawDisplay();
+    };
   }
   const visible = tab => !!_el && document.contains(_el) && _tab === tab && BA.Shell && BA.Shell.state.view === "technique";
 

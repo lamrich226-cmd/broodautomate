@@ -281,7 +281,7 @@ window.BA = window.BA || {};
       .sort((a, b) => M.RANK[a.x.st] - M.RANK[b.x.st] || a.x.pct - b.x.pct || a.m.num - b.m.num);
     const lay = dashLayout();
     el.querySelector(".dash-layout").innerHTML = ["cards", "list"].map(v => `<button type="button" data-dl="${v}" class="${lay === v ? "active" : ""}" aria-pressed="${lay === v}">${v === "cards" ? "▦ " + t("ml_cards") : "☰ " + t("ml_list")}</button>`).join("");
-    const MVw = BA.MachineView, ss = MVw ? MVw.selStyle() : "tab", showSS = !!MVw && MVw.on() && lay !== "list";
+    const MVw = BA.MachineView, ss = MVw ? MVw.selStyle() : "bloc", showSS = !!MVw && MVw.on() && lay !== "list";
     el.querySelector(".dash-sel").innerHTML = showSS ? ["tab", "bloc", "coin"].map(v => `<button type="button" data-ss="${v}" class="${ss === v ? "active" : ""}" aria-pressed="${ss === v}">${t("ss_" + v)}</button>`).join("") : "";
     el.querySelector(".dash-sel").style.display = showSS ? "" : "none";
     const body = el.querySelector("#dash-body");

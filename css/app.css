@@ -1250,3 +1250,8 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
 .mv-fs .mv-big .mv-d { display: block; }
 .mv-fs .mv-big .mv-top { flex-wrap: wrap; justify-content: flex-start; padding: 0; }
 .mv-fs .mv-big .mv-d-box { overflow: visible; }
+
+/* v5.32.1 : onglet Technique › Affichage */
+.tq-disp-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 0; border-top: 1px solid var(--line); }
+.tq-disp-row:first-of-type { border-top: 0; }
+.tq-disp-t { flex: 1 1 200px; font-weight: 650; }
