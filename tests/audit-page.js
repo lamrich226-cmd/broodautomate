@@ -25,7 +25,7 @@
 
   // ---------- textes cassés ----------
   const BAD = [/\bundefined\b/, /\bNaN\b/, /\[object \w+\]/, /Invalid Date/, /\bInfinity\b/, /\{[a-zA-Z]\w*\}/, /\[\w+:[^\]|]*\|[^\]]*\]/];
-  const FR = /\b(les|des|pour|avec|dans|une|aucun|aucune|tiroir|tiroirs|vendus?|semaine|jours|heures|Supprimer|Annuler|Enregistrer|Fermer|Retour|Suivant|Valider|Aujourd'hui|Hier|Remplir|commande|livraison)\b/;
+  const FR = /\b(les|des|pour|avec|dans|une|aucun|aucune|tiroir|tiroirs|vendus?|semaine|jours|heures|Supprimer|Annuler|Enregistrer|Fermer|Retour|Suivant|Valider|Aujourd'hui|Remplir|commande|livraison)\b/;
   A.roots = () => ["#app-header", "#app-main .view.active", "#modal-root", "#app-tabbar", "#mv-fs-root"].map(s => document.querySelector(s)).filter(Boolean);
   A.scan = (opts) => {
     opts = opts || {};
@@ -71,7 +71,7 @@
     const txt = (ks.length || e.id) ? "" : (e.getAttribute("aria-label") || e.textContent || "").replace(/\d+/g, "#").replace(/\s+/g, " ").trim().slice(0, 28);
     return e.tagName.toLowerCase() + (e.id ? "#" + e.id.replace(/\d+/g, "#") : "") + "[" + data + "]" + txt;
   };
-  const SKIP = el => el.id === "btn-logout" || el.id === "more-logout" || el.closest("#app-nav,#app-side,#app-tabbar") ||
+  const SKIP = el => el.id === "btn-logout" || el.id === "more-logout" || el.id === "more-lang" || el.closest("#app-nav,#app-side,#app-tabbar") ||
     (el.tagName === "A" && !/^(#|blob:|data:|javascript:)/.test(el.getAttribute("href") || "") && !el.hasAttribute("download"));
   A.list = (scope) => {
     if (scope === "modal" && !document.querySelector("#modal-root .modal, #mv-fs-root")) scope = "page";
