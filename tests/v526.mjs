@@ -109,7 +109,7 @@ const ICCID = "89882280666680646327";
     return r.fulfill({ status: 200, contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ ok: true, jours: [{ date: "TOTAL", ko: 62.1, rx: 24, tx: 38.1 }, { date: "2026-11-13", ko: 52.1, rx: 20, tx: 32.1 }, { date: "2026-11-12", ko: 10, rx: 4, tx: 6 }], restantKo: 499900, totalKo: 500000 }) });
   });
   await p.evaluate(() => { BA.Technique.tab("boxes"); BA.Shell.go("technique"); }); await p.waitForSelector("#view-technique.active");
-  ok("nouvel onglet « 📊 Consommation » dans Technique, après Flux brut", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())).endsWith("raw,usage"));
+  ok("nouvel onglet « 📊 Consommation » dans Technique, après Flux brut", (await p.$$eval("[data-tq-tab]", b => b.map(x => x.dataset.tqTab).join())).endsWith("raw,usage,display"));
   await p.click("[data-tq-tab=usage]"); await sleep(1500);
   const cTxt = await p.innerText("#tq-usage");
   ok("une carte par boîtier, jour par jour en Ko, total 7 jours, reste sur la carte", conso === 2 && /Boîtier 1NCE/.test(cTxt) && /13\/11\/2026/.test(cTxt) && /52,1 Ko/.test(cTxt) && /62,1 Ko/i.test(cTxt) && !/124,2/.test(cTxt) && /499\s?900 Ko/.test(cTxt), [conso, cTxt.slice(0, 400)]);
