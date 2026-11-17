@@ -116,7 +116,8 @@ Détails : `DESIGN.md`, section v5.34. Rien ne change dans la façon de travaill
   sur téléphone, barre d'outils du Dashboard groupée, explications des Paramètres derrière « i », plus de case orpheline dans Détails,
   bouton « Remplir » partout chez l'opérateur, barre du bas pleine, plus de halo ni de bande de couleur épaisse.
 - **Revenir en arrière** : retirer les lignes `design-v534.css`, `icons.js` et `i18n-v534.js` des deux pages (ou ne pas fusionner la branche).
-- Essais : `run.js`, `v511.mjs` (couleurs des thèmes, étiquettes en phrase) adaptés ; toute la chaîne `npm run tout` passe.
+- Essais : `v511.mjs` adapté (couleurs des thèmes, étiquettes en phrase) ; toute la chaîne `npm run tout` passe. Version laissée à 5.33.0
+  sur la branche : elle passera à 5.34.0 le jour de la publication (avec la chaîne d'essais complète).
 
 ## v5.33.0 — Heure de récupération du pain (Paramètres)
 

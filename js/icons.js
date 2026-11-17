@@ -131,14 +131,18 @@
   const RE1 = new RegExp("(?:" + KEYS.map(esc).join("|") + ")", "u");
   const SKIP = "script,style,textarea,input,select,option,code,pre,svg,canvas,title,[data-no-ei]";
 
-  function iconNode(ch) {
+  // l'icône se voit ; l'emoji d'origine reste dans le texte, invisible (lecteurs d'écran, copier-coller, recherche dans la page)
+  function iconNode(ch, full) {
     const [name, tone] = MAP[ch];
+    const frag = document.createDocumentFragment();
     const sp = document.createElement("span");
     sp.setAttribute("aria-hidden", "true");
-    if (name === "dot") { sp.className = "ei-dot" + (tone ? " ei-" + tone : ""); return sp; }
-    sp.className = "ei" + (tone ? " ei-" + tone : "");
-    sp.innerHTML = get(name);
-    return sp;
+    if (name === "dot") sp.className = "ei-dot" + (tone ? " ei-" + tone : "");
+    else { sp.className = "ei" + (tone ? " ei-" + tone : ""); sp.innerHTML = get(name); }
+    const keep = document.createElement("span");
+    keep.className = "ei-t"; keep.setAttribute("data-no-ei", ""); keep.textContent = full;
+    frag.appendChild(sp); frag.appendChild(keep);
+    return frag;
   }
   function textNode(tn) {
     const v = tn.nodeValue;
@@ -150,7 +154,7 @@
     RE.lastIndex = 0;
     while ((m = RE.exec(v))) {
       if (m.index > last) frag.appendChild(document.createTextNode(v.slice(last, m.index)));
-      frag.appendChild(iconNode(m[1]));
+      frag.appendChild(iconNode(m[1], m[0]));
       last = m.index + m[0].length;
     }
     if (last < v.length) frag.appendChild(document.createTextNode(v.slice(last)));
