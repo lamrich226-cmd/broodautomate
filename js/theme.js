@@ -17,7 +17,7 @@ window.BA = window.BA || {};
   const get = () => document.documentElement.dataset.theme || stored() || system();
   function paintMeta() {
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", get() === "light" ? "#f4f0e9" : "#0f172a");
+    if (meta) meta.setAttribute("content", get() === "light" ? "#eef1f6" : "#0b1220");   // v5.34 : couleurs du design test
   }
   function apply(m) {
     if (m === "light" || m === "dark") document.documentElement.dataset.theme = m;

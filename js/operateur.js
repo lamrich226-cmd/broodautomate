@@ -21,7 +21,7 @@
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
       <div class="cm-row"><span>${t("op_fill_pct", { q: x.total, c: x.cap })}</span><span>${x.pct} %</span></div>
       ${extra}
-      <div class="cm-actions"><button class="btn big" data-fill="${m.num}">🧺 ${goLabel || t("btn_start_fill")}</button>
+      <div class="cm-actions"><button class="btn big" data-fill="${m.num}">🧺 ${goLabel || t("op_fill_go")}</button>
         <button class="btn secondary" data-det="${m.num}">${t("op_fill_details")}</button></div>
     </div>`;
   }
@@ -113,7 +113,7 @@
     el.innerHTML = `<h2>🧺 ${t("op_fill_title")}</h2>
       ${list.length > 4 ? `<input type="search" id="fill-q" class="search" placeholder="${E(t("search_ph"))}" value="${E(q)}">` : ""}
       <p class="note">${t("op_fill_pick")}</p>
-      <div class="cards machines-grid">${list.map(z => machineCard(s, z.m, "", t("op_fill_go"))).join("")}</div>`;
+      <div class="cards machines-grid fill-list">${list.map(z => machineCard(s, z.m, "", t("op_fill_go"))).join("")}</div>`;
     bindCards(el);
     const f = el.querySelector("#fill-q");
     const filtre = () => { const v = (f ? f.value : "").trim().toLowerCase(); st().fillQ = v; el.querySelectorAll(".mission-card").forEach(c => { c.style.display = !v || c.dataset.q.includes(v) ? "" : "none"; }); };

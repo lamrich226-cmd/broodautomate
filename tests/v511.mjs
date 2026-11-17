@@ -79,7 +79,7 @@ const etat = {
   ok("en-tête : « En ligne : 0/1 » (le boîtier répond, mais il est en mode essai)", /0\/1/.test(await p.innerText("#online-status")));
   const card = await p.innerText(".carte-machine");
   ok("carte : « Hors ligne » et « boîtier en mode essai (pas branché sur la machine) »", /Hors ligne/.test(card) && /mode essai/.test(card), card);
-  ok("chiffres : la machine vide compte quand même comme vide", (await p.innerText(".summary-cards")).replace(/\s+/g, " ").includes("MACHINES VIDES 1"));
+  ok("chiffres : la machine vide compte quand même comme vide", (await p.innerText(".summary-cards")).replace(/\s+/g, " ").toUpperCase().includes("MACHINES VIDES 1"));   // v5.34 : étiquettes en phrase (plus en majuscules)
   ok("badge « Sauvegardé » expliqué (données, pas machines)", /Sauvegardé/.test(await p.innerText("#sync-status")) && /pas l'état des machines/.test(await p.getAttribute("#sync-status", "title")));
   await shot("v511-01-dashboard-mode-essai");
   const lue = await p.evaluate(() => {
@@ -150,7 +150,7 @@ const etat = {
     document.documentElement.dataset.theme = "dark"; r.nuit = css("backgroundColor");
     delete document.documentElement.dataset.theme; return r;
   });
-  ok("thème clair crème (#f4f0e9), thème nuit ardoise (#0f172a), sans inversion de l'écran", th.clair === "rgb(244, 240, 233)" && th.nuit === "rgb(15, 23, 42)" && (th.filtre === "none" || !th.filtre), th);
+  ok("thème clair gris-bleu (#eef1f6, v5.34), thème nuit ardoise (#0b1220), sans inversion de l'écran", th.clair === "rgb(238, 241, 246)" && th.nuit === "rgb(11, 18, 32)" && (th.filtre === "none" || !th.filtre), th);
   const tel = await device("tel", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: "dark" });
   const h = await tel.evaluate(() => ({ h: Math.round(document.getElementById("app-header").getBoundingClientRect().height), over: document.scrollingElement.scrollWidth > innerWidth + 1, titre: document.getElementById("page-title").textContent, tabs: document.querySelectorAll("#app-tabbar button").length }));
   ok("téléphone : bandeau sur une ligne avec le titre de la page, 5 onglets en bas, pas de défilement de côté", h.h <= 64 && !h.over && h.titre === "Dashboard" && h.tabs === 5, h);

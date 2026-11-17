@@ -50,3 +50,25 @@ Cibles tactiles ≥ 44 px sur écran tactile, anneau de focus visible au clavier
 - **v5.26, plein écran** : le bouton ⛶ de « Vue de la machine » (Détails, Produits / Stock, admin et opérateur) agrandit le même bloc par-dessus la page (`.mv-fs`, état `S.mvFull`) et le dessine comme la vraie machine (cadre, vitre, étagères, clavier, panneau avec l'adresse). Échap ou « Quitter le plein écran » en sort ; la fenêtre d'un tiroir s'ouvre par-dessus (z-index 62).
 - **v5.27, plein écran depuis le Dashboard** : petit bouton ⛶ dans le coin de chaque carte et de chaque ligne (`.cm-full`, `data-mv-open`) ; le reste de la carte ouvre toujours « Détails ». La machine s'ouvre dans un calque (`#mv-fs-root`, `BA.MachineView.openFull / closeFull`), le Dashboard dessous ne bouge pas ; Échap ou « Quitter » = retour au Dashboard. Sur téléphone (≤ 600 px) la machine fait exactement la taille de l'écran (100 dvh, sans défilement : les étages se partagent la hauteur, n° et prix sur une ligne, légende masquée ; sur très petit écran la date sous les pains est masquée aussi).
 - **v5.25, corrections** : la fenêtre d'un tiroir garde sa position quand l'écran se redessine (`BA.MachineView.keepPopScroll`) et ne s'ouvre que sur la page où elle a été ouverte ; les textes de la vue machine s'appellent `vm_*` (les `mv_*` sont ceux de la fenêtre « Déplacer ») ; bandeau `.it-open` dans Détails machine pour un « Remplir » pas terminé (Reprendre / Clore) ; « (clos automatiquement) » dans le tableau des interventions.
+
+## v5.34 (« design test ») : plus pro, plus lisible — couche `css/design-v534.css` + `js/icons.js`
+Posée **par-dessus** `css/app.css` : retirer les 2 lignes `design-v534` des deux pages (et `js/icons.js`) remet l'ancien design.
+- **Police** : *Atkinson Hyperlegible Next* (hébergée dans `fonts/`, licence OFL, 34 Ko), dessinée pour la lisibilité : on ne confond pas 1 / l / I ni 0 / O
+  (numéros de machines, quantités, prix) ; chiffres de largeur fixe pour tout ce qui se compare.
+- **Couleurs** : nuit = bleu ardoise plus profond (`#0b1220`, cartes `#111a2c`) ; jour = gris-bleu froid (`#eef1f6`) et cartes blanches (plus de fond crème).
+  Bouton principal bleu dans les deux thèmes. Couleurs d'état inchangées (assombries en clair pour un contraste ≥ 4,5:1). Le blé reste seulement dans le logo.
+- **Icônes** : `js/icons.js` remplace à l'écran chaque emoji connu par une icône au même trait que le menu (24 × 24, trait 1,8) ;
+  les pastilles 🟢🔴🟠 deviennent des points de couleur. Rien ne change dans les textes ni les traductions ; pas d'icône dans les listes déroulantes.
+- **Profondeur** : les cartes sont à plat (bordure fine) ; seules les choses qui flottent ont une ombre (fenêtres, barre du bas, menu ouvert).
+  Plus de bande de couleur épaisse à gauche des cartes et des messages, plus de halo autour des cartes « porte ouverte » (teinte + bordure à la place).
+- **Étiquettes** en phrase (plus en MAJUSCULES) : chiffres clés, en-têtes de tableaux.
+- **Dashboard** : « À faire aujourd'hui » en liste calme (la couleur est dans la pastille de l'icône) ; ordre : pains obligatoires, portes, machine vide,
+  hors ligne, pains à retirer, alertes, retours, résumé ; sur téléphone les 3 premières lignes, le reste derrière « Voir n autres lignes ».
+  Chiffres clés avec une icône ; un chiffre à 0 reste neutre. Barre d'outils : chercher à gauche, l'affichage (Cartes / Liste, Machine / Classique,
+  Languette / Bloc / Coin) groupé à droite, en contrôles « segmentés » ; la légende des couleurs en petit dessous (cachée sur téléphone).
+- **Téléphone** : le titre de la page n'est plus répété sous le bandeau ; barre du bas pleine, onglet actif en pastille ; champs en 16 px (pas de zoom tout seul).
+- **Détails machine** : la dernière case seule prend toute la largeur. **Paramètres** : explications repliées derrière un bouton « i », unité collée à sa case.
+- **Opérateur** : bouton « Remplir » partout (plus « Commencer (Remplir) ») ; page « Remplir » en cartes plus compactes (rue et ville sur une ligne).
+- **Alertes** : cartes neutres, la gravité dans le point de couleur devant le titre.
+- **Mouvement** : seulement en réponse à un geste (appui 0,97, dépliage 200 ms, pastille de l'onglet), courbe `cubic-bezier(.23, 1, .32, 1)` ;
+  le point « porte ouverte » clignote exprès ; « réduire les animations » retire les déplacements.
