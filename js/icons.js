@@ -131,18 +131,17 @@
   const RE1 = new RegExp("(?:" + KEYS.map(esc).join("|") + ")", "u");
   const SKIP = "script,style,textarea,input,select,option,code,pre,svg,canvas,title,[data-no-ei]";
 
-  // l'icône se voit ; l'emoji d'origine reste dans le texte, invisible (lecteurs d'écran, copier-coller, recherche dans la page)
+  // l'icône se voit ; l'emoji d'origine reste dans le texte, invisible (lecteurs d'écran, copier-coller, recherche dans la page).
+  // Il est rangé DANS l'icône (position: relative) : sinon, dans un tableau qui défile, il « s'échappait » et la page débordait à droite.
   function iconNode(ch, full) {
     const [name, tone] = MAP[ch];
-    const frag = document.createDocumentFragment();
     const sp = document.createElement("span");
-    sp.setAttribute("aria-hidden", "true");
     if (name === "dot") sp.className = "ei-dot" + (tone ? " ei-" + tone : "");
-    else { sp.className = "ei" + (tone ? " ei-" + tone : ""); sp.innerHTML = get(name); }
+    else { sp.className = "ei" + (tone ? " ei-" + tone : ""); sp.innerHTML = get(name); }   // le dessin lui-même est aria-hidden
     const keep = document.createElement("span");
     keep.className = "ei-t"; keep.setAttribute("data-no-ei", ""); keep.textContent = full;
-    frag.appendChild(sp); frag.appendChild(keep);
-    return frag;
+    sp.appendChild(keep);
+    return sp;
   }
   function textNode(tn) {
     const v = tn.nodeValue;
