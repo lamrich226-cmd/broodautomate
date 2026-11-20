@@ -1,4 +1,4 @@
-> **État actuel (v5.33.0, 16/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.33.1, 20/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -10,6 +10,11 @@
 > - **Machine supprimée** : son historique passe sous un numéro fantôme, affiché « #n (supprimée) » ; une nouvelle machine qui reprend
 >   le numéro démarre vide.
 > - **Appli opérateur** : 5 onglets, le **Dashboard** en premier (page d'ouverture), puis À faire, Remplir, Alertes, Plus.
+> - **Prix** (v5.33.1) : le prix gardé dans la machine (ligne `PA1`) est repris à la première lecture et à chaque changement ;
+>   à 0 € (prix tenu par le système de paiement), le prix vraiment payé à la dernière vente ; une machine sans sélection reçoit
+>   celles que la machine annonce. Voir la section v5.33.1.
+> - **Essais** : relevé réel privé dans `tests/donnees/` puis `npm run tout` ; `BA_AUDIT=…` attend un **chemin** (`BA_AUDIT=1` fait
+>   sauter `run.js` et `run4g.mjs`).
 > - **Nouvelle version publiée** : un bandeau propose de recharger les pages restées ouvertes (PC, téléphone, appli opérateur).
 > - L'ancienne v3.2 (`v3/`) a été retirée en v5.29 (toujours dans l'historique GitHub).
 
