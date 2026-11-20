@@ -26,7 +26,8 @@ window.BA = window.BA || {};
     COUNTERS_DOWN: { cat: "tech",  level: "warn" },   // compteurs plus bas qu'au relevé précédent
     READ_FAIL:     { cat: "tech",  level: "warn" },   // lecture par câble impossible
     READ_BAD:      { cat: "tech",  level: "warn" },   // relevé abîmé (contrôle G85 faux)
-    SEL_UNKNOWN:   { cat: "stock", level: "warn" }    // vente sur une sélection absente de Produits / Stock
+    SEL_UNKNOWN:   { cat: "stock", level: "warn" },   // vente sur une sélection absente de Produits / Stock
+    SELS_FROM_MACHINE: { cat: "stock", level: "info" } // v5.33.1 : sélections créées d'après la machine (1re connexion)
   });
 
   const DOOR_OPEN_CODE = "EGS", DOOR_CLOSED_CODE = "EGT";
@@ -226,6 +227,74 @@ window.BA = window.BA || {};
   // « #2 » ou « #2 (supprimée) » pour un numéro fantôme
   M.numTxt = n => estFantome(n) ? "#" + (Number(n) % FANTOME) + " " + BA.I18n.t("num_supprimee") : "#" + n;
 
+  // ---------------- v5.33.1 : sélections et prix annoncés par la machine ----------------
+  // Chaque relevé donne, pour chaque sélection, son numéro et le prix gardé dans la machine (ligne PA1).
+  // Champs ajoutés à une sélection : mp = dernier prix de la machine vu (centimes), mpt = heure de ce relevé,
+  // pt = heure du dernier prix fixé (par un relevé ou à la main) : un relevé plus ancien ne le remplace pas.
+  const plusFrequent = vals => {
+    const c = {}; let best = null, n = 0;
+    vals.forEach(v => { if (v == null || v === "") return; const k = String(v); c[k] = (c[k] || 0) + 1; if (c[k] > n) { n = c[k]; best = v; } });
+    return best;
+  };
+  // Nouveau prix de vente d'une sélection. w : « m » = prix réglé dans la machine, « v » = prix payé à la dernière vente.
+  // Noté dans l'Historique (« Distributeur ») ; un changement de prix dans la machine est aussi gardé dans les Alertes (déjà réglé).
+  function prixAuto(s, m, sel, prix, t, w, alerte) {
+    sel.pt = t;
+    const p0 = Number(sel.price), p1 = Math.round(Number(prix) * 100) / 100;
+    if (!(p1 >= 0) || Math.round(p0 * 100) === Math.round(p1 * 100)) return false;
+    sel.price = p1;
+    M.log(s, { t, k: "price", n: m.num, s: sel.n, y: sel.type, p: p1, p0: isFinite(p0) ? p0 : null, b: "sim", w });
+    if (alerte) {
+      const ev = M.addEvent(s, m.num, "PRICE_CHANGED", { sel: sel.n, type: sel.type, from: isFinite(p0) ? p0 : null, to: p1, key: "p" + sel.n + "-" + t });
+      ev.resolved = true; ev.resolvedAt = s.now;
+    }
+    return true;
+  }
+  // audit : relevé (toAudit) ; t : heure du relevé
+  function selsMachine(s, m, audit, t) {
+    const liste = ((audit && audit.selections) || []).map(x => ({
+      n: Number(x.selection), sold: Number(x.sold) || 0,
+      p: x.price == null || x.price === "" || !isFinite(Number(x.price)) ? null : Number(x.price)
+    })).filter(x => Number.isInteger(x.n) && x.n >= 1 && x.n <= 999);
+    if (!liste.length) return;
+    // 1) Première connexion : la plateforme n'a encore aucune sélection pour cette machine → celles que la machine annonce
+    //    (seulement celles qui ont déjà vendu, s'il y en a : les autres ne sont souvent pas utilisées), avec le type de pain
+    //    et la capacité les plus courants pour ce numéro dans les autres machines. L'admin vérifie (alerte).
+    if (!m.sels.length) {
+      const vendues = liste.filter(x => x.sold > 0), choix = vendues.length ? vendues : liste;
+      const autres = [];
+      s.machines.forEach(o => { if (o !== m) (o.sels || []).forEach(x => autres.push(x)); });
+      const types = M.types(s);
+      const faites = [];
+      choix.forEach(x => {
+        if (M.sel(m, x.n)) return;
+        const memes = autres.filter(o => o.n === x.n);
+        const type = [plusFrequent(memes.map(o => o.type)), plusFrequent(autres.map(o => o.type)), types[0]].find(v => v && types.includes(v)) || "blanc";
+        const cap = Math.max(1, Math.min(50, Math.round(Number(plusFrequent(memes.map(o => o.cap)) || plusFrequent(autres.map(o => o.cap)) || 3))));
+        const prix = x.p > 0 ? x.p : Number(plusFrequent(memes.map(o => o.price)) || s.settings.salePrice) || 0;
+        m.sels.push({ n: x.n, type, cap, price: Math.round(prix * 100) / 100, lots: [] });
+        M.log(s, { t, k: "seladd", n: m.num, s: x.n, y: type, c: cap, b: "sim" });
+        faites.push(x.n);
+      });
+      if (faites.length) {
+        m.sels.sort((a, b) => a.n - b.n);
+        M.addEvent(s, m.num, "SELS_FROM_MACHINE", { total: faites.length, msg: faites.join(", "), key: "sm" });
+      }
+    }
+    // 2) Prix réglé dans la machine : repris à la première lecture de la sélection et à chaque changement.
+    //    0 € = prix tenu par le système de paiement : la plateforme garde le sien (corrigé par le prix payé, voir applyAudit).
+    liste.forEach(x => {
+      const sel = M.sel(m, x.n);
+      if (!sel || x.p == null || x.p < 0) return;
+      if (sel.mpt != null && t < sel.mpt) return;                       // relevé plus ancien (clé USB importée plus tard)
+      const c = Math.round(x.p * 100), premier = sel.mp == null, change = premier || c !== sel.mp;
+      sel.mp = c; sel.mpt = t;
+      if (!change || c <= 0) return;
+      if (sel.pt != null && t < sel.pt) return;                         // prix changé à la main après ce relevé : il reste
+      prixAuto(s, m, sel, c / 100, t, "m", !premier);
+    });
+  }
+
   const Reel = {
     machineMs, addSpan,
 
@@ -244,6 +313,7 @@ window.BA = window.BA || {};
     // gardés dans la machine avec la date du relevé ; un relevé plus ancien (clé USB) ne remplace pas un plus récent
     setTotals(s, num, audit, t) {
       const m = M.machine(s, num); if (!m || !audit || audit.total_count == null) return;
+      selsMachine(s, m, audit, t);                // v5.33.1 : aussi quand rien n'est vendu (prix changé dans la machine)
       if (m.tot && m.tot.t > t) return;
       m.tot = { t, n: Number(audit.total_count), v: Number(audit.total_value) || 0,
         cn: audit.cashless_count == null ? null : Number(audit.cashless_count), cv: audit.cashless_value == null ? null : Number(audit.cashless_value) };
@@ -257,6 +327,7 @@ window.BA = window.BA || {};
       const { diff, nv, audit, analyse } = x;
       const prevTot = m.tot ? Object.assign({}, m.tot) : null;        // v5.13 : totaux du relevé d'avant (carte / espèces par jour)
       seen(s, m, x.t, x.src);
+      selsMachine(s, m, audit, x.t);                                  // v5.33.1 : sélections (1re connexion) et prix de la machine
       // température : la plus récente
       const temps = (audit.errors || []).filter(e => e.type === "temp")
         .sort((a, b) => BA.EvaDts.cleDate(b.date, b.time).localeCompare(BA.EvaDts.cleDate(a.date, a.time)));
@@ -309,6 +380,9 @@ window.BA = window.BA || {};
           else if (sel && sel.price != null) prix = new Array(d.delta).fill(Number(sel.price));
           else prix = spread(d.delta, moyen * d.delta);
           prix.forEach(p => sell(sel, Number.isFinite(n) ? n : null, p));
+          // v5.33.1 : une seule vente sur la sélection depuis le relevé d'avant → son montant est le prix vraiment payé
+          // (le seul prix connu quand la machine dit 0 €) ; plusieurs ventes : la moyenne pourrait mélanger deux prix
+          if (sel && d.delta === 1 && d.deltaValue != null && d.deltaValue > 0 && !(sel.pt != null && x.t < sel.pt)) prixAuto(s, m, sel, d.deltaValue, x.t, "v", false);
           if (!sel) M.addEvent(s, m.num, "SEL_UNKNOWN", { sel: d.selection, qty: d.delta, key: "u" + d.selection });
           else if (M.qty(sel) === 0) M.addEvent(s, m.num, "SEL_EMPTY", { sel: sel.n, type: sel.type });
         });

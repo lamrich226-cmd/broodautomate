@@ -17,6 +17,7 @@ un **faux câble RS232** et un **faux Firebase**. Rien n'est envoyé sur Interne
 | `v526.mjs` | v5.26 (design-test) : machine en plein écran (bouton ⛶, fenêtre d'un tiroir par-dessus, Échap, téléphone opérateur et PC admin) |
 | `sql/operateur.test.mjs` | `supabase/operateur-compte.sql` dans une vraie base PostgreSQL en mémoire : le compte opérateur LIT les relevés 4G mais ne peut rien y écrire ni effacer ; l'admin garde tout |
 | `sql/preuve-livraison.test.mjs` | `supabase/preuve-livraison-securite.sql` (autre appli du même Supabase, préparé, pas installé) : verrou après 5 mots de passe faux |
+| `v5331.mjs` | v5.33.1 : prix gardé dans la machine (ligne PA1) repris à la première lecture et à chaque changement, prix payé quand la machine dit 0 €, relevé plus ancien et prix changé à la main respectés, sélections créées à la première connexion, Historique et Alertes en FR / NL / EN |
 | `v512.mjs` | v5.12 : page « Technique » (boîtiers en détail, données 4G estimées, machines et n° de plaque, câble et clé USB, journal des envois, système), page « Connexion RS232 » allégée, téléphone, opérateur |
 
 ## Lancer les tests (sur un ordinateur avec Node 22 ou plus)

@@ -84,6 +84,9 @@ window.BA = window.BA || {};
     if (e.k === "seladd" && e.c) p.push(t("hist_cap", { n: e.c }));
     if (e.k === "seldel" && e.q) p.push(t("hist_seldel_q", { q: e.q }));
     if (e.k === "price") p.push(t("hist_price", { a: e.p0 != null ? F.eur(e.p0) : "—", b: F.eur(e.p) }));
+    // v5.33.1 : prix repris automatiquement — réglé dans la machine (m) ou payé à la dernière vente (v)
+    if (e.k === "price" && e.w === "m") p.push(t("hist_price_w_m"));
+    if (e.k === "price" && e.w === "v") p.push(t("hist_price_w_v"));
     if (e.x) p.push(t("hist_note", { x: e.x }));
     if (e.it) p.push(t("hist_src_fill"));
     return p.join(" · ");

@@ -22,7 +22,10 @@
 //         avant G85, fins de ligne CRLF, 4 caractères hexa, poids fort d'abord)
 // Les ventes se calculent TOUJOURS par différence entre deux relevés sur
 // les compteurs CUMULÉS : on n'additionne jamais les compteurs « interim ».
-// Le fichier ne contient NI le stock NI les prix (PA102 = 0 sur FAS).
+// Le fichier ne contient PAS le stock. Le prix gardé dans la machine est en PA102 (centimes, ligne PA1) :
+// v5.33.1 — vérifié sur de vrais relevés : un prix changé dans la machine (commande 03) passe de PA1*11*0 à
+// PA1*11*10 (0,10 €) ; FAS 480 en DEX : PA1*1*270 (2,70 €). Sur les Power Lift payées par carte, PA102 vaut 0 :
+// le prix est alors tenu par le système de paiement, et seul le montant vendu (PA202) dit le prix payé.
 // ============================================================
 
 window.BA = window.BA || {};
@@ -146,7 +149,7 @@ BA.EvaDts = {
     const entree = cle => {
       if (!parSel[cle]) parSel[cle] = {
         selection: cle, sold: null, soldSinceReset: null, value: null, valueSinceReset: null,
-        price: null, productCode: null, avgPrice: null, _la: false, _laSansCumul: false
+        price: null, machinePrice: null, productCode: null, avgPrice: null, _la: false, _laSansCumul: false
       };
       return parSel[cle];
     };
@@ -217,6 +220,8 @@ BA.EvaDts = {
           if (courante) {
             const prix = num(f[2]);
             if (prix !== null && prix > 0) courante.price = prix / 100;
+            // v5.33.1 : prix de la machine en centimes, 0 compris (0 = prix tenu ailleurs) ; null si le champ manque
+            if (prix !== null && prix >= 0) courante.machinePrice = Math.round(prix);
             courante.productCode = champ(f[3]) || null;
           }
           break;
@@ -432,7 +437,9 @@ BA.EvaDts = {
       selections:   (analyse.selections || []).map(s => ({
         selection: s.selection,
         sold:      s.sold,
-        value:     s.value
+        value:     s.value,
+        // v5.33.1 : prix gardé dans la machine (€, 0 compris) ; null si la machine ne le donne pas
+        price:     s.machinePrice != null ? s.machinePrice / 100 : null
       })),
       errors
     };

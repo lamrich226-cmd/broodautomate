@@ -612,7 +612,8 @@
       const fc = BA.AdminFC.readSettingsCard(el);
       if (fc) BA.Actions.saveForecastSettings(fc);
       if (el.querySelector("#set-price-all").checked) {
-        BA.Store.update(s2 => s2.machines.forEach(m => m.sels.forEach(sel => { sel.price = values.salePrice; })));
+        // v5.33.1 : pt = prix fixé à la main maintenant (un relevé plus ancien ne le remplace pas)
+        BA.Store.update(s2 => s2.machines.forEach(m => m.sels.forEach(sel => { sel.price = values.salePrice; sel.pt = s2.now; })));
       }
       st().settingsMsg = t("saved");
       renderSettings(el);

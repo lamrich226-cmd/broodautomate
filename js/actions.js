@@ -273,6 +273,8 @@ window.BA = window.BA || {};
           sel.price = p1;
           // v5.11.1 : l'opérateur peut aussi changer le prix ; chaque changement est noté dans l'Historique (qui, quand, avant → après)
           if (p1 !== p0) M.log(s, { k: "price", n: m.num, s: sel.n, y: sel.type, p: p1, p0 });
+          // v5.33.1 : un relevé plus ancien que ce changement ne remet pas l'ancien prix (voir BA.Reel, prix de la machine)
+          if (p1 !== p0) sel.pt = s.now;
         }
         return null;
       });

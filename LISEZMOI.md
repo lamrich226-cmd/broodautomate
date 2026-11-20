@@ -106,6 +106,25 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
 
+## v5.33.1 — Prix et sélections repris de la machine
+
+Chaque relevé (câble, clé USB ou boîtier 4G) contient, pour chaque sélection, son numéro et le **prix gardé dans la machine**
+(ligne `PA1*sélection*prix en centimes`). Le logiciel le lisait mais le jetait : la plateforme gardait le prix réglé à la main.
+Vérifié sur de vrais relevés : prix changé dans la machine → `PA1*11*0` devient `PA1*11*10` (0,10 €) ; FAS 480 : `PA1*1*270`.
+- **Prix de la machine > 0 €** : repris à la première lecture de la sélection et à chaque changement, même sans vente.
+  Historique : « Prix changé », par « Distributeur », « prix réglé dans la machine » ; un changement après la première lecture
+  est aussi gardé dans les Alertes (« Prix modifié — sélection N », déjà réglée).
+- **Prix de la machine = 0 €** (Power Lift payées par carte : le prix est tenu par le système de paiement) : la plateforme garde son
+  prix, et prend le **prix vraiment payé** quand une seule vente a eu lieu sur la sélection depuis le relevé d'avant
+  (« prix payé à la dernière vente » ; plusieurs ventes d'un coup : la moyenne n'est pas prise). Le chiffre d'affaires, lui, a
+  toujours été calculé sur l'argent encaissé.
+- Un relevé plus ancien (clé USB importée plus tard) ne remplace pas un prix plus récent, ni un prix changé à la main après lui ;
+  un prix changé à la main reste jusqu'au prochain changement de prix dans la machine.
+- **Première connexion d'une machine sans sélection** : ses sélections sont créées d'après le relevé (celles qui ont déjà vendu,
+  sinon toutes), avec le type de pain et la capacité les plus courants pour ce numéro dans les autres machines ; alerte
+  « N sélections ajoutées d'après la machine » à vérifier dans Détails machine. Leur stock reste à 0 jusqu'au premier « Remplir ».
+- Rien ne change sur la machine ni dans le programme du boîtier (il envoyait déjà ces lignes). Essai : `tests/v5331.mjs`.
+
 ## v5.33.0 — Heure de récupération du pain (Paramètres)
 
 « Remplir » proposait toujours la date « 6 h du matin » pour le pain chargé (avant 6 h : la veille à 6 h). Avec la tournée de nuit
