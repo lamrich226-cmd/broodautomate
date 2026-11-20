@@ -424,11 +424,12 @@ try {
   let det = await a.innerText("#view-details .bx-detail");
   ok("échec : « Lecture impossible (hh:mm) : La machine ne répond pas… » (accents corrects)", /Lecture impossible \(\d\d:\d\d\) : La machine ne répond pas/.test(det), det);
   await (await a.$("#view-details .bx-detail")).screenshot({ path: path.join(OUT, "z-lire-details.png") });
-  // demande restée sans réponse plus de 10 min
-  fake.t.ba_demandes.push({ id: 9001, device_id: fake.t.devices[0].id, machine_id: "FAS-202164170", statut: "attente", message: null, cree_at: new Date(Date.now() - 11 * 60000).toISOString(), prise_at: null, fini_at: null });
+  // demande restée sans réponse plus longtemps que le délai d'écoute du boîtier + 5 min (v5.29 : 15 min réglées plus haut → 20 min ;
+  // avant : 10 min fixes — l'essai gardait 11 min et échouait depuis la v5.29)
+  fake.t.ba_demandes.push({ id: 9001, device_id: fake.t.devices[0].id, machine_id: "FAS-202164170", statut: "attente", message: null, cree_at: new Date(Date.now() - 21 * 60000).toISOString(), prise_at: null, fini_at: null });
   await a.evaluate(() => BA.Boitiers.refresh(true)); await sleep(500);
   det = await a.innerText("#view-details .bx-detail");
-  ok("sans réponse depuis plus de 10 min : « Pas de réponse du boîtier depuis hh:mm » et bouton de nouveau actif", /Pas de réponse du boîtier depuis \d\d:\d\d/.test(det) && !!(await a.$("#view-details button[data-bxread]:not([disabled])")), det);
+  ok("sans réponse depuis plus de 20 min (écoute 15 min + 5) : « Pas de réponse du boîtier depuis hh:mm » et bouton de nouveau actif", /Pas de réponse du boîtier depuis \d\d:\d\d/.test(det) && !!(await a.$("#view-details button[data-bxread]:not([disabled])")), det);
   // boîtier hors ligne : bouton désactivé
   fake.t.devices[0].last_seen = new Date(Date.now() - 3 * 3600000).toISOString();
   await a.evaluate(() => BA.Boitiers.refresh(true)); await sleep(500);
@@ -556,7 +557,7 @@ try {
   let vu2 = true;
   try { await a2.waitForFunction(() => /Lecture en cours : 0 sur 2 machines/.test((document.querySelector("#view-order .bx-all") || {}).innerText || ""), null, { timeout: 20000 }); } catch (e) { vu2 = false; }
   ok("autre onglet (ou PC + téléphone de l'admin) : « Lecture en cours : 0 sur 2 machines » repris", vu2, vu2 ? "" : await a2.innerText("#view-order").catch(() => "?"));
-  // A : lecture faite (rien de vendu) ; B : prise puis plus de réponse (plus de 10 min)
+  // A : lecture faite (rien de vendu) ; B : prise puis plus de réponse (plus de 20 min : écoute 15 min + 5)
   rpc(key); rpc(keyB);
   await a.waitForFunction(() => /0 sur 2 machines/.test((document.querySelector("#view-order .bx-all") || {}).innerText || "") && /lit la machine/.test((document.querySelector("#view-order .bx-all") || {}).innerText || ""), null, { timeout: 20000 }).catch(() => {});
   await boitier(key, { raw: A7, fw: "1.1", lu: 16 });
@@ -564,7 +565,7 @@ try {
   await a.waitForFunction(() => /1 sur 2 machines/.test((document.querySelector("#view-order .bx-all") || {}).innerText || ""), null, { timeout: 25000 }).catch(() => {});
   card = await a.innerText("#view-order .bx-all");
   ok("A lue, B en cours : « Lecture en cours : 1 sur 2 machines… »", /Lecture en cours : 1 sur 2 machines…/.test(card), card);
-  fake.t.ba_demandes.find(x => x.device_id === devB.id && x.id === lot2.find(y => y.device_id === devB.id).id).cree_at = new Date(Date.now() - 11 * 60000).toISOString();
+  fake.t.ba_demandes.find(x => x.device_id === devB.id && x.id === lot2.find(y => y.device_id === devB.id).id).cree_at = new Date(Date.now() - 21 * 60000).toISOString();
   await a.waitForFunction(() => /Lecture terminée/.test((document.querySelector("#view-order .bx-all") || {}).innerText || ""), null, { timeout: 30000 });
   card = await a.innerText("#view-order .bx-all");
   ok("B sans réponse : « Lecture terminée … 1 sur 2 » + « #2 … pas de réponse du boîtier »", /Lecture terminée à \d\d:\d\d : 1 sur 2 machines lues/.test(card) && /#2[^\n]*pas de réponse du boîtier/.test(card), card);
