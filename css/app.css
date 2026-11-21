@@ -1127,7 +1127,7 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .lm-sels { min-width: 190px; max-width: 260px; } .lm-sels .mv-compact { margin: 0; }
 .demo-banner { position: relative; z-index: 40; background: var(--c-info, #1d5fd6); color: #fff; font-weight: 650; font-size: .85rem; text-align: center; padding: 6px 12px; }
 
-/* v5.29 : bandeau « nouvelle version publiée » (js/maj.js) */
+/* v5.41 : bandeau « nouvelle version publiée » (js/maj.js) */
 .maj-bandeau {
   position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 9000;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
@@ -1346,3 +1346,44 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
 .m3-switch .mv-fs-btn[aria-pressed="true"] { background: #f2f4f6 !important; color: #14161a !important; }
 .mv-fs:not(.m3) .mv-head { gap: 10px; align-items: center; }
 @media (max-width: 600px) { .m3-switch .mv-fs-btn { min-height: 34px; padding: 0 11px; font-size: .8rem; } }
+
+/* ===== v5.41 : la 3D dans les pages (Détail machine, Produits / Stock, Remplir) et dans la fenêtre d'un tiroir ; couleurs des pains par état ===== */
+/* pains en 3D : tous de la même couleur (doré), sauf selon l'état ou l'âge */
+.m3-loaf { --lc: #d9a441; --lk: rgba(0, 0, 0, .3); }
+.m3-loaf.a-fresh { --lc: #52c27a; }
+.m3-loaf.a-late { --lc: #f0922b; }
+.m3-loaf.k-old, .m3-loaf.k-gone { --lc: #e5484d; --lk: #ffd0d0; }
+.m3-loaf.k-must, .m3-loaf.k-gonemust { --lc: #e5484d; --lk: #ffd0d0; }
+.m3-loaf.k-kept, .m3-loaf.k-keep { --lc: #f0922b; --lk: #ffe1b8; }
+.m3-loaf.k-new { --lc: #3d8bff; --lk: #cfe2ff; } .m3-loaf.k-extra { --lc: #a678ff; --lk: #e2d4ff; }
+.m3-loaf.k-miss .m3-f { background-color: rgba(229, 72, 77, .18); background-image: none; border: 2px dashed #e5484d; filter: none; }
+.m3-loaf.k-miss .m3-f.bk, .m3-loaf.k-miss .m3-f.lf, .m3-loaf.k-miss .m3-f.rt, .m3-loaf.k-miss .m3-f.tp { display: none; }
+.m3-loaf.k-gone .m3-f, .m3-loaf.k-gonemust .m3-f { opacity: .78; }
+.m3-loaf.k-old .m3-f, .m3-loaf.k-must .m3-f, .m3-loaf.k-kept .m3-f, .m3-loaf.k-gone .m3-f, .m3-loaf.k-gonemust .m3-f, .m3-loaf.k-keep .m3-f, .m3-loaf.k-new .m3-f, .m3-loaf.k-extra .m3-f { border-width: 2.5px; }
+/* hachuré = à retirer obligatoirement, ou gardé une fois (« bientôt périmé ») */
+.m3-loaf.k-must .m3-f, .m3-loaf.k-gonemust .m3-f, .m3-loaf.k-kept .m3-f, .m3-loaf.k-keep .m3-f { background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .38) 0 5px, rgba(0, 0, 0, 0) 5px 11px); }
+.m3-loaf.k-must .m3-f.fr, .m3-loaf.k-gonemust .m3-f.fr, .m3-loaf.k-kept .m3-f.fr, .m3-loaf.k-keep .m3-f.fr { background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .38) 0 5px, rgba(0, 0, 0, 0) 5px 11px), linear-gradient(100deg, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0) 50%); }
+/* pastilles de la légende 3D */
+.m3-sw { display: inline-block; width: 16px; height: 11px; border-radius: 4px; vertical-align: -1px; margin-right: 5px; background: var(--lc, #d9a441); border: 1.5px solid var(--lk, rgba(0, 0, 0, .3)); box-sizing: border-box; --lc: #d9a441; }
+.m3-sw.a-fresh { --lc: #52c27a; } .m3-sw.a-late { --lc: #f0922b; }
+.m3-sw.k-old, .m3-sw.k-gone, .m3-sw.k-must, .m3-sw.k-gonemust { --lc: #e5484d; } .m3-sw.k-kept, .m3-sw.k-keep { --lc: #f0922b; } .m3-sw.k-new { --lc: #3d8bff; } .m3-sw.k-extra { --lc: #a678ff; }
+.m3-sw.k-must, .m3-sw.k-gonemust, .m3-sw.k-kept, .m3-sw.k-keep { background-image: repeating-linear-gradient(45deg, rgba(0, 0, 0, .38) 0 3px, rgba(0, 0, 0, 0) 3px 6px); }
+.m3-sw.k-miss, .m3-sw.m3-ghost { background: transparent; border: 1.5px dashed #e5484d; } .m3-sw.m3-ghost { border-color: #9aa3ad; }
+/* la machine 3D dans une page : cadre sombre, hauteur confortable */
+.m3-inline { display: flex; flex-direction: column; gap: 6px; border-radius: 14px; padding: 8px 8px 10px; background: radial-gradient(120% 90% at 50% 38%, #2a2f36 0, #15181c 58%, #0b0c0e 100%); color: #c9ced4; }
+.m3-inline .m3-stage { flex: none; height: clamp(400px, 80vh, 780px); border-radius: 10px; touch-action: pan-y; }
+.m3-inline .m3-hint { margin: 0; text-align: center; } .m3-inline .mv-legend { justify-content: center; padding: 0; } .m3-inline .mv-lg { color: #c9ced4; font-size: .76rem; }
+.m3-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.m3-top2d { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.m3-bar3 { display: flex; flex-wrap: wrap; gap: 6px; }
+.m3-inline .m3-bar3 .mv-fs-btn, .m3-inline .m3-switch .mv-fs-btn { min-height: 38px; }
+.m3-inline .m3-bar3 .mv-fs-btn[aria-pressed="true"] { background: #f2f4f6; color: #14161a; }
+.m3-inline > .m3-bar3 { justify-content: flex-start; }
+.m3-cell.ro { cursor: default; } .m3-cell.ro:hover { background: transparent; }
+/* un tiroir seul, dans la fenêtre d'un tiroir */
+.m3-drawer { display: flex; flex-direction: column; gap: 4px; }
+.m3-mini { flex: none; height: 230px; border-radius: 12px; touch-action: pan-y; background: radial-gradient(120% 90% at 50% 40%, #2a2f36 0, #15181c 60%, #0b0c0e 100%); }
+.m3-drawer .m3-hint { margin: 0; text-align: center; font-size: .74rem; color: var(--muted, #8a93a0); }
+.m3-switch { margin-left: auto; }
+@media (max-width: 600px) { .m3-inline .m3-stage { height: clamp(340px, 64vh, 560px); } .m3-mini { height: 200px; } .m3-inline .m3-bar3 .mv-fs-btn, .m3-inline .m3-switch .mv-fs-btn { min-height: 36px; padding: 0 10px; font-size: .78rem; } }
+.modal .m3-inline .m3-stage { height: clamp(320px, 56vh, 520px); }
