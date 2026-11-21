@@ -326,11 +326,11 @@ window.BA = window.BA || {};
   const isFull = num => { const f = st().mvFull; return !!(f && f.num === num && f.view === curView()); };
   // v5.28 : en plein écran, la machine est en 3D (on la tourne à 360° avec le doigt ou la souris) ; « Vue plate » = l'ancien plein écran
   // v5.41 : la 3D existe aussi dans les pages (Détail machine, Produits / Stock, Remplir de l'opérateur) et dans la fenêtre d'un tiroir.
-  //   Deux préférences séparées : plein écran (3D par défaut) et pages (2D par défaut, on choisit « 3D 360° » avec le bouton).
+  //   Deux préférences séparées : plein écran (3D par défaut) et pages (3D par défaut, on repasse en « 2D » avec le bouton).
   const KEY3 = "ba_mv_3d", KEY3I = "ba_mv_3di";
   const is3d = () => { try { return localStorage.getItem(KEY3) !== "0"; } catch (e) { return true; } };
   const set3d = v => { try { localStorage.setItem(KEY3, v ? "1" : "0"); } catch (e) { /* préférence non gardée */ } };
-  const is3dI = () => { try { return localStorage.getItem(KEY3I) === "1"; } catch (e) { return false; } };
+  const is3dI = () => { try { return localStorage.getItem(KEY3I) !== "0"; } catch (e) { return true; } };
   const set3dI = v => { try { localStorage.setItem(KEY3I, v ? "1" : "0"); } catch (e) { /* préférence non gardée */ } };
   const m3 = () => { const S = st(); return S.m3 || (S.m3 = { rx: -8, ry: -22, z: 1, spin: false }); };
   const m3d = () => { const S = st(); return S.m3d || (S.m3d = { rx: -14, ry: -36, z: 1, spin: false }); };      // orientation du petit tiroir 3D (fenêtre d'un tiroir)

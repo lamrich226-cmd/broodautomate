@@ -9,6 +9,7 @@ const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURICom
 await new Promise(r => srv.listen(0, "127.0.0.1", r)); const U = "http://127.0.0.1:" + srv.address().port + "/";
 let bad = 0; const ok = (n, c, d) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c ? "" : " → " + JSON.stringify(d))); if (!c) bad++; };
 const b = await chromium.launch(), errs = [];
+  { const _nc = b.newContext.bind(b); b.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
 for (const [name, page, opt, tel] of [["tel-390", "operateur.html", { viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true }, true], ["pc-admin", "index.html", { viewport: { width: 1366, height: 800 } }, false]]) {
   console.log("\n== " + name);
   const ctx = await b.newContext({ locale: "fr-BE", ...opt });

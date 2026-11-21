@@ -111,6 +111,7 @@ async function boitier(key, extra) {
 
 // ---------------- navigateur ----------------
 const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
 async function device(name, opts = {}) {
   const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 900 }, locale: "fr-BE", timezoneId: "Europe/Brussels", permissions: ["clipboard-read", "clipboard-write"] }, opts));
   for (const u of Object.keys(LIBTXT)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: LIBTXT[u] }));

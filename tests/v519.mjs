@@ -136,6 +136,7 @@ const DEFAUTS = `() => {
   fake.baState = [{ id: "main", version: 3, data: etat, updated_at: new Date().toISOString() }];
   fake.t.machines = etat.machines.map(m => ({ id: m.id, name: m.street, city: m.city, serial: m.serial, model: null, status: "unknown", temp_c: m.temp, last_seen: null, created_at: "2026-10-27T10:00:00Z" }));
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts));

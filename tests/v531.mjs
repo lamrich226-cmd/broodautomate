@@ -36,6 +36,7 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   await new Promise(r => srv.listen(0, r));
   const URL0 = "http://127.0.0.1:" + srv.address().port + "/";
   const browser = await chromium.launch(); const errs = [];
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const now = Date.now();
   const mk = (n, cap) => ({ n, cap, lots: [], type: "blanc", price: 2.5 });
   const etat = { v: 1, hv: 2, seq: 9000, real: { v: 5, created: now - 70 * 86400000 }, epoch: "essai531", thr48: true, orders: [], applied: [], missions: [],

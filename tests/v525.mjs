@@ -39,6 +39,7 @@ const attendre = async (p, f, arg, ms = 15000) => { const t0 = Date.now(); while
   await new Promise(r => srv.listen(0, r));
   const URL0 = "http://127.0.0.1:" + srv.address().port + "/";
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [];
   const libs = async ctx => { for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(f, "utf8") })); };
   const ecoute = (p, nom) => {

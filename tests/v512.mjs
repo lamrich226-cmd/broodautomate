@@ -66,6 +66,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
       info: { fw: "1.2", mode: 1, stok: false, st: "essai sans machine", hb: 30, rd: 60, ec: 900, lok: 0, rssi: 25, op: "20620", seq: 4, up: 600, lu: 0, ko: 0 } });
 
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [];
   const device = async (name, opts, page = "index.html", email = "amor@test.be") => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts));

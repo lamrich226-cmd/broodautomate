@@ -100,6 +100,7 @@ const etat = {
   fake.t.devices.push({ id: DEV.B, name: "Boîtier Une", machine_id: "FAS-202160521", key_hash: "b".repeat(64), last_seen: new Date(now - 3 * MIN).toISOString(), created_at: "2026-11-10T10:00:00Z", info: info("1.5 1NCE") });
 
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [], requetes = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels", acceptDownloads: true, permissions: ["clipboard-read", "clipboard-write"] }, opts));

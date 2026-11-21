@@ -23,23 +23,23 @@ const phone = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isM
 const pick = p => p.evaluate(() => { const s = BA.Store.get(), M = BA.Model; const m = s.machines.find(x => !x.door && !x.power && M.removalList(s, x, null).length >= 2 && x.sels.some(z => M.qty(z) >= 2) && x.sels.some(z => z.cap - M.qty(z) >= 2)); return m.num; });
 
 // ---- 1. par défaut : les pages restent à plat (2D), avec le choix « 2D | 3D 360° »
-console.log("\n== 1. Défaut = 2D, choix 2D | 3D dans les pages");
+console.log("\n== 1. Défaut = 3D dans les pages, choix 2D | 3D");
 let a = await open("pc-defaut", "index.html", pc);
 const numA = await pick(a);
 await a.evaluate(n => { BA.Shell.state.machine = n; BA.Shell.go("details"); }, numA); await a.waitForSelector(".mv-wrap"); await sleep(400);
-ok("Détail machine : à plat par défaut + bouton « 2D | 3D 360° »", !!(await a.$("#view-details .mv-grid")) && !(await a.$("#view-details .m3-stage")) && !!(await a.$('#view-details [data-m3="on"][data-m3c]')));
-await a.click('#view-details [data-m3="on"][data-m3c]'); await sleep(600);
+ok("Détail machine : en 3D par défaut + bouton « 2D | 3D 360° »", !!(await a.$("#view-details .m3-inline .m3-stage")) && !(await a.$("#view-details .mv-grid")) && !!(await a.$('#view-details [data-m3="flat"][data-m3c]')));
+await a.click('#view-details [data-m3="flat"][data-m3c]'); await sleep(400); ok("« 2D » : l'ancienne grille à plat", !!(await a.$("#view-details .mv-grid"))); await a.click('#view-details [data-m3="on"][data-m3c]'); await sleep(600);
 ok("« 3D 360° » : la machine apparaît en 3D dans la page", !!(await a.$("#view-details .m3-inline .m3-stage")) && (await a.$$("#view-details .m3-loaf")).length >= 10);
 const st1 = await a.evaluate(() => { const s = document.querySelector("#view-details .m3-stage"), r = s.getBoundingClientRect(); const bx = document.querySelector("#view-details .m3-front").getBoundingClientRect(); return { h: Math.round(r.height), w: Math.round(r.width), bw: Math.round(bx.width), bh: Math.round(bx.height) }; });
 ok("la machine 3D remplit bien l'espace (au moins 80 % de la hauteur ou de la largeur)", st1.bh >= st1.h * .8 || st1.bw >= st1.w * .8, st1);
 await a.locator("#view-details .m3-stage").scrollIntoViewIfNeeded(); await sleep(200);
 await shot(a, "pc-detail-3d");
-// couleurs : pains tous de la même couleur sauf états
-const cols = await a.evaluate(() => { const o = {}; document.querySelectorAll("#view-details .m3-loaf:not(.m3-ghost)").forEach(l => { const k = l.className.replace(/m3-loaf|ty-\S+/g, "").trim() || "normal"; const c = getComputedStyle(l.querySelector(".m3-f.fr")).backgroundColor; o[k] = c; }); return o; });
-console.log("   couleurs :", JSON.stringify(cols));
-ok("aucune couleur par type de pain (plus de classe ty-)", await a.evaluate(() => !document.querySelector("#view-details .m3-loaf[class*='ty-']")));
-ok("à retirer = rouge, frais = vert, bientôt à retirer = orange", cols["k-old"] === "rgb(229, 72, 77)" && cols["k-ok a-fresh"] === "rgb(82, 194, 122)" && cols["k-ok a-late"] === "rgb(240, 146, 43)", cols);
-ok("un pain « normal » est doré (même couleur pour tous les types)", await a.evaluate(() => { const l = document.createElement("div"); l.className = "m3-loaf k-ok"; l.innerHTML = '<i class="m3-f fr"></i>'; document.querySelector("#view-details .m3-box").appendChild(l); const c = getComputedStyle(l.firstChild).backgroundColor; l.remove(); return c; }) === "rgb(217, 164, 65)");
+// couleurs : le pain est pareil pour tous, la bordure (pointillé épais) change avec l'état
+const cols = await a.evaluate(() => { const o = {}, f = {}; document.querySelectorAll("#view-details .m3-loaf:not(.m3-ghost)").forEach(l => { const k = l.className.replace(/m3-loaf/g, "").trim() || "normal"; const e = getComputedStyle(l.querySelector(".m3-f.fr")); o[k] = e.borderTopColor; f[k] = e.backgroundColor; f.style = e.borderTopStyle; }); return { o, f }; });
+console.log("   bordures :", JSON.stringify(cols.o));
+ok("le pain a la même couleur partout (doré), quel que soit l'état", Object.entries(cols.f).filter(([k]) => k !== "style").every(([k, c]) => c === "rgb(217, 164, 65)"), cols.f);
+ok("la bordure est en pointillé", cols.f.style === "dashed" || cols.f.style === "dotted", cols.f.style);
+ok("bordure : à retirer = rouge, frais = vert, bientôt à retirer = orange", cols.o["k-old"] === "rgb(255, 59, 59)" && cols.o["k-ok a-fresh"] === "rgb(63, 210, 122)" && cols.o["k-ok a-late"] === "rgb(255, 154, 31)", cols.o);
 // tourner et zoomer dans la page
 const bx = await a.locator("#view-details .m3-stage").boundingBox();
 await a.mouse.move(bx.x + bx.width / 2, bx.y + bx.height * .8); await a.mouse.down(); await a.mouse.move(bx.x + bx.width / 2 + 120, bx.y + bx.height * .8, { steps: 6 }); await a.mouse.up(); await sleep(200);
