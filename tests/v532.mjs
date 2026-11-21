@@ -12,6 +12,7 @@ const b = await chromium.launch(), errs = [];
 for (const [name, page, opt] of [["tel-operateur", "operateur.html", { viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true }], ["pc-admin", "index.html", { viewport: { width: 1366, height: 800 } }]]) {
   console.log("\n== " + name);
   const ctx = await b.newContext({ locale: "fr-BE", ...opt });
+  await ctx.addInitScript(() => { try { localStorage.setItem("ba_mv_3d", "0"); } catch (e) { /* ok */ } });     // ce test vérifie le plein écran PLAT (2D) ; la 3D est dans v528
   for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(path.join(NM, f), "utf8") }));
   const p = await ctx.newPage(); p.on("pageerror", e => errs.push(name + ": " + e.message));
   await p.goto(U + page + "?demo&tick=0"); await p.waitForSelector("#app-nav button, #app-tabbar button", { state: "attached", timeout: 30000 }); await p.waitForTimeout(2000);
