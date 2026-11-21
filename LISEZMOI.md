@@ -1,4 +1,4 @@
-> **État actuel (v5.34.0, 21/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.34.1, 21/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -110,6 +110,15 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.34.1 — Appli opérateur sur l'écran d'accueil (iPhone / Android)
+
+La page `operateur.html` s'installe comme une appli : icône Broodautomate (le même pain doré que l'appli Android, dans `icons/`),
+ouverture en plein écran sans la barre du navigateur, nom court « Brood ». Fichiers : `manifest-operateur.webmanifest`,
+`icons/apple-touch-icon.png` (180), `icons/icon-192.png`, `icons/icon-512.png`, balises dans `operateur.html`. La page admin n'est pas touchée.
+- **iPhone** (Safari obligatoire) : ouvrir `…/operateur.html`, se connecter, bouton Partager, « Sur l'écran d'accueil », Ajouter.
+  Une icône déjà ajoutée avant cette version garde l'ancien aspect : la supprimer et la refaire.
+- Rien ne change dans le fonctionnement ni dans les données. Essai : `tests/v5341.mjs` (statique).
 
 ## v5.33.1 — Prix et sélections repris de la machine
 
