@@ -37,8 +37,19 @@ for (const [name, page, opt, tel] of [["tel-390", "operateur.html", { viewport: 
   ok("glisser fait tourner la machine, sans ouvrir de tiroir", g > -30 + 20 && !(await p.$(".mv-pop")), g);
   await p.mouse.move(cx, cy); await p.mouse.wheel(0, -300); await p.waitForTimeout(150);
   ok("molette : zoom", await p.evaluate(() => BA.Shell.state.m3.z > 1.1));
+  { // v5.34.0 : le zoom vise l'endroit du curseur (la machine se décale vers l'opposé), et « Face » remet le décalage à 0
+    const t1 = await p.evaluate(() => ({ z: BA.Shell.state.m3.z, tx: BA.Shell.state.m3.tx, ty: BA.Shell.state.m3.ty }));
+    ok("zoom vers le curseur : la machine se décale (curseur en bas = machine vers le haut)", t1.z > 1.1 && t1.ty < -5 && Math.abs(t1.tx) < 1, t1);
+    await p.click('#mv-fs-root [data-m3="front"]'); await p.waitForTimeout(100);
+    await p.mouse.move(box.x + box.width * .9, box.y + box.height * .2); await p.mouse.wheel(0, -300); await p.waitForTimeout(150);
+    const t2 = await p.evaluate(() => ({ tx: BA.Shell.state.m3.tx, ty: BA.Shell.state.m3.ty }));
+    ok("zoom en haut à droite : la machine se décale vers la gauche et le bas", t2.tx < -5 && t2.ty > 5, t2);
+    await p.mouse.wheel(0, 3000); await p.waitForTimeout(150);
+    ok("dézoom à 100 % ou moins : décalage remis à 0", await p.evaluate(() => { const m = BA.Shell.state.m3; return m.z <= 1 && !m.tx && !m.ty; }));
+    await p.mouse.move(cx, cy); await p.mouse.wheel(0, -300); await p.waitForTimeout(100);
+  }
   await p.click('#mv-fs-root [data-m3="front"]'); await p.waitForTimeout(150);
-  ok("« Face » remet la machine de face", await p.evaluate(() => BA.Shell.state.m3.ry === 0 && BA.Shell.state.m3.z === 1));
+  ok("« Face » remet la machine de face", await p.evaluate(() => BA.Shell.state.m3.ry === 0 && BA.Shell.state.m3.z === 1 && !BA.Shell.state.m3.tx && !BA.Shell.state.m3.ty));
   await p.click('#mv-fs-root [data-m3="spin"]'); await p.waitForTimeout(700);
   const r1 = await p.evaluate(() => BA.Shell.state.m3.ry); await p.waitForTimeout(400); const r2 = await p.evaluate(() => BA.Shell.state.m3.ry);
   ok("« Tourner seul » : la machine tourne toute seule", r2 > r1 && r1 > 0, [r1, r2]);

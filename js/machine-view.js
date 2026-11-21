@@ -498,8 +498,18 @@ window.BA = window.BA || {};
       const M3 = stateOf(stg), box = stg.firstElementChild, W = +stg.dataset.w, H = +stg.dataset.h, D = +stg.dataset.d, sw = stg.clientWidth, sh = stg.clientHeight;
       if (!box || !sw || !sh) return;
       const sc = Math.min(sw / (W + D * .16), sh / (H + D * .2)) * M3.z;      // v5.41 : machine plus grande (avant : marges de 35 % et 42 % de la profondeur)
-      box.style.transform = `scale(${sc.toFixed(3)}) rotateX(${M3.rx.toFixed(1)}deg) rotateY(${M3.ry.toFixed(1)}deg)`;
+      box.style.transform = `translate(${(M3.tx || 0).toFixed(1)}px, ${(M3.ty || 0).toFixed(1)}px) scale(${sc.toFixed(3)}) rotateX(${M3.rx.toFixed(1)}deg) rotateY(${M3.ry.toFixed(1)}deg)`;
     });
+  }
+  // v5.34.0 : le zoom se fait là où on vise (curseur, doigts) et non plus au centre : la machine glisse pour garder sous le doigt
+  // le point visé (tx, ty = décalage en pixels). Revenu à 100 % ou moins : décalage remis à 0.
+  function zoomAt(stg, M3, z, cx, cy) {
+    const nz = Math.max(.5, Math.min(2.4, z)), k = nz / M3.z, r = stg.getBoundingClientRect();
+    const px = cx == null ? 0 : cx - r.left - r.width / 2, py = cy == null ? 0 : cy - r.top - r.height / 2;
+    let tx = px - (px - (M3.tx || 0)) * k, ty = py - (py - (M3.ty || 0)) * k;
+    if (nz <= 1) { tx = 0; ty = 0; }
+    else { const lx = (nz - 1) * r.width * .6, ly = (nz - 1) * r.height * .6; tx = Math.max(-lx, Math.min(lx, tx)); ty = Math.max(-ly, Math.min(ly, ty)); }
+    M3.z = nz; M3.tx = tx; M3.ty = ty;
   }
   let spinning = false;
   function apply3(root) {
@@ -530,7 +540,12 @@ window.BA = window.BA || {};
       const p = ptrs.get(e.pointerId); if (!p || !drag) return;
       const M3 = drag.st, dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
       if (!drag.moved) { if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && ptrs.size < 2) return; drag.moved = true; S.m3drag = true; try { drag.stg.setPointerCapture(e.pointerId); } catch (x) { /* pas grave */ } }
-      if (ptrs.size >= 2 && drag.d0) M3.z = Math.max(.5, Math.min(2.4, drag.z0 * dist() / drag.d0));
+      if (ptrs.size >= 2 && drag.d0) {
+        const a = [...ptrs.values()], mx = (a[0].x + a[1].x) / 2, my = (a[0].y + a[1].y) / 2;
+        zoomAt(drag.stg, M3, drag.z0 * dist() / drag.d0, mx, my);                       // zoom autour du milieu des deux doigts
+        if (drag.mid && M3.z > 1) { M3.tx = (M3.tx || 0) + mx - drag.mid.x; M3.ty = (M3.ty || 0) + my - drag.mid.y; }   // et les deux doigts déplacent la machine
+        drag.mid = { x: mx, y: my };
+      }
       else { M3.ry += dx * .55; M3.rx = Math.max(-75, Math.min(35, M3.rx - dy * .4)); }
       paint(root);
     });
@@ -543,14 +558,14 @@ window.BA = window.BA || {};
     root.addEventListener("wheel", e => {
       const stg = e.target.closest && e.target.closest(".m3-stage"); if (!stg || stg.dataset.k === "d") return;
       if (!stg.closest(".mv-fs") && !e.ctrlKey && !e.metaKey) return;       // dans une page : la molette fait défiler la page (Ctrl + molette = zoom)
-      e.preventDefault(); const M3 = m3(); M3.z = Math.max(.5, Math.min(2.4, M3.z * Math.exp(-e.deltaY * .0012))); paint(root);
+      e.preventDefault(); const M3 = m3(); zoomAt(stg, M3, M3.z * Math.exp(-e.deltaY * .0012), e.clientX, e.clientY); paint(root);
     }, { passive: false });
     root.addEventListener("click", e => {
       const b = e.target.closest && e.target.closest("[data-m3]"); if (!b || !root.contains(b)) return;
       const v = b.dataset.m3, M3 = m3();
-      if (v === "front") { M3.rx = -4; M3.ry = 0; M3.z = 1; M3.spin = false; const D3 = m3d(); D3.rx = -14; D3.ry = -36; D3.z = 1; root.querySelectorAll('[data-m3="spin"]').forEach(x => x.setAttribute("aria-pressed", "false")); return paint(root); }
+      if (v === "front") { M3.rx = -4; M3.ry = 0; M3.z = 1; M3.tx = 0; M3.ty = 0; M3.spin = false; const D3 = m3d(); D3.rx = -14; D3.ry = -36; D3.z = 1; D3.tx = 0; D3.ty = 0; root.querySelectorAll('[data-m3="spin"]').forEach(x => x.setAttribute("aria-pressed", "false")); return paint(root); }
       if (v === "spin") { M3.spin = !M3.spin; b.setAttribute("aria-pressed", String(M3.spin)); return apply3(root); }
-      if (v === "zin" || v === "zout") { M3.z = Math.max(.5, Math.min(2.4, M3.z * (v === "zin" ? 1.2 : 1 / 1.2))); return paint(root); }
+      if (v === "zin" || v === "zout") { const stg = b.closest(".m3-stage") || root.querySelector(".m3-stage"); if (stg) zoomAt(stg, M3, M3.z * (v === "zin" ? 1.2 : 1 / 1.2)); return paint(root); }
       if (onSwitch) onSwitch(v, !!b.dataset.m3c);
     });
   }
