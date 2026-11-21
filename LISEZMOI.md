@@ -1,4 +1,4 @@
-> **État actuel (v5.34.1, 21/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.34.2, 21/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -110,6 +110,14 @@ Un boîtier LILYGO T-A7670E + module MAX3232, branché sur la prise RS232 de la 
 
 - Seule la clé « publishable » de Supabase peut être dans le code. Ne jamais y mettre la clé « secret » ni « service_role ».
 - Sur la machine, ne jamais utiliser « Erase Interim Data » ni « Immediate Erasing » : ils effacent les compteurs.
+
+## v5.34.2 — La porte suit le capteur de la machine
+
+Règle voulue par Amor : **le capteur de la machine fait foi**. Si le relevé (ou la fonction `ba_portes` côté Supabase) dit « porte fermée »,
+la machine est « porte fermée » dans l'appli, même si un « Remplir » a été commencé et oublié (avant : la porte restait « ouverte » jusqu'à
+la clôture automatique du « Remplir », 4 h). Le « Remplir » lui-même reste ouvert ; seules la porte et l'alerte « Porte ouverte » suivent le capteur.
+Si le capteur dit « ouverte », la porte est de nouveau ouverte. Fichier : `js/reel.js` (`doorState`, `portesPlan`). Essai : `tests/v5342.mjs`.
+Cas réel qui l'a montré : machine n° 4, « Remplir » ouvert depuis 16h01, porte fermée depuis 15h03 d'après la machine (21/11/2026).
 
 ## v5.34.1 — Appli opérateur sur l'écran d'accueil (iPhone / Android)
 
