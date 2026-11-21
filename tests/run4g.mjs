@@ -317,7 +317,7 @@ try {
   console.log("\n== 7. Affichage (Dashboard, onglet RS232, téléphone, langues)");
   await view(a, "dashboard");
   const dash = await a.innerText("#view-dashboard");
-  ok("Dashboard : « 📡 4G hh:mm » sur la carte de la machine", /📡 4G \d\d:\d\d/.test(dash), dash.slice(0, 400));
+  ok("Dashboard : « 4G hh:mm » (icône 📡 ou dessin) sur la carte de la machine", /(?:📡\s*)?4G\s*\d\d:\d\d/.test(dash), dash.slice(0, 400));
   await (await a.$("#view-dashboard .carte-machine")).screenshot({ path: path.join(OUT, "z-carte.png") });
   await view(a, "technique");
   await a.waitForSelector(".bx-table");
@@ -573,7 +573,7 @@ try {
   ok("commande calculée avant cette lecture : « clique de nouveau sur « Calculer la commande » »", /calculée avant cette lecture : clique de nouveau sur « Calculer la commande »/.test(card), card);
   await a.click("#view-order .bx-all-list summary"); await sleep(200);
   card = await a.innerText("#view-order .bx-all");
-  ok("« Détail par machine » : #1 lue à hh:mm, #2 pas de réponse", /#1[^\n]*Lue à \d\d:\d\d/.test(card) && /#2[^\n]*pas de réponse du boîtier/.test(card), card);
+  ok("« Détail par machine » : #1 lue à hh:mm, #2 pas de réponse", /#1[^#]{0,80}?Lue à \d\d:\d\d/.test(card) && /#2[^#]{0,80}?pas de réponse du boîtier/.test(card), card);   // le design v5.34 met l'icône sur sa propre ligne
   await (await a.$("#view-order .bx-all")).screenshot({ path: path.join(OUT, "z-lire-tout-recalculer.png") });
   await shot(a, "4g-08-commander-lire-tout");
   await a.setViewportSize({ width: 390, height: 844 }); await sleep(400);
