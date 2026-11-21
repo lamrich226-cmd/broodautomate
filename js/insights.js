@@ -316,12 +316,13 @@ window.BA = window.BA || {};
     const doors = nums(o => o.m.door), off = nums(o => !o.m.online), empty = nums(o => o.x.total === 0);
     const cats = [...M.OPERATOR_CATS, "business"];
     const alerts = s.events.filter(e => cats.includes(e.cat) && !e.resolved && !e.archived).length;
-    if (must) items.push(["must", "bad", "⛔", t("td_must", { n: must, m: numList(nums(o => o.x.mandatory > 0)) })]);
-    if (doors.length) items.push(["door", "bad", "🚪", t("td_door", { n: doors.length, m: numList(doors) }), doors[0]]);
-    if (off.length) items.push(["offline", "warn", "🔌", t("td_off", { n: off.length, m: numList(off) })]);
-    if (alerts) items.push(["alerts", "warn", "⚠️", t("td_alerts", { n: alerts })]);
-    if (empty.length) items.push(["empty", "warn", "📭", t("td_empty", { n: empty.length, m: numList(empty) })]);
-    if (old > 0) items.push(["remove", "warn", "🟠", t("td_old", { n: old, k: nums(o => o.x.toRemove - (o.x.mandatory || 0) > 0).length })]);
+    // v5.34 : ce qui se règle sur place d'abord (pains obligatoires, porte, machine vide…), puis les alertes et les chiffres
+    if (must) items.push(["must", "bad", t("td_must", { n: must, m: numList(nums(o => o.x.mandatory > 0)) })]);
+    if (doors.length) items.push(["door", "bad", t("td_door", { n: doors.length, m: numList(doors) }), doors[0]]);
+    if (empty.length) items.push(["empty", "warn", t("td_empty", { n: empty.length, m: numList(empty) })]);
+    if (off.length) items.push(["offline", "warn", t("td_off", { n: off.length, m: numList(off) })]);
+    if (old > 0) items.push(["remove", "warn", t("td_old", { n: old, k: nums(o => o.x.toRemove - (o.x.mandatory || 0) > 0).length })]);
+    if (alerts) items.push(["alerts", "warn", t("td_alerts", { n: alerts })]);
     // retours de la semaine dernière face à l'objectif (calcul léger : pas de prévision ici)
     const w = lastWeeks(s, 1)[0], tg = target(s) / 100;
     let l = 0, x = 0, over = 0;
@@ -332,16 +333,31 @@ window.BA = window.BA || {};
     });
     if (l > 0) {
       const rate = x / l, ok = rate <= tg + 1e-9;
-      items.push(["returns", ok ? "ok" : "warn", "🎯", t(ok ? "td_ret_ok" : "td_ret", { p: F.num(rate * 100, 1), o: F.num(target(s), 1), n: over })]);
+      items.push(["returns", ok ? "ok" : "warn", t(ok ? "td_ret_ok" : "td_ret", { p: F.num(rate * 100, 1), o: F.num(target(s), 1), n: over })]);
     }
     // le lundi : le résumé de la semaine qui vient de finir
-    if (FC.wday(M.dayKey(s.now)) === 1 && sh().weekDone !== w.from) items.push(["weekly", "info", "📥", t("td_week", { a: F.keyShort(w.from), b: F.keyShort(w.to) })]);
+    if (FC.wday(M.dayKey(s.now)) === 1 && sh().weekDone !== w.from) items.push(["weekly", "info", t("td_week", { a: F.keyShort(w.from), b: F.keyShort(w.to) })]);
     const urgent = items.filter(i => i[1] === "bad" || i[1] === "warn").length;
-    return `<div class="card todo-card"><div class="todo-head">📋 ${t("td_title")}${urgent ? "" : ` <span class="petit">· ✔ ${t("td_none")}</span>`}</div>
-      <ul class="todo-list">${items.map(i => `<li><button class="todo-item td-${i[1]}" data-todo="${i[0]}" ${i[4] ? `data-num="${i[4]}"` : ""}><span aria-hidden="true">${i[2]}</span> ${E(i[3])} <span class="todo-go" aria-hidden="true">›</span></button></li>`).join("")}</ul></div>`;
+    // v5.34 : icônes (plus d'emojis) ; sur téléphone seulement les 3 premières lignes, les autres derrière « + n autres » (CSS)
+    const ic = id => `<span class="td-ic" aria-hidden="true">${BA.Shell.icon(TODO_ICON[id])}</span>`;
+    const extra = Math.max(0, items.length - TODO_SHOW), open = !!sh().todoOpen;
+    return `<div class="card todo-card${open ? " td-open" : ""}"><div class="todo-head"><span class="td-hic" aria-hidden="true">${BA.Shell.icon("todo")}</span>${t("td_title")}${urgent ? "" : ` <span class="petit td-none">${BA.Shell.icon("i_check")} ${t("td_none")}</span>`}</div>
+      <ul class="todo-list">${items.map((i, n) => `<li${n >= TODO_SHOW ? ' class="td-extra"' : ""}><button type="button" class="todo-item td-${i[1]}" data-todo="${i[0]}" ${i[3] ? `data-num="${i[3]}"` : ""}>${ic(i[0])}<span class="td-txt">${E(i[2])}</span><span class="todo-go" aria-hidden="true">›</span></button></li>`).join("")}</ul>
+      ${extra ? `<button type="button" class="td-more" data-todo="more" aria-expanded="${open}"><span class="td-m-more">${t("td_more", { n: extra })}</span><span class="td-m-less">${t("td_less")}</span></button>` : ""}</div>`;
   }
+  const TODO_SHOW = 3;
+  const TODO_ICON = { must: "i_ban", door: "i_door", empty: "i_empty", offline: "i_plug", remove: "i_old", alerts: "i_alert", returns: "i_target", weekly: "i_download" };
   function todoGo(id, num) {
     const S = sh();
+    // v5.34 : téléphone — montrer / replier les lignes moins urgentes (gardé tant que la page reste ouverte)
+    if (id === "more") {
+      S.todoOpen = !S.todoOpen;
+      const c = document.querySelector(".todo-card"), b = c && c.querySelector(".td-more");
+      // td-anim : petite apparition des lignes, seulement au toucher (pas quand le bloc se redessine tout seul)
+      if (c) { c.classList.toggle("td-open", S.todoOpen); c.classList.toggle("td-anim", S.todoOpen); }
+      if (b) b.setAttribute("aria-expanded", String(S.todoOpen));
+      return;
+    }
     if (id === "must" || id === "remove" || id === "empty") { S.orderTab = "stock"; BA.Shell.go("order"); }
     else if (id === "door") { if (num) S.machine = Number(num); BA.Shell.go("details"); }
     // v5.12 : avec des boîtiers, leur état est sur « Connexion RS232 » ; sans boîtier : le câble (page Technique)

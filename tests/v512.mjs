@@ -66,6 +66,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
       info: { fw: "1.2", mode: 1, stok: false, st: "essai sans machine", hb: 30, rd: 60, ec: 900, lok: 0, rssi: 25, op: "20620", seq: 4, up: 600, lu: 0, ko: 0 } });
 
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [];
   const device = async (name, opts, page = "index.html", email = "amor@test.be") => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts));
@@ -179,7 +180,7 @@ const RAW = ["DXS*FAS202164170*VA*V1/6*1", "ST*001*0001", "ID1*FAS202164170* FAS
   await tab("system");
   await p.waitForFunction(() => !BA.Technique._system().busy && BA.Technique._system().at > 0, null, { timeout: 10000 });
   let sy = await p.innerText("#tq-system");
-  ok("version 5.33.1, Supabase, compte amor@test.be, sauvegardé, taille des données", /Broodautomate v5\.33\.1/.test(sy) && /Supabase \(en ligne/.test(sy) && /amor@test\.be/.test(sy) && /Sauvegardé/.test(sy) && /\d+ Ko · machines : 3/.test(sy), sy.slice(0, 900));
+  ok("version 5.34.0, Supabase, compte amor@test.be, sauvegardé, taille des données", /Broodautomate v5\.34\.0/.test(sy) && /Supabase \(en ligne/.test(sy) && /amor@test\.be/.test(sy) && /Sauvegardé/.test(sy) && /\d+ Ko · machines : 3/.test(sy), sy.slice(0, 900));
   ok("copies de nuit et notifications pas encore installées : dit clairement", /pas installées \(commandes 13 à 18/.test(sy) && /pas installées \(commandes 1 à 12/.test(sy), sy);
   fake.t.ba_state_backup = ["2026-11-05", "2026-11-06"].flatMap(j => ["main", "hist"].map(l => ({ jour: j, ligne: l, version: 3, data: {}, cree_at: j + "T02:30:00.000Z" })));
   fake.t.ba_notifications = [{ id: 3, cle: "x", type: "porte", titre: "Boîtier Kerk : porte ouverte depuis plus de 15 min", texte: "", silencieux: false, cree_at: new Date(now - 30 * MIN).toISOString(), envoye_at: null }];

@@ -111,6 +111,7 @@ async function boitier(key, extra) {
 
 // ---------------- navigateur ----------------
 const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
 async function device(name, opts = {}) {
   const ctx = await browser.newContext(Object.assign({ viewport: { width: 1280, height: 900 }, locale: "fr-BE", timezoneId: "Europe/Brussels", permissions: ["clipboard-read", "clipboard-write"] }, opts));
   for (const u of Object.keys(LIBTXT)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: LIBTXT[u] }));
@@ -164,7 +165,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.33.1", (await a.innerText("#app-footer")).includes("5.33.1"));
+  ok("pied de page : version 5.34.0", (await a.innerText("#app-footer")).includes("5.34.0"));
   await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));

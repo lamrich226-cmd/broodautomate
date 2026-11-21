@@ -21,7 +21,7 @@
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
       <div class="cm-row"><span>${t("op_fill_pct", { q: x.total, c: x.cap })}</span><span>${x.pct} %</span></div>
       ${extra}
-      <div class="cm-actions"><button class="btn big" data-fill="${m.num}">🧺 ${goLabel || t("btn_start_fill")}</button>
+      <div class="cm-actions"><button class="btn big" data-fill="${m.num}">🧺 ${goLabel || t("op_fill_go")}</button>
         <button class="btn secondary" data-det="${m.num}">${t("op_fill_details")}</button></div>
     </div>`;
   }
@@ -113,7 +113,7 @@
     el.innerHTML = `<h2>🧺 ${t("op_fill_title")}</h2>
       ${list.length > 4 ? `<input type="search" id="fill-q" class="search" placeholder="${E(t("search_ph"))}" value="${E(q)}">` : ""}
       <p class="note">${t("op_fill_pick")}</p>
-      <div class="cards machines-grid">${list.map(z => machineCard(s, z.m, "", t("op_fill_go"))).join("")}</div>`;
+      <div class="cards machines-grid fill-list">${list.map(z => machineCard(s, z.m, "", t("op_fill_go"))).join("")}</div>`;
     bindCards(el);
     const f = el.querySelector("#fill-q");
     const filtre = () => { const v = (f ? f.value : "").trim().toLowerCase(); st().fillQ = v; el.querySelectorAll(".mission-card").forEach(c => { c.style.display = !v || c.dataset.q.includes(v) ? "" : "none"; }); };
@@ -243,6 +243,8 @@
         </div></div>`;
       this.bind();
       if (mach && w.step <= 3) this.mBind();
+      const aft = mach && w.step > 3 ? document.getElementById("wz-after") : null;
+      if (aft) { BA.MachineView.bind3(aft, (v) => { try { localStorage.setItem("ba_mv_3di", v === "on" ? "1" : "0"); } catch (e) { /* tant pis */ } this.render(); }); BA.MachineView.apply3(aft); }     // v5.41 : la machine finale peut aussi se tourner
     },
 
     // ---------- Étape 1 : inventaire ----------
@@ -481,8 +483,8 @@
       const sel = w.mvOpen && w.mvKey != null ? M.sel(m, Number(w.mvKey)) : null;
       if (w.mvOpen && !sel) w.mvOpen = false;
       const key = sel ? String(sel.n) : null;
-      const grid = V.grid(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false });
-      return `<div class="mv-mach"><div class="mv-glass">${grid}</div>${V.legend(s, o.mode)}</div>${sel ? V.pop(V.big(s, m, sel, o.list, o.stat) + o.panel(sel)) : ""}${o.footer}`;
+      const mach = V.mach(s, m, { list: o.list, stat: o.stat, key, free: true, freeClick: false, mode: o.mode });     // v5.41 : à plat (2D) ou en 3D 360° selon le choix
+      return `${mach}${sel ? V.pop(V.big(s, m, sel, o.list, o.stat) + o.panel(sel)) : ""}${o.footer}`;
     },
 
     // compteur − / + (grands boutons pour le doigt)
@@ -600,7 +602,7 @@
 
     // Après le remplissage : la machine telle qu'elle est maintenant (lecture seule)
     mAfter(s, m) {
-      return `<h3>🧩 ${t("vm_after")}</h3><div class="mv-glass">${BA.MachineView.grid(s, m, { ro: true, free: true })}</div>${BA.MachineView.legend(s, "view")}`;
+      return `<h3>🧩 ${t("vm_after")}</h3><div id="wz-after">${BA.MachineView.mach(s, m, { ro: true, free: true, mode: "view" })}</div>`;
     },
 
     // Redessine seulement la machine et les boutons (le défilement de la fenêtre ne bouge pas)
@@ -614,6 +616,11 @@
     },
     mBindInner() {
       const w = this.w;
+      const box3 = document.getElementById("wz-mv");
+      if (box3) {      // v5.41 : gestes de la 3D (une seule fois par fenêtre) ; le choix 2D / 3D redessine la machine
+        BA.MachineView.bind3(box3, (v, inl) => { try { localStorage.setItem("ba_mv_3di", v === "on" ? "1" : "0"); } catch (e) { /* tant pis */ } w.mvOpen = false; this.mRefresh(); });
+        BA.MachineView.apply3(box3);
+      }
       document.querySelectorAll("#wz-mv [data-mvld]").forEach(inp => U.dateInput(inp, val => {
         const v = F.fromInput(val), L = w.lines && w.lines[inp.dataset.mvld];
         if (!v || !L || !L[inp.dataset.i]) return;

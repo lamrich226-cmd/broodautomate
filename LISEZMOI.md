@@ -1,4 +1,4 @@
-> **État actuel (v5.33.1, 20/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.34.0, 21/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;
@@ -129,6 +129,19 @@ Vérifié sur de vrais relevés : prix changé dans la machine → `PA1*11*0` de
   sinon toutes), avec le type de pain et la capacité les plus courants pour ce numéro dans les autres machines ; alerte
   « N sélections ajoutées d'après la machine » à vérifier dans Détails machine. Leur stock reste à 0 jusqu'au premier « Remplir ».
 - Rien ne change sur la machine ni dans le programme du boîtier (il envoyait déjà ces lignes). Essai : `tests/v5331.mjs`.
+
+## v5.34.0 (« design test », branche `design-test`) — Design plus pro et plus lisible
+
+**Validé par Amor le 21/11/2026 et publié** ; `main` (le vrai site) n'est pas touchée.
+Détails : `DESIGN.md`, section v5.34. Rien ne change dans la façon de travailler ni dans les données.
+- Couche de design `css/design-v534.css` posée par-dessus `css/app.css`, police *Atkinson Hyperlegible Next* (`fonts/`, OFL),
+  icônes au même trait à la place des emojis (`js/icons.js`), textes `js/i18n-v534.js`.
+- Les 8 points de l'audit du 16/11 : icônes, « À faire aujourd'hui » (urgent d'abord, le reste replié sur téléphone), titre plus répété
+  sur téléphone, barre d'outils du Dashboard groupée, explications des Paramètres derrière « i », plus de case orpheline dans Détails,
+  bouton « Remplir » partout chez l'opérateur, barre du bas pleine, plus de halo ni de bande de couleur épaisse.
+- **Revenir en arrière** : retirer les lignes `design-v534.css`, `icons.js` et `i18n-v534.js` des deux pages (ou ne pas fusionner la branche).
+- Essais : `v511.mjs` adapté (couleurs des thèmes, étiquettes en phrase) ; toute la chaîne `npm run tout` passe. Version laissée à 5.33.0
+  sur la branche : elle passera à 5.34.0 le jour de la publication (avec la chaîne d'essais complète).
 
 ## v5.33.0 — Heure de récupération du pain (Paramètres)
 

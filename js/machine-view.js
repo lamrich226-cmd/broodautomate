@@ -193,8 +193,9 @@ window.BA = window.BA || {};
 
   // Le tiroir en grand, en haut de la fenêtre : mêmes pains, mêmes heures et dates ; il se met à jour quand on change un nombre (+ colore la case vide)
   function big(s, m, sel, list, stat) {
-    const l = list ? list(sel) : items.view(s, m, sel);
-    return `<div class="mv-big">${tile(m, sel, l, (stat || ((x, y) => status.view(x, y)))(sel, l), { ro: true })}</div>`;
+    const l = list ? list(sel) : items.view(s, m, sel), stt = (stat || ((x, y) => status.view(x, y)))(sel, l);
+    if (is3dI()) return `<div class="mv-big m3-drawer">${drawer3d(s, m, sel, l, stt)}<p class="m3-hint">${t("vm3_drawer_hint")}</p></div>`;     // v5.41 : le tiroir en 3D
+    return `<div class="mv-big">${tile(m, sel, l, stt, { ro: true })}</div>`;
   }
 
   function freeTile(m, n, o) {
@@ -323,12 +324,141 @@ window.BA = window.BA || {};
   // Un tiroir touché ouvre une fenêtre pop-up (S.mvSel = { num, key, open, view }) ; seulement sur la page où on l'a ouverte
   const curView = () => (BA.Shell && BA.Shell.state && BA.Shell.state.view) || "";
   const isFull = num => { const f = st().mvFull; return !!(f && f.num === num && f.view === curView()); };
+  // v5.28 : en plein écran, la machine est en 3D (on la tourne à 360° avec le doigt ou la souris) ; « Vue plate » = l'ancien plein écran
+  // v5.41 : la 3D existe aussi dans les pages (Détail machine, Produits / Stock, Remplir de l'opérateur) et dans la fenêtre d'un tiroir.
+  //   Deux préférences séparées : plein écran (3D par défaut) et pages (3D par défaut, on repasse en « 2D » avec le bouton).
+  const KEY3 = "ba_mv_3d", KEY3I = "ba_mv_3di";
+  const is3d = () => { try { return localStorage.getItem(KEY3) !== "0"; } catch (e) { return true; } };
+  const set3d = v => { try { localStorage.setItem(KEY3, v ? "1" : "0"); } catch (e) { /* préférence non gardée */ } };
+  const is3dI = () => { try { return localStorage.getItem(KEY3I) !== "0"; } catch (e) { return true; } };
+  const set3dI = v => { try { localStorage.setItem(KEY3I, v ? "1" : "0"); } catch (e) { /* préférence non gardée */ } };
+  const m3 = () => { const S = st(); return S.m3 || (S.m3 = { rx: -8, ry: -22, z: 1, spin: false }); };
+  const m3d = () => { const S = st(); return S.m3d || (S.m3d = { rx: -14, ry: -36, z: 1, spin: false }); };      // orientation du petit tiroir 3D (fenêtre d'un tiroir)
+  const stateOf = stg => (stg && stg.dataset.k === "d" ? m3d() : m3());
+  const fsCls = num => (isFull(num) ? " mv-fs" + (is3d() ? " m3" : "") : "");
+  // Couleur d'un pain en 3D : tous pareils (doré), sauf selon l'état ou l'âge : frais (< 24 h) vert, bientôt à retirer orange, à retirer rouge
+  const lateH = s => Math.max(1, (Number(s.settings.thrHours) || 48) - 12);
+  const ageCls = (s, b) => (b.k === "ok" ? (b.h < 24 ? " a-fresh" : b.h >= lateH(s) ? " a-late" : "") : "");
+  // les pains d'un tiroir, rangés l'un derrière l'autre à partir de la vitre (le plus ancien devant) ; xc : centre du tiroir, yS : dessus de l'étagère
+  function loaves3(s, sel, list, xc, yS, cw, rh, D, maxN) {
+    const n = sel.cap <= MAXSLOTS ? sel.cap : Math.min(list.length, maxN || 6);
+    const lw = Math.round(cw * .66), lh = Math.round(rh * .34), z0 = D / 2 - 14, space = z0 - (-D / 2 + 8);
+    const ld = Math.max(18, Math.min(64, (space - Math.max(0, n - 1) * 5) / Math.max(1, n)));
+    let out = "";
+    for (let k = 0; k < n; k++) {
+      const b = list[k], z = z0 - ld / 2 - k * (ld + 5), y = yS - lh / 2;
+      const cls = b ? `k-${b.k}${ageCls(s, b)}` : "m3-ghost";
+      out += `<div class="m3-loaf ${cls}" style="--lw:${lw}px;--lh:${lh}px;--ld:${ld.toFixed(1)}px;transform:translate3d(${xc}px,${y}px,${z.toFixed(1)}px)"><i class="m3-f fr"></i><i class="m3-f bk"></i><i class="m3-f lf"></i><i class="m3-f rt"></i><i class="m3-f tp"></i></div>`;
+    }
+    return out;
+  }
+  // ---------------- v5.28 : la machine en 3D ----------------
+  // Une boîte (cadre, vitre devant, côtés, dessus) : chaque tiroir est un compartiment, ses pains sont rangés
+  // l'un DERRIÈRE l'autre (le plus ancien devant). Toutes les mesures sont en « px logiques » ; la mise à l'échelle se fait dans paint().
+  // o : { list(sel), stat(sel, pains), ro (rien ne se touche), freeClick (places libres cliquables : oui par défaut) }
+  function scene3d(s, m, key, o) {
+    o = o || {};
+    const L = layout(m, true), cols = L.cols, rows = L.rows.length;
+    const f = 10, sign = 30, panelW = 92, cellW = 84, rowH = 104, D = 210, pad = 8;
+    const glassW = cols * cellW + pad * 2, W = glassW + panelW + f * 2, H = rows * rowH + sign + f * 2;
+    const gx0 = -W / 2 + f, gTop = -H / 2 + f, yMid = gTop + rows * rowH / 2;
+    const at = (w, h, tr) => `width:${w}px;height:${h}px;margin:${-h / 2}px 0 0 ${-w / 2}px;transform:${tr}`;
+    let shelves = "", loaves = "", cells = "";
+    L.rows.forEach((r, i) => {
+      const yS = gTop + (i + 1) * rowH - 5;                                  // dessus de l'étagère
+      shelves += `<div class="m3-p m3-shelf" style="${at(glassW, D - 10, `translate3d(${gx0 + glassW / 2}px,${yS}px,0) rotateX(90deg)`)}"></div>`;
+      r.cells.forEach((c, j) => {
+        const cl = pad + j * cellW, top = i * rowH, xc = gx0 + pad + (j + .5) * cellW;
+        const pos = `left:${f + cl}px;top:${f + top}px;width:${cellW}px;height:${rowH}px`;
+        if (c.free) {
+          const tag = o.ro || o.freeClick === false ? "div" : "button";
+          cells += `<${tag}${tag === "div" ? "" : ` type="button" data-mv-free="${c.n}" id="mvf-${m.num}-${c.n}" aria-pressed="${key === c.key}"`} class="m3-cell m3-free${key === c.key ? " sel" : ""}${tag === "div" ? " ro" : ""}" style="${pos}"><span class="m3-tag"><b>${c.n}</b></span><span class="m3-plus" aria-hidden="true">＋</span><span class="m3-st">${t("vm_unused")}</span></${tag}>`;
+          return;
+        }
+        const sel = c.sel, list = o.list ? o.list(sel) : breads(s, m, sel), stt = o.stat ? o.stat(sel, list) : status.view(sel, list);
+        loaves += loaves3(s, sel, list, xc, yS, cellW, rowH, D);
+        const tag = o.ro ? "div" : "button";
+        cells += `<${tag}${tag === "div" ? "" : ` type="button" data-mv-sel="${sel.n}" id="mvt-${m.num}-${sel.n}" aria-pressed="${key === c.key}"`} class="m3-cell st-${stt.k}${key === c.key ? " sel" : ""}${tag === "div" ? " ro" : ""}" style="${pos}"><span class="m3-tag"><b>${sel.n}</b> ${F.eur(sel.price)}<small>${U.prod(sel.type)}</small></span><span class="m3-st ${stt.k}">${stt.txt}</span></${tag}>`;
+      });
+    });
+    const keys = "<i></i>".repeat(12);
+    return `<div class="m3-stage" data-w="${W}" data-h="${H}" data-d="${D}" role="group" aria-label="${E(t("vm_3d_hint"))}"><div class="m3-box">
+      <div class="m3-p m3-ground" style="${at(W * 1.25, D * 1.35, `translate3d(0,${H / 2 + 1}px,0) rotateX(90deg)`)}"></div>
+      <div class="m3-p m3-back" style="${at(W, H, `rotateY(180deg) translateZ(${D / 2}px)`)}"></div>
+      <div class="m3-p m3-left" style="${at(D, H, `rotateY(-90deg) translateZ(${W / 2}px)`)}"></div>
+      <div class="m3-p m3-right" style="${at(D, H, `rotateY(90deg) translateZ(${W / 2}px)`)}"></div>
+      <div class="m3-p m3-roof" style="${at(W, D, `rotateX(90deg) translateZ(${H / 2}px)`)}"></div>
+      <div class="m3-p m3-floor" style="${at(W, D, `rotateX(-90deg) translateZ(${H / 2}px)`)}"></div>
+      <div class="m3-p m3-wall" style="${at(D - 6, rows * rowH, `translate3d(${gx0 + glassW}px,${yMid}px,0) rotateY(90deg)`)}"></div>
+      ${shelves}${loaves}
+      <div class="m3-p m3-front" style="${at(W, H, `translateZ(${D / 2}px)`)}">
+        <div class="m3-bar" style="left:0;top:0;width:${W}px;height:${f}px"></div>
+        <div class="m3-bar" style="left:0;top:0;width:${f}px;height:${H}px"></div>
+        <div class="m3-glass" style="left:${f}px;top:${f}px;width:${glassW}px;height:${rows * rowH}px"></div>
+        ${cells}
+        <div class="m3-panel" style="left:${f + glassW}px;top:0;width:${panelW + f}px;height:${H - sign - f}px"><div class="m3-scr">#${m.num}</div><div class="m3-keys">${keys}</div><div class="m3-coin"></div></div>
+        <div class="m3-sign" style="left:0;top:${H - sign - f}px;width:${W}px;height:${sign + f}px"><span>#${m.num} · ${E(m.street)}, ${E(m.city)}</span></div>
+      </div></div></div>`;
+  }
+
+  // Un seul tiroir en 3D (fenêtre d'un tiroir : sélection, modification, inventaire, retrait, remplissage) : on le tourne pour voir les pains l'un derrière l'autre
+  function drawer3d(s, m, sel, list, stt) {
+    const f = 8, W = 104 + f * 2, H = 112 + f * 2, D = 210, cw = 104, rh = 112, xc = 0, yS = H / 2 - f - 6;
+    const at = (w, h, tr) => `width:${w}px;height:${h}px;margin:${-h / 2}px 0 0 ${-w / 2}px;transform:${tr}`;
+    return `<div class="m3-stage m3-mini" data-k="d" data-w="${W}" data-h="${H}" data-d="${D}" role="group" aria-label="${E(t("vm_3d_hint"))}"><div class="m3-box">
+      <div class="m3-p m3-ground" style="${at(W * 1.6, D * 1.4, `translate3d(0,${H / 2 + 1}px,0) rotateX(90deg)`)}"></div>
+      <div class="m3-p m3-back" style="${at(W, H, `rotateY(180deg) translateZ(${D / 2}px)`)}"></div>
+      <div class="m3-p m3-left" style="${at(D, H, `rotateY(-90deg) translateZ(${W / 2}px)`)}"></div>
+      <div class="m3-p m3-right" style="${at(D, H, `rotateY(90deg) translateZ(${W / 2}px)`)}"></div>
+      <div class="m3-p m3-roof" style="${at(W, D, `rotateX(90deg) translateZ(${H / 2}px)`)}"></div>
+      <div class="m3-p m3-floor" style="${at(W, D, `rotateX(-90deg) translateZ(${H / 2}px)`)}"></div>
+      <div class="m3-p m3-shelf" style="${at(W - f * 2, D - 10, `translate3d(0,${yS}px,0) rotateX(90deg)`)}"></div>
+      ${loaves3(s, sel, list, xc, yS, cw, rh, D, 10)}
+      <div class="m3-p m3-front" style="${at(W, H, `translateZ(${D / 2}px)`)}">
+        <div class="m3-bar" style="left:0;top:0;width:${W}px;height:${f}px"></div><div class="m3-bar" style="left:0;top:${H - f}px;width:${W}px;height:${f}px"></div>
+        <div class="m3-bar" style="left:0;top:0;width:${f}px;height:${H}px"></div><div class="m3-bar" style="left:${W - f}px;top:0;width:${f}px;height:${H}px"></div>
+        <div class="m3-glass" style="left:${f}px;top:${f}px;width:${W - f * 2}px;height:${H - f * 2}px"></div>
+        <div class="m3-cell ro st-${stt.k}" style="left:${f}px;top:${f}px;width:${W - f * 2}px;height:${H - f * 2}px"><span class="m3-tag"><b>${sel.n}</b> ${F.eur(sel.price)}<small>${U.prod(sel.type)}</small></span><span class="m3-st ${stt.k}">${stt.txt}</span></div>
+      </div></div></div>`;
+  }
+
+  // Légende des couleurs de pain en 3D (les mêmes mots que sur la machine : la couleur ne parle jamais seule)
+  function legend3(s, mode) {
+    const it = (cls, txt) => `<span class="mv-lg"><i class="m3-sw ${cls}"></i>${txt}</span>`;
+    const free = `<span class="mv-lg"><i class="mv-lg-free"></i>${t("vm_unused")}</span>`;
+    const L = {
+      view: [it("a-fresh", t("vm3_fresh")), it("", t("vm3_ok")), it("a-late", t("vm3_late", { h: lateH(s) })), it("k-old", t("vm_legend_old", { h: s.settings.thrHours })), it("k-kept", t("vm_lg_kept")), it("m3-ghost", t("vm_legend_empty")), free],
+      inv: [it("k-miss", t("vm_lg_miss")), it("k-extra", t("vm_lg_extra")), it("m3-ghost", t("vm_legend_empty"))],
+      rm: [it("k-gone", t("vm_lg_gone")), it("k-keep", t("vm_lg_keep")), it("k-gonemust", t("vm_lg_must"))],
+      load: [it("k-new", t("vm_lg_new")), it("m3-ghost", t("vm_legend_empty"))]
+    }[mode || "view"];
+    return `<div class="mv-legend m3-legend">${L.join("")}</div>`;
+  }
+
+  // Boutons du choix « 2D | 3D 360° » (inl : dans une page ; sinon en plein écran)
+  function switchHtml(inl) {
+    const on = inl ? is3dI() : is3d(), c = inl ? ' data-m3c="1"' : "";
+    return `<div class="m3-switch" role="group" aria-label="${E(t("vm_3d_view"))}"><button type="button" class="mv-fs-btn" data-m3="flat"${c} aria-pressed="${!on}">${t("vm_3d_2d")}</button><button type="button" class="mv-fs-btn" data-m3="on"${c} aria-pressed="${on}">${t("vm_3d_3d")}</button></div>`;
+  }
+  // Barre sous le choix 2D / 3D dans une page : Face, Tourner seul, − / +
+  const bar3 = () => `<div class="m3-bar3"><button type="button" class="btn secondary mv-fs-btn" data-m3="front">⟲ ${t("vm_3d_front")}</button><button type="button" class="btn secondary mv-fs-btn" data-m3="spin" aria-pressed="${!!m3().spin}">⟳ ${t("vm_3d_spin")}</button><button type="button" class="btn secondary mv-fs-btn" data-m3="zout" aria-label="${E(t("vm3_zoom_out"))}">－</button><button type="button" class="btn secondary mv-fs-btn" data-m3="zin" aria-label="${E(t("vm3_zoom_in"))}">＋</button></div>`;
+
+  // La machine telle qu'elle apparaît dans une page ou dans « Remplir » : grille à plat (2D) ou boîte 3D selon le choix
+  // o : { list, stat, key, free, freeClick, ro, mode (légende) }
+  function mach(s, m, o) {
+    o = o || {};
+    if (is3dI()) return `<div class="m3-inline"><div class="m3-top">${switchHtml(true)}${bar3()}</div>${scene3d(s, m, o.key, { list: o.list, stat: o.stat, ro: o.ro, freeClick: o.freeClick })}<p class="m3-hint">${t("vm_3d_hint")}</p>${legend3(s, o.mode)}</div>`;
+    return `<div class="m3-top2d">${switchHtml(true)}</div><div class="mv-mach"><div class="mv-glass">${grid(s, m, o)}</div>${legend(s, o.mode)}</div>`;
+  }
+
   function area(s, m) {
     const S = st(), L = layout(m, true), cells = L.rows.flatMap(r => r.cells);
     let key = S.mvSel && S.mvSel.num === m.num && S.mvSel.open && (!S.mvSel.view || S.mvSel.view === curView()) ? S.mvSel.key : null;
     if (key != null && !cells.some(c => c.key === key)) key = null;     // tiroir supprimé, place prise…
     const cell = key != null ? cells.find(c => c.key === key) : null;
     const panel = !cell ? "" : cell.free ? panelFree(s, m, cell.n) : panelSel(s, m, cell.sel);
+    if (isFull(m.num) && is3d()) return `${scene3d(s, m, key)}<div class="m3-foot"><p class="m3-hint">${t("vm_3d_hint")}</p>${legend3(s, "view")}</div>${cell ? pop(panel, !cell.free) : ""}`;
+    if (!isFull(m.num) && is3dI()) return `<div class="m3-inline">${bar3()}${scene3d(s, m, key)}<p class="m3-hint">${t("vm_3d_hint")}</p>${legend3(s, "view")}</div>${cell ? pop(panel, !cell.free) : ""}`;
     const g = grid(s, m, { key, free: true, freeClick: true });
     return `<div class="mv-mach"><div class="mv-glass">${g}</div>${legend(s, "view")}</div>${cell ? pop(panel, !cell.free) : ""}`;
   }
@@ -340,11 +470,19 @@ window.BA = window.BA || {};
     const S = st(), old = document.querySelector(`.mv-wrap[data-mv-num="${m.num}"] .mv-pop`);
     if (old && S.mvSel && S.mvSel.open && S.mvSel.num === m.num) S.mvPopTop = old.scrollTop;
     // v5.26 : plein écran (même bloc, agrandi par-dessus la page : tout le reste marche pareil)
-    return `<div class="mv-wrap${isFull(m.num) ? " mv-fs" : ""}" data-mv-num="${m.num}">${blockInner(s, m, o)}</div>`;
+    return `<div class="mv-wrap${fsCls(m.num)}" data-mv-num="${m.num}" data-mv-title="${o.title === false ? 0 : 1}">${blockInner(s, m, o)}</div>`;
   }
   function blockInner(s, m, o) {
     const full = isFull(m.num);
+    const SW = switchHtml(false);
+    if (full && is3d()) return `<div class="mv-head m3-head"><div class="m3-title"><b>#${m.num}</b> ${E(m.street)}, ${E(m.city)}</div><div class="m3-btns">
+        ${SW}
+        <button type="button" class="btn secondary mv-fs-btn" data-m3="front">⟲ ${t("vm_3d_front")}</button>
+        <button type="button" class="btn secondary mv-fs-btn" data-m3="spin" aria-pressed="${!!m3().spin}">⟳ ${t("vm_3d_spin")}</button>
+        <button type="button" class="btn secondary mv-fs-btn" data-mv-full="0">✖ ${t("vm_3d_quit")}</button></div></div>
+      <div class="mv-area m3-area">${area(s, m)}</div>`;
     return `<div class="mv-head">${o.title === false ? "" : `<h3>🧩 ${t("vm_title")}</h3>`}
+        ${full ? SW : switchHtml(true)}
         <button type="button" class="btn secondary mv-fs-btn" data-mv-full="${full ? 0 : 1}">${full ? "✖ " + t("vm_full_off") : "⛶ " + t("vm_full_on")}</button></div>
       ${full ? `<div class="mv-cab">
         <div class="mv-cab-main"><div class="mv-area">${area(s, m)}</div></div>
@@ -353,6 +491,69 @@ window.BA = window.BA || {};
         : `<p class="note">${t("vm_note")}</p><div class="mv-area">${area(s, m)}</div>`}`;
   }
 
+  const setCls = (wrap, num) => { wrap.classList.toggle("mv-fs", isFull(num)); wrap.classList.toggle("m3", isFull(num) && is3d()); };
+  // met la boîte 3D à l'échelle de l'écran et l'oriente (rx : haut/bas, ry : tour, z : zoom)
+  function paint(root) {
+    (root || document).querySelectorAll(".m3-stage").forEach(stg => {
+      const M3 = stateOf(stg), box = stg.firstElementChild, W = +stg.dataset.w, H = +stg.dataset.h, D = +stg.dataset.d, sw = stg.clientWidth, sh = stg.clientHeight;
+      if (!box || !sw || !sh) return;
+      const sc = Math.min(sw / (W + D * .16), sh / (H + D * .2)) * M3.z;      // v5.41 : machine plus grande (avant : marges de 35 % et 42 % de la profondeur)
+      box.style.transform = `scale(${sc.toFixed(3)}) rotateX(${M3.rx.toFixed(1)}deg) rotateY(${M3.ry.toFixed(1)}deg)`;
+    });
+  }
+  let spinning = false;
+  function apply3(root) {
+    paint(root);
+    if (m3().spin && !spinning && document.querySelector(".m3-stage")) {
+      spinning = true;
+      const step = () => {
+        const M3 = m3();
+        if (!M3.spin || !document.querySelector(".m3-stage")) { spinning = false; return; }
+        if (!st().m3drag) { M3.ry += .4; paint(document); }
+        requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    }
+  }
+  // v5.41 : gestes de la 3D (glisser = tourner, deux doigts / molette = zoomer, boutons Face / Tourner / − / +), pour n'importe quel conteneur :
+  // la page (Détail machine…), le plein écran, ou la fenêtre « Remplir » de l'opérateur. onSwitch(v, inl) : clic sur « 2D | 3D 360° ».
+  function bind3(root, onSwitch) {
+    if (!root || root.__b3) return; root.__b3 = true;
+    const S = st(), ptrs = new Map(); let drag = null;
+    const dist = () => { const a = [...ptrs.values()]; return a.length < 2 ? 0 : Math.hypot(a[0].x - a[1].x, a[0].y - a[1].y); };
+    root.addEventListener("pointerdown", e => {
+      const stg = e.target.closest && e.target.closest(".m3-stage"); if (!stg || !root.contains(stg) || e.button > 0) return;
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      drag = { stg, st: stateOf(stg), x0: e.clientX, y0: e.clientY, moved: false, d0: dist(), z0: stateOf(stg).z };
+    });
+    root.addEventListener("pointermove", e => {
+      const p = ptrs.get(e.pointerId); if (!p || !drag) return;
+      const M3 = drag.st, dx = e.clientX - p.x, dy = e.clientY - p.y; p.x = e.clientX; p.y = e.clientY;
+      if (!drag.moved) { if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < 7 && ptrs.size < 2) return; drag.moved = true; S.m3drag = true; try { drag.stg.setPointerCapture(e.pointerId); } catch (x) { /* pas grave */ } }
+      if (ptrs.size >= 2 && drag.d0) M3.z = Math.max(.5, Math.min(2.4, drag.z0 * dist() / drag.d0));
+      else { M3.ry += dx * .55; M3.rx = Math.max(-75, Math.min(35, M3.rx - dy * .4)); }
+      paint(root);
+    });
+    const endDrag = e => {
+      if (!ptrs.delete(e.pointerId)) return;
+      if (!ptrs.size) { const moved = drag && drag.moved; drag = null; if (moved) { S.m3click = true; setTimeout(() => { S.m3click = false; S.m3drag = false; }, 80); } }
+    };
+    root.addEventListener("pointerup", endDrag); root.addEventListener("pointercancel", endDrag);
+    root.addEventListener("click", e => { if (S.m3click) { e.stopPropagation(); e.preventDefault(); } }, true);   // fin d'un glissement : pas de tiroir ouvert par erreur
+    root.addEventListener("wheel", e => {
+      const stg = e.target.closest && e.target.closest(".m3-stage"); if (!stg || stg.dataset.k === "d") return;
+      if (!stg.closest(".mv-fs") && !e.ctrlKey && !e.metaKey) return;       // dans une page : la molette fait défiler la page (Ctrl + molette = zoom)
+      e.preventDefault(); const M3 = m3(); M3.z = Math.max(.5, Math.min(2.4, M3.z * Math.exp(-e.deltaY * .0012))); paint(root);
+    }, { passive: false });
+    root.addEventListener("click", e => {
+      const b = e.target.closest && e.target.closest("[data-m3]"); if (!b || !root.contains(b)) return;
+      const v = b.dataset.m3, M3 = m3();
+      if (v === "front") { M3.rx = -4; M3.ry = 0; M3.z = 1; M3.spin = false; const D3 = m3d(); D3.rx = -14; D3.ry = -36; D3.z = 1; root.querySelectorAll('[data-m3="spin"]').forEach(x => x.setAttribute("aria-pressed", "false")); return paint(root); }
+      if (v === "spin") { M3.spin = !M3.spin; b.setAttribute("aria-pressed", String(M3.spin)); return apply3(root); }
+      if (v === "zin" || v === "zout") { M3.z = Math.max(.5, Math.min(2.4, M3.z * (v === "zin" ? 1.2 : 1 / 1.2))); return paint(root); }
+      if (onSwitch) onSwitch(v, !!b.dataset.m3c);
+    });
+  }
   function bind(el, m0) {
     const wrap = el.querySelector(`.mv-wrap[data-mv-num="${m0.num}"]`);
     if (!wrap) return;
@@ -367,20 +568,31 @@ window.BA = window.BA || {};
       const { s, m } = cur(); if (!m || !document.body.contains(wrap)) return;
       keepTop();
       wrap.querySelector(".mv-area").innerHTML = area(s, m);
+      apply3(wrap);
       bindInputs();
       putTop();
       if (focusId) { const n = byId(focusId); if (n) n.focus({ preventScroll: true }); }
     };
     putTop();                                                          // page entière redessinée : même position qu'avant
     wrap.addEventListener("scroll", e => { if (e.target.classList && e.target.classList.contains("mv-pop")) S.mvPopTop = e.target.scrollTop; }, true);
+    // ----- 3D : tourner, zoomer, Face / Tourner seul, choix 2D / 3D (voir bind3) -----
+    bind3(wrap, (v, inl) => {
+      if (inl) set3dI(v === "on"); else set3d(v === "on");
+      S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0;
+      const { s, m } = cur(); if (!m) return;
+      setCls(wrap, num); wrap.innerHTML = blockInner(s, m, { title: wrap.dataset.mvTitle !== "0" }); apply3(wrap); bindInputs();
+      const nb = wrap.querySelector(inl ? '[data-m3c][aria-pressed="true"]' : "[data-m3]"); if (nb) nb.focus({ preventScroll: true });
+    });
+    apply3(wrap);
     wrap.addEventListener("click", e => {
       const b = e.target.closest && e.target.closest("[data-mv-full]"); if (!b || !wrap.contains(b)) return;
       S.mvFull = b.dataset.mvFull === "1" ? { num, view: curView() } : null;
       S.mvSel = null; S.mvEdit = null; S.mvAdd = null; S.mvPopTop = 0;
       if (wrap.classList.contains("mv-ov")) return closeFull();          // ouvert depuis le Dashboard : on referme et on revient au Dashboard
       const { s, m } = cur(); if (!m) return;
-      wrap.classList.toggle("mv-fs", isFull(num));
-      wrap.innerHTML = blockInner(s, m, { title: !!wrap.querySelector("h3") });
+      setCls(wrap, num);
+      wrap.innerHTML = blockInner(s, m, { title: wrap.dataset.mvTitle !== "0" });
+      apply3(wrap);
       bindInputs();
       const nb = wrap.querySelector("[data-mv-full]"); if (nb) nb.focus({ preventScroll: true });
     });
@@ -473,6 +685,7 @@ window.BA = window.BA || {};
   // Échap ferme la fenêtre du dessus ; un clic sur un bouton « Machine / Classique » change l'affichage de toute l'appli
   if (!window.__mvGlobal) {
     window.__mvGlobal = true;
+    window.addEventListener("resize", () => apply3(document));
     document.addEventListener("keydown", e => {
       if (e.key !== "Escape") return;
       const quit = document.querySelector(".mv-wrap.mv-fs [data-mv-full]");      // plein écran sans fenêtre par-dessus : Échap le quitte
@@ -509,6 +722,7 @@ window.BA = window.BA || {};
   function drawFull(first) {
     const S = st(), f = S.mvFull, r = ovRoot(); if (!f || !r) return;
     const s = BA.Store.get(), m = M.machine(s, f.num); if (!m) return closeFull();
+    if (!first && st().m3drag) return;                                      // on ne redessine pas pendant qu'on tourne la machine
     if (!first && r.contains(document.activeElement) && /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName)) return;   // on ne dérange pas une saisie
     r.innerHTML = block(s, m, { title: false });
     const w = r.querySelector(".mv-wrap"); if (w) w.classList.add("mv-ov");
@@ -540,5 +754,5 @@ window.BA = window.BA || {};
     const q = box.querySelector(".mv-pop"); if (q && top) q.scrollTop = top;
   }
 
-  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, selStyle, setSelStyle, fold, foldOpen, pop, big, keepPopScroll, openFull, closeFull };
+  BA.MachineView = { layout, breads, items, status, grid, compact, legend, block, bind, isWide, scrollPanel, dd, hrs, mode, on, setMode, modeSwitch, selStyle, setSelStyle, fold, foldOpen, pop, big, keepPopScroll, openFull, closeFull, mach, bind3, apply3, is3dI, legend3, switchHtml };
 })();

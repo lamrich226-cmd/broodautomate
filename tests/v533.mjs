@@ -9,9 +9,11 @@ const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURICom
 await new Promise(r => srv.listen(0, "127.0.0.1", r)); const U = "http://127.0.0.1:" + srv.address().port + "/";
 let bad = 0; const ok = (n, c, d) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c ? "" : " → " + JSON.stringify(d))); if (!c) bad++; };
 const b = await chromium.launch(), errs = [];
+  { const _nc = b.newContext.bind(b); b.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
 for (const [name, page, opt, tel] of [["tel-390", "operateur.html", { viewport: { width: 390, height: 780 }, isMobile: true, hasTouch: true }, true], ["tel-360", "operateur.html", { viewport: { width: 360, height: 640 }, isMobile: true, hasTouch: true }, true], ["pc-admin", "index.html", { viewport: { width: 1366, height: 800 } }, false]]) {
   console.log("\n== " + name);
   const ctx = await b.newContext({ locale: "fr-BE", ...opt });
+  await ctx.addInitScript(() => { try { localStorage.setItem("ba_mv_3d", "0"); } catch (e) { /* ok */ } });     // ce test vérifie le plein écran PLAT (2D) ; la 3D est dans v528
   for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(path.join(NM, f), "utf8") }));
   const p = await ctx.newPage(); p.on("pageerror", e => errs.push(name + ": " + e.message));
   await p.goto(U + page + "?demo&tick=0"); await p.waitForSelector("#app-nav button, #app-tabbar button", { state: "attached", timeout: 30000 }); await p.waitForTimeout(2000);

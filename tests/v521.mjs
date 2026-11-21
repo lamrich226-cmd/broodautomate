@@ -79,9 +79,9 @@ const etat = {
   console.log("== 0. Fichiers : version, ordre de chargement, programme du boîtier v1.5 dans le dépôt");
   const idx = fs.readFileSync(path.join(ROOT, "index.html"), "utf8"), opx = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
   const version = (/version:\s*"([^"]+)"/.exec(fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8")) || [])[1];
-  ok("version 5.33.1 dans config.js", version === "5.33.1", version);
+  ok("version 5.34.0 dans config.js", version === "5.34.0", version);
   const pos = s => idx.indexOf(s);
-  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.33.1") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
+  ok("admin : zip.js puis programme.js avant boitiers.js", pos("js/zip.js?v=5.34.0") > 0 && pos("js/zip.js") < pos("js/programme.js") && pos("js/programme.js") < pos("js/boitiers.js"));
   ok("les deux pages chargent i18n-v521.js juste après i18n-v520.js", /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(idx) && /i18n-v520\.js\?v=[\d.]+"><\/script>\s*<script src="js\/i18n-v521\.js\?v=[\d.]+"/.test(opx));   // version libre (v5.25 : ne casse plus à chaque version)
   ok("page opérateur : pas de fabrication de programme (zip.js, programme.js absents)", !/zip\.js|programme\.js/.test(opx));
   const cfgDepot = fs.readFileSync(path.join(LILY, "config.h"), "utf8");
@@ -100,6 +100,7 @@ const etat = {
   fake.t.devices.push({ id: DEV.B, name: "Boîtier Une", machine_id: "FAS-202160521", key_hash: "b".repeat(64), last_seen: new Date(now - 3 * MIN).toISOString(), created_at: "2026-11-10T10:00:00Z", info: info("1.5 1NCE") });
 
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [], requetes = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels", acceptDownloads: true, permissions: ["clipboard-read", "clipboard-write"] }, opts));

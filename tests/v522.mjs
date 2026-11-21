@@ -47,7 +47,7 @@ const nums = p => p.$$eval("#todo-body .mission-card .cm-num", e => e.map(x => x
 (async () => {
   console.log("== 0. Fichiers du site");
   const version = (fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8").match(/version:\s*"([^"]+)"/) || [])[1];
-  ok("version 5.33.1 dans config.js", version === "5.33.1", version);
+  ok("version 5.34.0 dans config.js", version === "5.34.0", version);
   for (const f of ["index.html", "operateur.html"]) {
     const liens = [...fs.readFileSync(path.join(ROOT, f), "utf8").matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)].map(m => m[1]);
     const mauvais = liens.filter(l => !l.endsWith("?v=" + version));
@@ -59,6 +59,7 @@ const nums = p => p.$$eval("#todo-body .mission-card .cm-num", e => e.map(x => x
   fake.baState = [{ id: "main", version: 3, data: etat, updated_at: new Date().toISOString() }];
   fake.t.machines = etat.machines.map(m => ({ id: m.id, name: m.street, city: m.city, serial: m.serial, model: null, status: "unknown", temp_c: m.temp, last_seen: null, created_at: "2026-10-27T10:00:00Z" }));
   const browser = await chromium.launch();
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const errs = [];
   const appareil = async (nom, opts) => {
     const ctx = await browser.newContext(Object.assign({ locale: "fr-BE", timezoneId: "Europe/Brussels" }, opts));

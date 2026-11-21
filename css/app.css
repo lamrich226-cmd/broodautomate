@@ -1127,7 +1127,7 @@ button.mv-free:hover { border-color: var(--c-ok); } button.mv-free:hover .mv-plu
 .lm-sels { min-width: 190px; max-width: 260px; } .lm-sels .mv-compact { margin: 0; }
 .demo-banner { position: relative; z-index: 40; background: var(--c-info, #1d5fd6); color: #fff; font-weight: 650; font-size: .85rem; text-align: center; padding: 6px 12px; }
 
-/* v5.29 : bandeau « nouvelle version publiée » (js/maj.js) */
+/* v5.41 : bandeau « nouvelle version publiée » (js/maj.js) */
 .maj-bandeau {
   position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); z-index: 9000;
   display: flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
@@ -1270,3 +1270,117 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
 .ex-list i { height: 11px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 4px; }
 .ex-table b { height: 9px; background: var(--text); border-radius: 3px; } .ex-table i { height: 9px; background: var(--surface); border-bottom: 1px solid var(--line-strong); }
 .tq-disp-ex .mv-c b { font-size: .8rem; }
+
+/* ===== v5.28 : plein écran en 3D (machine à 360°, pains l'un derrière l'autre) ===== */
+.mv-fs.m3 { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: 0; overflow: hidden; background: radial-gradient(120% 90% at 50% 38%, #2a2f36 0, #15181c 58%, #0b0c0e 100%); }
+.mv-fs.m3 .mv-head { position: static; flex: none; max-width: none; width: 100%; margin: 0; box-sizing: border-box; justify-content: space-between; align-items: center; padding: max(8px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px)); background: transparent; }
+.m3-title { color: #f2f4f6; font-size: 1rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.m3-title b { font-size: 1.25rem; margin-right: 6px; }
+.m3-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.m3-btns .mv-fs-btn[aria-pressed="true"] { background: #f2f4f6; color: #14161a; }
+.mv-fs.m3 .m3-area { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+.m3-stage { position: relative; flex: 1 1 0; min-height: 0; perspective: 1500px; touch-action: none; overflow: hidden; cursor: grab; user-select: none; -webkit-user-select: none; }
+.m3-stage:active { cursor: grabbing; }
+.m3-box { position: absolute; left: 50%; top: 50%; width: 0; height: 0; transform-style: preserve-3d; will-change: transform; }
+.m3-p, .m3-loaf { position: absolute; left: 0; top: 0; }
+.m3-p { transform-style: preserve-3d; box-sizing: border-box; backface-visibility: visible; }
+.m3-loaf { width: 0; height: 0; transform-style: preserve-3d; }
+/* la boîte : fond, côtés, dessus, dessous */
+.m3-back { background: linear-gradient(150deg, rgba(150, 195, 235, .12), rgba(150, 195, 235, .04)); box-shadow: inset 0 0 0 3px rgba(214, 219, 224, .9); }
+.m3-left { background: linear-gradient(90deg, rgba(150, 195, 235, .14), rgba(150, 195, 235, .05)); box-shadow: inset 0 0 0 3px rgba(214, 219, 224, .9); }
+.m3-right { background: linear-gradient(270deg, rgba(150, 195, 235, .14), rgba(150, 195, 235, .05)); box-shadow: inset 0 0 0 3px rgba(214, 219, 224, .9); }
+.m3-roof { background: linear-gradient(135deg, rgba(255, 255, 255, .22), rgba(170, 200, 230, .08)); box-shadow: inset 0 0 0 4px rgba(236, 239, 242, .95); }
+.m3-floor { background: linear-gradient(315deg, rgba(255, 255, 255, .1), rgba(170, 200, 230, .05)); box-shadow: inset 0 0 0 4px rgba(190, 196, 202, .9); }
+.m3-wall { background: linear-gradient(90deg, rgba(150, 195, 235, .08), rgba(150, 195, 235, .03)); box-shadow: inset 0 0 0 2px rgba(214, 219, 224, .45); }
+.m3-ground { background: radial-gradient(closest-side, rgba(0, 0, 0, .55), rgba(0, 0, 0, 0)); }
+.m3-shelf { background: linear-gradient(#f4f5f6, #9aa0a6 80%, #6d7378); box-shadow: 0 0 0 1px rgba(0, 0, 0, .35); }
+/* la face avant : cadre, vitre, tiroirs, panneau de droite, enseigne */
+.m3-front { pointer-events: none; }
+.m3-front > * { position: absolute; pointer-events: auto; }
+.m3-bar { background: linear-gradient(#f6f7f8, #bcc2c8); pointer-events: none !important; }
+.m3-glass { background: linear-gradient(160deg, rgba(190, 225, 255, .16), rgba(190, 225, 255, .03) 45%, rgba(190, 225, 255, .1)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35); pointer-events: none !important; }
+.m3-panel { box-sizing: border-box; display: grid; gap: 12px; justify-items: center; align-content: start; padding: 14px 8px; background: linear-gradient(#17191c, #0b0c0e); color: #cfd8e3; box-shadow: inset 0 0 0 3px #bcc2c8; pointer-events: none !important; }
+.m3-scr { width: 100%; text-align: center; padding: 9px 2px; border-radius: 4px; background: linear-gradient(#1f6fd6, #1553a8); color: #fff; font-weight: 700; font-size: 13px; box-shadow: 0 0 10px rgba(40, 120, 230, .6); }
+.m3-keys { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; padding: 7px; border-radius: 6px; background: #1b2640; }
+.m3-keys i { width: 16px; height: 12px; border-radius: 3px; background: #2b3f78; box-shadow: inset 0 0 0 1px #5a78d0; }
+.m3-coin { width: 38px; height: 38px; border-radius: 50%; margin-top: 8px; background: radial-gradient(circle at 35% 30%, #c9ccd0, #6c7075); box-shadow: inset 0 0 0 4px #2a2c2f, 0 1px 2px #000; }
+.m3-sign { box-sizing: border-box; display: grid; place-items: center; background: #fbfbfb; color: #14161a; font-weight: 800; font-size: 13px; letter-spacing: .03em; border: 3px solid #14161a; padding: 0 8px; text-align: center; pointer-events: none !important; }
+.m3-sign span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+/* un tiroir vu de face : bouton transparent, étiquette de prix en haut, état en bas */
+.m3-cell { box-sizing: border-box; display: flex; flex-direction: column; justify-content: space-between; align-items: stretch; padding: 0; margin: 0; border: 0; border-left: 1px solid rgba(255, 255, 255, .22); background: transparent; color: #f1f3f5; font: inherit; text-align: center; cursor: pointer; border-radius: 0; min-height: 0; }
+.m3-cell:hover { background: rgba(255, 255, 255, .07); }
+.m3-cell:focus-visible { outline: 2px solid #78a8ff; outline-offset: -2px; }
+.m3-cell.sel { background: rgba(120, 168, 255, .2); box-shadow: inset 0 0 0 2px #78a8ff; }
+.m3-tag { display: block; margin: 3px 4px 0; padding: 2px 3px; border-radius: 3px; background: #fbfbfb; color: #14161a; font-size: 12px; line-height: 1.15; }
+.m3-tag b { font-size: 13px; } .m3-tag small { display: block; font-size: 9px; color: #4b525a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.m3-st { display: block; margin: 0 3px 3px; padding: 1px 2px; border-radius: 3px; font-size: 10px; line-height: 1.2; font-weight: 700; background: rgba(0, 0, 0, .55); color: #e7ebef; }
+.m3-st.old, .st-old .m3-st { color: #ffae42; } .m3-st.must, .st-must .m3-st { color: #ff7b6e; } .m3-st.kept, .st-kept .m3-st { color: #78a8ff; } .m3-st.ok, .st-ok .m3-st { color: #62d68f; } .st-empty .m3-st { color: #ff7b6e; }
+.m3-free { border-left: 1px dashed rgba(255, 255, 255, .3); } .m3-free .m3-tag { background: rgba(255, 255, 255, .78); } .m3-free .m3-plus { font-size: 24px; color: rgba(255, 255, 255, .5); align-self: center; }
+/* les pains : des pavés arrondis posés sur l'étagère, rangés dans la profondeur */
+.m3-f { position: absolute; left: 0; top: 0; display: block; background-color: var(--lc, #c9b99a); border: 1.5px solid var(--lk, rgba(0, 0, 0, .3)); box-sizing: border-box; }
+.m3-loaf { --lc: var(--bread-x); }
+.m3-loaf.ty-blanc { --lc: var(--bread-blanc); } .m3-loaf.ty-gris { --lc: var(--bread-gris); } .m3-loaf.ty-complet { --lc: var(--bread-complet); } .m3-loaf.ty-maya { --lc: var(--bread-maya); } .m3-loaf.ty-sandwich { --lc: var(--bread-sandwich); }
+.m3-loaf.k-old { --lk: #ffae42; } .m3-loaf.k-must { --lk: #ff7b6e; } .m3-loaf.k-kept { --lk: #78a8ff; }
+.m3-loaf.k-old .m3-f, .m3-loaf.k-must .m3-f, .m3-loaf.k-kept .m3-f { border-width: 2.5px; }
+.m3-f.fr, .m3-f.bk { width: var(--lw); height: var(--lh); margin: calc(var(--lh) / -2) 0 0 calc(var(--lw) / -2); border-radius: 22px 22px 6px 6px; }
+.m3-f.fr { transform: translateZ(calc(var(--ld) / 2)); background-image: linear-gradient(100deg, rgba(255, 255, 255, .4), rgba(255, 255, 255, 0) 45%, rgba(0, 0, 0, .22)); }
+.m3-f.bk { transform: rotateY(180deg) translateZ(calc(var(--ld) / 2)); filter: brightness(.7); }
+.m3-f.lf, .m3-f.rt { width: var(--ld); height: var(--lh); margin: calc(var(--lh) / -2) 0 0 calc(var(--ld) / -2); border-radius: 18px 18px 5px 5px; filter: brightness(.82); }
+.m3-f.lf { transform: rotateY(-90deg) translateZ(calc(var(--lw) / 2)); } .m3-f.rt { transform: rotateY(90deg) translateZ(calc(var(--lw) / 2)); }
+.m3-f.tp { width: var(--lw); height: var(--ld); margin: calc(var(--ld) / -2) 0 0 calc(var(--lw) / -2); border-radius: 18px; transform: rotateX(90deg) translateZ(calc(var(--lh) / 2)); filter: brightness(1.12); background-image: radial-gradient(closest-side, rgba(255, 255, 255, .35), rgba(255, 255, 255, 0)); }
+.m3-ghost .m3-f { background-color: transparent; background-image: none; filter: none; border: 1.5px dashed rgba(255, 255, 255, .3); }
+.m3-ghost .m3-f.bk, .m3-ghost .m3-f.lf, .m3-ghost .m3-f.rt, .m3-ghost .m3-f.tp { display: none; }
+/* bas de l'écran : consigne + légende */
+.m3-foot { flex: none; padding: 4px max(12px, env(safe-area-inset-right, 0px)) max(10px, env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); color: #c9ced4; text-align: center; }
+.m3-hint { margin: 0 0 4px; font-size: .78rem; color: #aab1b8; }
+.m3-foot .mv-legend { justify-content: center; padding: 0; } .m3-foot .mv-lg { color: #c9ced4; font-size: .75rem; }
+@media (max-width: 600px) {
+  .m3-title { flex: 1 1 100%; font-size: .9rem; } .m3-btns { width: 100%; justify-content: flex-start; flex-wrap: wrap; gap: 5px; }
+  .mv-fs.m3 .mv-fs-btn { min-height: 34px; padding: 0 9px; font-size: .78rem; }
+  .m3-foot .mv-legend { display: none; }
+}
+
+/* choix « 2D / 3D 360° » (plein écran) */
+.m3-switch { display: inline-flex; border: 1px solid #3b4047; border-radius: 10px; overflow: hidden; background: #23262b; }
+.m3-switch .mv-fs-btn { border: 0 !important; border-radius: 0; background: transparent !important; color: #c9ced4 !important; min-height: 40px; padding: 0 14px; font-weight: 700; cursor: pointer; }
+.m3-switch .mv-fs-btn[aria-pressed="true"] { background: #f2f4f6 !important; color: #14161a !important; }
+.mv-fs:not(.m3) .mv-head { gap: 10px; align-items: center; }
+@media (max-width: 600px) { .m3-switch .mv-fs-btn { min-height: 34px; padding: 0 11px; font-size: .8rem; } }
+
+/* ===== v5.41 : la 3D dans les pages (Détail machine, Produits / Stock, Remplir) et dans la fenêtre d'un tiroir ; couleurs des pains par état ===== */
+/* pains en 3D : tous de la même couleur (doré) ; l'état se lit sur la BORDURE : pointillé épais coloré */
+.m3-loaf { --lc: #d9a441; --lk: #d9a441; }
+.m3-loaf .m3-f { border: 5px dashed var(--lk); }
+.m3-loaf.a-fresh { --lk: #3fd27a; }
+.m3-loaf.a-late, .m3-loaf.k-kept, .m3-loaf.k-keep { --lk: #ff9a1f; }
+.m3-loaf.k-old, .m3-loaf.k-gone, .m3-loaf.k-must, .m3-loaf.k-gonemust { --lk: #ff3b3b; }
+.m3-loaf.k-new { --lk: #3d8bff; } .m3-loaf.k-extra { --lk: #b07cff; } .m3-loaf.k-miss { --lk: #ff3b3b; }
+/* obligatoire ou gardé une fois : pointillé en petits points (se distingue du tireté) */
+.m3-loaf.k-must .m3-f, .m3-loaf.k-gonemust .m3-f, .m3-loaf.k-kept .m3-f, .m3-loaf.k-keep .m3-f { border-style: dotted; border-width: 6px; }
+.m3-loaf.k-miss .m3-f { background-color: rgba(255, 59, 59, .12); background-image: none; filter: none; }
+.m3-loaf.k-miss .m3-f.bk, .m3-loaf.k-miss .m3-f.lf, .m3-loaf.k-miss .m3-f.rt, .m3-loaf.k-miss .m3-f.tp { display: none; }
+.m3-loaf.k-gone .m3-f, .m3-loaf.k-gonemust .m3-f { opacity: .8; }
+/* pastilles de la légende 3D : pain doré + même bordure */
+.m3-sw { display: inline-block; width: 18px; height: 12px; border-radius: 4px; vertical-align: -2px; margin-right: 5px; background: #d9a441; border: 3px dashed #d9a441; box-sizing: border-box; }
+.m3-sw.a-fresh { border-color: #3fd27a; } .m3-sw.a-late, .m3-sw.k-kept, .m3-sw.k-keep { border-color: #ff9a1f; }
+.m3-sw.k-old, .m3-sw.k-gone, .m3-sw.k-must, .m3-sw.k-gonemust, .m3-sw.k-miss { border-color: #ff3b3b; } .m3-sw.k-new { border-color: #3d8bff; } .m3-sw.k-extra { border-color: #b07cff; }
+.m3-sw.k-must, .m3-sw.k-gonemust, .m3-sw.k-kept, .m3-sw.k-keep { border-style: dotted; border-width: 3.5px; }
+.m3-sw.k-miss { background: transparent; } .m3-sw.m3-ghost { background: transparent; border: 1.5px dashed #9aa3ad; }
+/* la machine 3D dans une page : cadre sombre, hauteur confortable */
+.m3-inline { display: flex; flex-direction: column; gap: 6px; border-radius: 14px; padding: 8px 8px 10px; background: radial-gradient(120% 90% at 50% 38%, #2a2f36 0, #15181c 58%, #0b0c0e 100%); color: #c9ced4; }
+.m3-inline .m3-stage { flex: none; height: clamp(400px, 80vh, 780px); border-radius: 10px; touch-action: pan-y; }
+.m3-inline .m3-hint { margin: 0; text-align: center; } .m3-inline .mv-legend { justify-content: center; padding: 0; } .m3-inline .mv-lg { color: #c9ced4; font-size: .76rem; }
+.m3-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.m3-top2d { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.m3-bar3 { display: flex; flex-wrap: wrap; gap: 6px; }
+.m3-inline .m3-bar3 .mv-fs-btn, .m3-inline .m3-switch .mv-fs-btn { min-height: 38px; }
+.m3-inline .m3-bar3 .mv-fs-btn[aria-pressed="true"] { background: #f2f4f6; color: #14161a; }
+.m3-inline > .m3-bar3 { justify-content: flex-start; }
+.m3-cell.ro { cursor: default; } .m3-cell.ro:hover { background: transparent; }
+/* un tiroir seul, dans la fenêtre d'un tiroir */
+.m3-drawer { display: flex; flex-direction: column; gap: 4px; }
+.m3-mini { flex: none; height: 230px; border-radius: 12px; touch-action: pan-y; background: radial-gradient(120% 90% at 50% 40%, #2a2f36 0, #15181c 60%, #0b0c0e 100%); }
+.m3-drawer .m3-hint { margin: 0; text-align: center; font-size: .74rem; color: var(--muted, #8a93a0); }
+.m3-switch { margin-left: auto; }
+@media (max-width: 600px) { .m3-inline .m3-stage { height: clamp(340px, 64vh, 560px); } .m3-mini { height: 200px; } .m3-inline .m3-bar3 .mv-fs-btn, .m3-inline .m3-switch .mv-fs-btn { min-height: 36px; padding: 0 10px; font-size: .78rem; } }
+.modal .m3-inline .m3-stage { height: clamp(320px, 56vh, 520px); }

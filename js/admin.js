@@ -586,6 +586,7 @@
       ${err ? `<div class="alert err">⚠️ ${err}</div>` : ""}
       <button class="btn" id="set-save">💾 ${t("btn_save")}</button>
       ${msg ? `<span class="saved">✅ ${msg}</span>` : ""}`;
+    if (U.helpToggles) U.helpToggles(el.querySelector(".settings-grid"));     // v5.34 : explications repliées derrière « i »
     el.querySelector("#set-fixed-open").onclick = () => fixedModal(() => renderSettings(el));
     el.querySelector("#set-save").onclick = () => {
       const P2 = BA.Store.get().settings;

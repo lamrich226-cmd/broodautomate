@@ -166,15 +166,17 @@ window.BA = window.BA || {};
     const sold = Object.values(today).reduce((a, r) => a + r.s, 0);
     const rev = Object.values(today).reduce((a, r) => a + r.r, 0);
     const cards = [
-      [!list.length ? "" : online === list.length ? "ok" : online ? "remove" : "empty", t("sum_online"), online + "/" + list.length],   // v5.11 : couleur selon le nombre en ligne
-      ["door", t("sum_door"), doors, doors ? list.filter(o => o.m.door).map(o => "#" + o.m.num).join(" ") : ""],
-      ["empty", t("sum_empty"), empties],
-      ["remove", t("sum_remove"), remove],
-      ["", t("sum_stock"), stock]
+      [!list.length ? "" : online === list.length ? "ok" : online ? "remove" : "empty", t("sum_online"), online + "/" + list.length, "", "signal"],   // v5.11 : couleur selon le nombre en ligne
+      ["door", t("sum_door"), doors, doors ? list.filter(o => o.m.door).map(o => "#" + o.m.num).join(" ") : "", "door"],
+      ["empty", t("sum_empty"), empties, "", "empty"],
+      ["remove", t("sum_remove"), remove, "", "hourglass"],
+      ["", t("sum_stock"), stock, "", "bread"]
     ];
-    if (admin) cards.push(["", t("sum_sales_today"), sold], ["", t("sum_rev_today"), F.eur(rev)]);
-    return `<div class="cards summary-cards">${cards.map(([c, l, v, x]) =>
-      `<div class="card stat ${c ? "c-" + c : ""}"><div class="label">${l}</div><div class="value">${v}</div>${x ? `<div class="petit door-nums">${E(x)}</div>` : ""}</div>`).join("")}</div>`;
+    if (admin) cards.push(["", t("sum_sales_today"), sold, "", "receipt"], ["", t("sum_rev_today"), F.eur(rev), "", "euro"]);
+    // v5.34 : une icône par chiffre (même trait que le menu) ; un chiffre à 0 reste neutre (pas de rouge pour « 0 machine vide »)
+    const ic = k => BA.Icons ? `<span class="stat-ic" aria-hidden="true">${BA.Icons.get(k)}</span>` : "";
+    return `<div class="cards summary-cards">${cards.map(([c, l, v, x, k]) =>
+      `<div class="card stat ${c && !(v === 0 && c !== "ok") ? "c-" + c : ""}"><div class="stat-top"><div class="label">${l}</div>${ic(k)}</div><div class="value">${v}</div>${x ? `<div class="petit door-nums">${E(x)}</div>` : ""}</div>`).join("")}</div>`;
   }
 
   function machineCard(s, m, x, admin) {
@@ -246,13 +248,15 @@ window.BA = window.BA || {};
         <h2>🌍 ${t("nav_dashboard")}</h2>
         <div id="dash-sum"></div>
         <div id="dash-bx"></div>
-        <div class="toolbar">
+        <div class="toolbar dash-tools">
           <input id="dash-search" class="search" type="search" data-live="1" autocomplete="off" placeholder="${E(t("search_ph"))}">
-          <div class="legend">${["door", "empty", "error", "remove", "low", "ok"].map(pill).join("")}</div>
-          <div class="seg dash-layout" role="group" aria-label="${E(t("ml_layout_aria"))}"></div>
-          ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
-          <div class="seg dash-sel" role="group" aria-label="${E(t("ss_aria"))}"></div>
+          <div class="view-opts">
+            <div class="seg dash-layout" role="group" aria-label="${E(t("ml_layout_aria"))}"></div>
+            ${BA.MachineView ? BA.MachineView.modeSwitch() : ""}
+            <div class="seg dash-sel" role="group" aria-label="${E(t("ss_aria"))}"></div>
+          </div>
         </div>
+        <div class="legend legend-quiet no-phone">${["door", "empty", "error", "remove", "low", "ok"].map(pill).join("")}</div>
         <div id="dash-body"></div>`;
       el.querySelector("#dash-search").addEventListener("input", () => renderDashboard(el, ctx));
       el.querySelector(".dash-layout").addEventListener("click", e => {
@@ -1019,8 +1023,28 @@ window.BA = window.BA || {};
     };
   }
 
+  // v5.34 : sous un « label.field-row », l'explication (p.petit) est repliée derrière un petit bouton « i » (Paramètres)
+  let helpSeq = 0;
+  function helpToggles(root) {
+    if (!root) return;
+    root.querySelectorAll("label.field-row + p.petit").forEach(p => {
+      const lab = p.previousElementSibling;
+      if (!lab || lab.parentElement.classList.contains("help-row")) return;
+      const row = document.createElement("div"); row.className = "help-row";
+      lab.parentNode.insertBefore(row, lab); row.appendChild(lab);
+      const b = document.createElement("button"), id = "help-" + (++helpSeq);
+      b.type = "button"; b.className = "help-btn"; b.title = t("help_show");
+      b.setAttribute("aria-label", t("help_show") + " : " + (lab.firstChild && lab.firstChild.nodeType === 3 ? lab.firstChild.nodeValue.trim() : ""));
+      b.setAttribute("aria-expanded", "false"); b.setAttribute("aria-controls", id);
+      b.innerHTML = BA.Icons ? BA.Icons.get("info") : "i";
+      p.id = id; p.classList.add("help-txt"); p.hidden = true;
+      b.onclick = () => { const show = p.hidden; p.hidden = !show; b.setAttribute("aria-expanded", String(show)); };
+      row.appendChild(b);
+    });
+  }
+
   BA.UI = {
-    F, E, t, prod, pill, ICON, NAV_ICONS,
+    F, E, t, prod, pill, ICON, NAV_ICONS, helpToggles,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
     machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, evTitle, interventionsTable, prodText,
     confirmDialog, dateInput, afterClick, removeDialog, moveDialog, toast, openWindow,
@@ -1141,7 +1165,8 @@ window.BA = window.BA || {};
     },
 
     // Icônes au même trait partout (menu, onglets, titres des pages) ; repli sur l'emoji si l'id est inconnu
-    icon(id, fallback) { return NAV_ICONS[id] || fallback || ""; },
+    // v5.34 : les autres icônes (à la place des emojis) viennent de js/icons.js
+    icon(id, fallback) { return NAV_ICONS[id] || (BA.Icons && BA.Icons.get(id)) || fallback || ""; },
 
     // ---------- Barre latérale (v5.11, comme la version test 4.8.6) ----------
     // PC : réduite aux icônes, elle s'ouvre quand la souris passe dessus (ou au clavier) ; le logo l'épingle ouverte.

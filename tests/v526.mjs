@@ -35,6 +35,7 @@ const ICCID = "89882280666680646327";
   await new Promise(r => srv.listen(0, r));
   const URL0 = "http://127.0.0.1:" + srv.address().port + "/";
   const browser = await chromium.launch(); const errs = [];
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const now = Date.now(), DAY = 86400000;
   const etat = { v: 1, hv: 2, seq: 9000, real: { v: 5, created: now - 70 * DAY }, daily: {}, epoch: "essai526", moves: [], thr48: true, orders: [], interventions: [], journal: [], applied: [], events: [], missions: [],
     machines: [{ id: "FAS-526000001", num: 1, street: "Rue de la Gare 1", city: "Bruxelles", region: "bxl", serial: "526000001", door: false, link: false, power: false, temp: 4.5, sels: [{ n: 1, cap: 10, lots: [], type: "blanc", price: 2.5 }], lastSale: now - 2 * 3600000, lastSeen: now - 30 * 60000 },

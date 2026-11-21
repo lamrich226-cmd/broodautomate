@@ -37,6 +37,7 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   await new Promise(r => srv.listen(0, r));
   const URL0 = "http://127.0.0.1:" + srv.address().port + "/";
   const browser = await chromium.launch(); const errs = [];
+  { const _nc = browser.newContext.bind(browser); browser.newContext = async o => { const c = await _nc(o); await c.addInitScript(() => { try { if (localStorage.getItem("ba_mv_3di") === null) localStorage.setItem("ba_mv_3di", "0"); } catch (e) { /* ok */ } }); return c; }; }     // v5.41 : les pages sont en 3D par défaut ; ces essais vérifient la vue à plat (2D)
   const now = Date.now(), DAY = 86400000, MIN = 60000, H = 3600000;
   const sel = (n, type) => ({ n, cap: 10, lots: [], type, price: 2.5 });
   const machine = (num, id, extra) => Object.assign({ id, num, street: "Rue " + num, city: "Bruxelles", region: "bxl", serial: id.slice(4), door: false, link: false, power: false, temp: 5, sels: [sel(1, "blanc")] }, extra || {});
@@ -162,13 +163,13 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
 
   console.log("== 3. Bandeau « nouvelle version publiée »");
   const v0 = await p.evaluate(async () => { await BA.Maj.verifier(true); return { v: BA.Maj.actuelle(), b: !!document.querySelector(".maj-bandeau") }; });
-  ok("même version publiée : pas de bandeau", v0.v === "5.33.1" && v0.b === false, v0);
+  ok("même version publiée : pas de bandeau", v0.v === "5.34.0" && v0.b === false, v0);
   await p.route(/js\/config\.js\?maj=/, r => r.fulfill({ status: 200, contentType: "application/javascript", body: 'const BA_CONFIG = {\n  app: { name: "Broodautomate", version: "9.9.9" },\n};' }));
   const v1 = await p.evaluate(async () => { await BA.Maj.verifier(true); const b = document.querySelector(".maj-bandeau"); return b ? b.innerText : ""; });
   ok("nouvelle version publiée : bandeau « … (9.9.9) » + bouton « Recharger »", /nouvelle version/i.test(v1) && /9\.9\.9/.test(v1) && /Recharger/.test(v1), v1);
   await p.screenshot({ path: path.join(OUT, "v529-bandeau.png") });
   const ope = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
-  ok("appli opérateur : le bandeau y est aussi (js/maj.js chargé)", /js\/maj\.js\?v=5\.33\.1/.test(ope) && /js\/i18n-v529\.js/.test(ope));
+  ok("appli opérateur : le bandeau y est aussi (js/maj.js chargé)", /js\/maj\.js\?v=5\.34\.0/.test(ope) && /js\/i18n-v529\.js/.test(ope));
 
   console.log("== 4. v5.29.1 : consommation 1NCE (par paliers, heure de lecture) ; Dashboard en premier dans l'appli opérateur");
   let nConso = 0, consoKo = false;
