@@ -234,7 +234,7 @@ async function scenarioPrincipal() {
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
   ok("sans choix : le thème suit l'ordinateur (" + sys + ")", (await a.getAttribute("html", "data-theme")) === null && (await a.evaluate(() => BA.Theme.get())) === sys);
-  ok("thème clair : vraies couleurs (fond crème), plus d'inversion de l'écran", await a.evaluate(() => { document.documentElement.dataset.theme = "light"; const bg = getComputedStyle(document.body).backgroundColor, f = getComputedStyle(document.documentElement).filter; delete document.documentElement.dataset.theme; return bg === "rgb(244, 240, 233)" && (f === "none" || !f); }));
+  ok("thème clair : vraies couleurs (fond clair du design v5.34), plus d'inversion de l'écran", await a.evaluate(() => { document.documentElement.dataset.theme = "light"; const bg = getComputedStyle(document.body).backgroundColor, f = getComputedStyle(document.documentElement).filter; delete document.documentElement.dataset.theme; return bg === "rgb(238, 241, 246)" && (f === "none" || !f); }));
   await a.click("#theme-toggle"); await a.mouse.move(900, 300); await a.waitForTimeout(300);
   ok("bouton soleil / lune : l'autre thème appliqué et gardé", (await a.getAttribute("html", "data-theme")) === autre && (await a.evaluate(() => localStorage.getItem("ba_theme"))) === autre);
   await shot(a, "02b-admin-" + autre);
