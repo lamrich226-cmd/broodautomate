@@ -1,4 +1,4 @@
-/* =====================================================
+/* ============================================================
    BROODAUTOMATE v5.11 — Design « v5 » de la version test 4.8.6 (choisi par Amor), appliqué à la version réelle
    - Thème nuit (ardoise) et thème clair (crème, lisible au soleil) : de vraies couleurs, plus d'inversion de l'écran
    - Une seule palette de variables (section 1) : tout le reste en dépend
@@ -1270,7 +1270,7 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
 .ex-list i { height: 11px; background: var(--surface); border: 1px solid var(--line-strong); border-radius: 4px; }
 .ex-table b { height: 9px; background: var(--text); border-radius: 3px; } .ex-table i { height: 9px; background: var(--surface); border-bottom: 1px solid var(--line-strong); }
 .tq-disp-ex .mv-c b { font-size: .8rem; }
-=======
+
 /* ===== v5.28 : plein écran en 3D (machine à 360°, pains l'un derrière l'autre) ===== */
 .mv-fs.m3 { display: flex; flex-direction: column; height: 100vh; height: 100dvh; padding: 0; overflow: hidden; background: radial-gradient(120% 90% at 50% 38%, #2a2f36 0, #15181c 58%, #0b0c0e 100%); }
 .mv-fs.m3 .mv-head { position: static; flex: none; max-width: none; width: 100%; margin: 0; box-sizing: border-box; justify-content: space-between; align-items: center; padding: max(8px, env(safe-area-inset-top, 0px)) max(12px, env(safe-area-inset-right, 0px)) 6px max(12px, env(safe-area-inset-left, 0px)); background: transparent; }
