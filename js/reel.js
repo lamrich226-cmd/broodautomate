@@ -123,21 +123,22 @@ window.BA = window.BA || {};
   function doorState(s, m, events) {
     const e = (events || []).filter(x => x.code === DOOR_OPEN_CODE && x.active != null).pop();
     if (!e) return;
-    const busy = s.interventions.some(x => x.num === m.num && x.status === "open");
+    // v5.34.2 : le capteur de la machine fait foi. Relevé « porte fermée » = porte fermée, même si un « Remplir » est encore ouvert
+    // (avant, un « Remplir » commencé puis oublié gardait la machine « porte ouverte » jusqu'à 4 h alors que la porte était fermée)
     if (e.active && !m.door) { m.door = true; m.doorAt = s.now; M.addEvent(s, m.num, "DOOR_OPEN", {}); }
-    else if (!e.active && m.door && !busy) { m.door = false; delete m.doorAt; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
+    else if (!e.active && m.door) { m.door = false; delete m.doorAt; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
   }
   // v5.13 : porte vue par le serveur (fonction ba_portes) : ce qui change pour chaque machine (sans rien modifier)
+  // v5.34.2 : le capteur fait foi, même pendant un « Remplir » ouvert (le « Remplir » reste ouvert, seule la porte suit le capteur)
   // list : [{ m: n° de la machine (id), o: ouverte ?, d: heure du changement (ISO) }]
   function portesPlan(s, list) {
     const out = [];
     (list || []).forEach(p => {
       const m = s.machines.find(x => x.id === p.m); if (!m) return;
       const at = Date.parse(p.d) || 0;
-      const busy = s.interventions.some(x => x.num === m.num && x.status === "open");
       if (p.o && !m.door) out.push({ num: m.num, open: true, at });
       else if (p.o && m.door && at && Math.abs((m.doorAt || 0) - at) > 1000) out.push({ num: m.num, open: true, at });     // même porte, heure exacte
-      else if (!p.o && m.door && !busy && at + 5 * 60000 >= (m.doorAt || 0)) out.push({ num: m.num, open: false, at });        // le serveur dit « fermée » : l'appli suit (marge 5 min : l'appli note l'heure de SON import du relevé)
+      else if (!p.o && m.door && at + 5 * 60000 >= (m.doorAt || 0)) out.push({ num: m.num, open: false, at });        // le serveur dit « fermée » : l'appli suit (marge 5 min : l'appli note l'heure de SON import du relevé)
     });
     return out;
   }
