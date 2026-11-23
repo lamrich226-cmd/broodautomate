@@ -1,4 +1,5 @@
-> **État actuel (v5.34.2, 21/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> **État actuel (v5.34.3, 23/11/2026)** — à lire en premier ; les sections plus bas racontent l'historique version par version.
+> - **v5.34.3 — « Remplir » sécurisé** : « Annuler » défait tout ce qui était validé ; un « Remplir » resté ouvert 1 h sans rien valider est annulé tout seul ; si l'appli croit la machine vide (ou < 10 %), plus de « Oui, c'est correct » (il faut taper les chiffres, ou confirmer « vraiment vide ») ; chargement à 0 sur machine vide = confirmation explicite ; alerte « Stock inconnu » si des ventes arrivent alors que l'appli croit la sélection vide. À faire : avertir quand un « Remplir » est déjà ouvert sur un autre appareil.
 > - **Boîtiers 4G** : carte **1NCE** (choix par défaut). Tout passe en **UDP** : signal de vie (30 min), relevés et résultats de
 >   « Lire maintenant » → 1NCE (Cloud Integrator) → fonction `ingest-udp` → fonction `ingest`. Repli en HTTPS seulement après 2 h
 >   d'UDP muet ET si l'HTTPS marche. « Lire maintenant » est **instantané** : fonction `lire-1nce` (ordre « lire N » par l'API 1NCE) ;

@@ -1,4 +1,5 @@
 // Essais de la v5.19 :
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //   1. Remplissage SPONTANÉ (sans commande) : 0 pain par défaut ; remplissage d'une MISSION : quantités de la commande déjà écrites ;
 //      « Total à charger » qui suit la saisie.
 //   2. Contrôle général : chaque écran (admin sur PC et sur téléphone, opérateur sur téléphone), 3 langues, 2 thèmes :
@@ -121,7 +122,7 @@ const DEFAUTS = `() => {
   const inutiles = fs.readdirSync(path.join(ROOT, "js")).filter(f => f.endsWith(".js") && !sIdx.includes(f) && !sOp.includes(f));
   ok("chaque fichier js du dossier sert à une page", inutiles.length === 0, inutiles);
   const version = (html("js/config.js").match(/version:\s*"([^"]+)"/) || [])[1];
-  ok("version 5.34.2 dans config.js", version === "5.34.2", version);
+  ok("version 5.34.3 dans config.js", version === "5.34.3", version);
   // v5.19 : chaque fichier js / css est demandé avec « ?v=<version> » : après une publication, un simple
   // rechargement de la page prend TOUS les nouveaux fichiers (plus de mélange ancienne / nouvelle version).
   for (const f of ["index.html", "operateur.html"]) {
@@ -165,7 +166,7 @@ const DEFAUTS = `() => {
   await entrer(o, "operateur.html");
   const jusquAuChargement = async num => {
     await o.evaluate(n => BA.Wizard.open(n), num);
-    await o.waitForSelector("#inv-yes"); await o.click("#inv-yes");
+    await invYes(o, false);
     await o.waitForSelector("#rm-next, #rm-yes");
     if (await o.$("#rm-next")) await o.click("#rm-next"); else await o.click("#rm-no");
     await o.waitForSelector("#ld-validate"); await sleep(300);

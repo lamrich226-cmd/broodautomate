@@ -360,12 +360,14 @@ window.BA = window.BA || {};
         // v5.33 : comparé à l'heure de l'INVENTAIRE (avant : au début de « Remplir ») : un relevé pris entre le moment où l'opérateur
         // touche « Remplir » et la fin de son comptage (la porte s'ouvre, le boîtier relit la machine) est lui aussi déjà compté
         const dejaCompte = (s.interventions || []).some(it => it.num === m.num && (it.invAt || it.start) > x.t && Array.isArray(it.inv) && it.inv.length > 0 && !it.invSkipped);
+        let inconnu = false;
         const sell = (sel, nSel, price) => {
           let lotDate = null;
           if (sel && !dejaCompte) {
             M.sortLots(sel);
             const lot = sel.lots[0];
             if (lot) { lotDate = lot.date; lot.qty--; if (lot.qty <= 0) sel.lots.shift(); }
+            else inconnu = true;      // v5.34.3 : vente alors que l'appli croit la sélection vide → stock de l'appli faux
           }
           M.log(s, { t: x.t, k: "sale", n: m.num, s: nSel, y: sel ? sel.type : null, q: 1, p: price, l: lotDate, b: "sim" });
           M.addDaily(s, x.t, m.num, { s: 1, r: price });
@@ -389,6 +391,7 @@ window.BA = window.BA || {};
         });
         if (diff.ecartSelections > 0) spread(diff.ecartSelections, moyen * diff.ecartSelections).forEach(p => sell(null, null, p));
         if (ventes) m.lastSale = x.t;
+        if (inconnu) M.addEvent(s, m.num, "STOCK_UNKNOWN", {});
         if (m.sels.length && m.sels.every(z => M.qty(z) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
       }
       if (!diff.baseline) {
@@ -536,10 +539,14 @@ window.BA = window.BA || {};
     M.resolveEvents(s, m.num, "KEPT_BREAD", e => !keptIds.has(e.key));
   }
   // v5.25 : « Remplir » laissé ouvert trop longtemps → clos comme « Annuler » (les étapes déjà validées restent)
+  const IT_IDLE = () => Math.max(0.25, Number(C.interventionIdleHours) || 1) * H;
   const IT_MAX = () => Math.max(1, Number(C.interventionMaxHours) || 4) * H;
   function closeStale(s) {
     (s.interventions || []).forEach(it => {
-      if (it.status !== "open" || !(s.now - it.start > IT_MAX())) return;
+      if (it.status !== "open") return;
+      // v5.34.3 : « Remplir » ouvert par erreur / pour une formation : rien de validé depuis ~1 h → ignoré (aucun effet sur le stock)
+      const oisif = it.step <= 1 && !(it.inv && it.inv.length) && s.now - it.start > IT_IDLE();
+      if (!oisif && !(s.now - it.start > IT_MAX())) return;
       it.status = it.step > 1 ? "partial" : "cancelled"; it.end = s.now; it.auto = true;
       const m = M.machine(s, it.num);
       if (m && !(BA.Portes && BA.Portes.isOpen(m.id))) { m.door = false; delete m.doorAt; M.resolveEvents(s, m.num, "DOOR_OPEN"); }

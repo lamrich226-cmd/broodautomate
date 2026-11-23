@@ -1,4 +1,5 @@
 // AUDIT (v5.32.3) — « Remplir » de l'appli opérateur poussé dans ses coins, vraie appli dans Chromium, faux Supabase, données inventées :
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //  tiroirs de 3 à 6 pains, vue Machine et compteurs − / + (bornés à la capacité), retour en arrière entre les étapes,
 //  double appui, annuler puis rouvrir, chargement complet ; le stock final est vérifié à chaque fois.
 // node v535.mjs <dossier du site> <dossier des captures>
@@ -102,27 +103,27 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   await p.click("#mvw-back"); await p.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
   q = await Q();
   ok("retour à l'étape 2 : stock d'après l'inventaire (11→2, 15→6, 21→4)", q[11] === 2 && q[15] === 6 && q[21] === 4, q);
-  await p.click("#mvw-back"); await p.waitForSelector("#mvw-inv-yes, #mvw-inv-ok");
+  await p.click("#mvw-back"); await p.waitForSelector("#mvw-inv-yes, #mvw-inv-ok, #mvw-inv-empty");
   q = await Q();
   ok("retour à l'étape 1 : stock d'origine (11→3, 15→3, 21→4)", q[11] === 3 && q[15] === 3 && q[19] === 0 && q[21] === 4, q);
   const jr = await p.evaluate(() => (BA.Store.get().journal || []).filter(e => e.it).length);
   ok("le journal ne garde rien des étapes annulées", jr === 0, jr);
 
   console.log("== 4. Double-tap sur « Oui, c'est bon » : une seule étape doit être validée");
-  await p.dblclick("#mvw-inv-yes"); await sleep(600);
+  await invYes(p, true, "dbl"); await sleep(600);
   const stp = await p.evaluate(() => ({ step: BA.Wizard.w.step, it: BA.Store.get().interventions[0].step, q: Object.fromEntries(BA.Store.get().machines[0].sels.map(x => [x.n, x.lots.reduce((a, l) => a + l.qty, 0)])) }));
   ok("après un double-tap : on est à l'étape 2, rien n'a été retiré (stock inchangé)", stp.step === 2 && stp.it === 2 && stp.q[11] === 3 && stp.q[21] === 4, stp);
 
   console.log("== 5. Annuler à l'étape 2 puis recommencer");
   await p.click("#wz-cancel"); await p.click("#wz-cancel"); await sleep(500);
   const its = await IT();
-  ok("l'intervention annulée est « partielle » et la porte est refermée", its.length === 1 && its[0].status === "partial" && !(await p.evaluate(() => BA.Store.get().machines[0].door)), its);
+  ok("l'intervention annulée est « annulée » (v5.34.3 : tout ce qui était validé est défait) et la porte est refermée", its.length === 1 && its[0].status === "cancelled" && !(await p.evaluate(() => BA.Store.get().machines[0].door)), its);
   await p.evaluate(() => BA.Wizard.open(1)); await p.waitForSelector("#wz-mv"); await sleep(300);
   const its2 = await IT();
   ok("« Remplir » à nouveau : une nouvelle intervention à l'étape 1", its2.length === 2 && its2[0].status === "open" && its2[0].step === 1, its2);
 
   console.log("== 6. Chargement jusqu'à pleine capacité (cap 5 et 6) puis fin");
-  await p.click("#mvw-inv-yes"); await p.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
+  await invYes(p, true); await p.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
   await p.click("#mvw-rm-no"); await p.waitForSelector("#mvw-ld-ok");
   await p.click("#mvw-ld-full"); await sleep(200);
   const tot = await p.$eval("#mvl-total", e => e.textContent);

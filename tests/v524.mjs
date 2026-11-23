@@ -1,4 +1,5 @@
 // Essais de la v5.24 (design-test) : vue machine (tiroirs, prix, places « Non utilisé ») et « Remplir » en touchant les tiroirs.
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 // Tourne sur le MODE DÉMO (?demo&tick=0) : 20 machines inventées, aucune donnée réelle, rien n'est envoyé.
 // node v524.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
@@ -200,7 +201,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   const t2 = await device("tel-tableau", { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true }, "operateur.html", "classic");
   const n2 = await S(t2, () => BA.Store.get().machines.find(m => !m.door && !m.power).num);
   await S(t2, n => BA.Wizard.open(n), n2);
-  await t2.waitForSelector("#inv-yes"); await t2.click("#inv-yes");
+  await invYes(t2, false);
   await t2.waitForSelector("#rm-next, #rm-yes"); await t2.click((await t2.$("#rm-yes")) ? "#rm-yes" : "#rm-next");
   await t2.waitForSelector("#ld-validate"); await t2.click("#ld-validate"); await t2.waitForSelector("#wz-close");
   ok("tableau : inventaire → retrait → chargement, comme avant", await S(t2, n => BA.Store.get().interventions.find(x => x.num === n).status === "done", n2));
@@ -214,7 +215,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   ok("ordinateur : un tiroir touché ouvre la fenêtre pop-up, centrée", await p2.$eval(".mv-pop", e => { const r = e.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; }));
   await shot(p2, "v524-08-inventaire-pc");
   await p2.keyboard.press("Escape"); await sleep(250);
-  await p2.click("#mvw-inv-yes"); await p2.waitForSelector("#mvw-rm-yes, #mvw-rm-ok");
+  await invYes(p2, true); await p2.waitForSelector("#mvw-rm-yes, #mvw-rm-ok");
   await shot(p2, "v524-09-retrait-pc");
   await p2.click("#mvw-rm-yes"); await p2.waitForSelector("#mvw-ld-ok");
   await p2.click("#mvw-ld-full"); await sleep(300);

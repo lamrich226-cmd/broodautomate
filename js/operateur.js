@@ -247,21 +247,30 @@
       if (aft) { BA.MachineView.bind3(aft, (v) => { try { localStorage.setItem("ba_mv_3di", v === "on" ? "1" : "0"); } catch (e) { /* tant pis */ } this.render(); }); BA.MachineView.apply3(aft); }     // v5.41 : la machine finale peut aussi se tourner
     },
 
+    // v5.34.3 : l'appli croit la machine (presque) vide → on ne propose plus « Oui, c'est correct » : il faut compter et taper
+    suspect(m) {
+      const tot = m.sels.reduce((a, sel) => a + M.qty(sel), 0), cap = m.sels.reduce((a, sel) => a + sel.cap, 0);
+      return m.sels.length > 0 && (tot === 0 || tot <= cap * 0.1);
+    },
+
     // ---------- Étape 1 : inventaire ----------
     step1(s, m) {
-      const edit = this.w.mode === "edit";
+      const susp = this.suspect(m);
+      const edit = this.w.mode === "edit" || susp;
       return `
         <h3>${t("step1_title")}</h3>
         <p class="note">${t("step1_help")}</p>
+        ${susp ? `<div class="alert err">⚠️ ${t("inv_suspect")}</div>` : ""}
         <div class="table-scroll"><table class="wz">
           <thead><tr><th>${t("col_sel")}</th><th>${t("col_recorded")}</th><th>${t("col_counted")}</th></tr></thead>
           <tbody>${m.sels.map(sel => {
             const q = M.qty(sel);
             return `<tr>${selCell(sel.n, sel.type)}<td class="big-num">${q}</td>
-              <td><input type="number" class="num-in big-in" id="inv-${sel.n}" data-sel="${sel.n}" min="0" max="${sel.cap}" value="${edit && this.w.inv && this.w.inv[sel.n] != null ? this.w.inv[sel.n] : q}" ${edit ? "" : "disabled"}> <span class="petit">/ ${sel.cap}</span></td></tr>`;
+              <td><input type="number" class="num-in big-in" id="inv-${sel.n}" data-sel="${sel.n}" min="0" max="${sel.cap}" value="${edit && this.w.inv && this.w.inv[sel.n] != null ? this.w.inv[sel.n] : susp ? "" : q}" ${edit ? "" : "disabled"}> <span class="petit">/ ${sel.cap}</span></td></tr>`;
           }).join("")}</tbody></table></div>
         ${edit
-          ? `<div class="wz-actions">${this.backBtn("inv-back")}<button class="btn big" id="inv-validate">✔ ${t("btn_validate_inv")}</button></div>`
+          ? `<div class="wz-actions">${susp ? "" : this.backBtn("inv-back")}<button class="btn big" id="inv-validate">✔ ${t("btn_validate_inv")}</button></div>
+             ${susp ? `<div class="wz-actions"><button class="btn secondary" id="inv-empty">${this.w.emptyArmed ? "⚠️ " + t("btn_empty_confirm") : t("btn_really_empty")}</button></div>` : ""}`
           : `<div class="q-title">${t("step1_question")}</div>
              <div class="wz-actions">
                <button class="btn big" id="inv-yes">✔ ${t("btn_inv_yes")}</button>
@@ -406,6 +415,11 @@
         if (sum > need) bad = true;
       });
       if (bad) { w.error = t("err_load"); this.render(); return; }
+      // v5.34.3 : rien chargé = la machine sera notée VIDE → on demande une confirmation explicite (2e appui)
+      const total = Object.keys(loads).reduce((a, k) => a + loads[k].reduce((b, x) => b + x.qty, 0), 0);
+      const vide = m.sels.every(sel => M.qty(sel) === 0);
+      if (total === 0 && vide && !w.zeroAsk) { w.zeroAsk = true; w.error = t("ld_zero_ask"); this.render(); return; }
+      w.zeroAsk = false;
       BA.Actions.applyLoad(w.itId, loads, w.delivery);
       w.step = 4; w.error = ""; this.render();
     },
@@ -517,7 +531,10 @@
         footer: changed
           ? `<p class="petit">${t("vm_inv_changed", { n: changed })}</p>
              <div class="wz-actions"><button class="btn big" id="mvw-inv-ok">✔ ${t("btn_validate_inv")}</button><button class="btn big secondary" id="mvw-inv-reset">↺ ${t("vm_reset")}</button></div>`
-          : `<div class="q-title">${t("step1_question")}</div>
+          : this.suspect(m)
+            ? `<div class="alert err">⚠️ ${t("inv_suspect_mv")}</div>
+               <div class="wz-actions"><button class="btn secondary" id="mvw-inv-empty">${w.emptyArmed ? "⚠️ " + t("btn_empty_confirm") : t("btn_really_empty")}</button></div>`
+            : `<div class="q-title">${t("step1_question")}</div>
              <div class="wz-actions"><button class="btn big" id="mvw-inv-yes">✔ ${t("btn_inv_yes")}</button><button class="btn secondary" id="mvw-inv-skip">⏭ ${t("btn_skip")}</button></div>`
       };
     },
@@ -687,6 +704,12 @@
         switch (b.id) {
           case "mvw-inv-yes": A.applyInventory(w.itId, {}, false); return go(2);
           case "mvw-inv-skip": A.applyInventory(w.itId, {}, true); return go(2);
+          case "mvw-inv-empty": {
+            if (!w.emptyArmed) { w.emptyArmed = true; return this.mRefresh(); }
+            w.emptyArmed = false;
+            const counts = {}; m.sels.forEach(sel => { counts[sel.n] = 0; });
+            A.applyInventory(w.itId, counts, false); return go(2);
+          }
           case "mvw-inv-reset": w.inv = {}; return this.mRefresh();
           case "mvw-inv-ok": {
             const counts = {};
@@ -747,6 +770,13 @@
       if (q("inv-yes")) q("inv-yes").onclick = () => { BA.Actions.applyInventory(w.itId, {}, false); go(2); };
       if (q("inv-skip")) q("inv-skip").onclick = () => { BA.Actions.applyInventory(w.itId, {}, true); go(2); };
       if (q("inv-edit")) q("inv-edit").onclick = () => { w.mode = "edit"; this.render(); const f = document.querySelector(".modal input[type=number]"); if (f) f.focus(); };
+      if (q("inv-empty")) q("inv-empty").onclick = () => {
+        if (!w.emptyArmed) { w.emptyArmed = true; this.render(); return; }
+        w.emptyArmed = false;
+        const counts = {}; BA.Store.get(); const mm = M.machine(BA.Store.get(), w.num);
+        mm.sels.forEach(sel => { counts[sel.n] = 0; });
+        BA.Actions.applyInventory(w.itId, counts, false); go(2);
+      };
       if (q("inv-validate")) q("inv-validate").onclick = () => {
         const counts = {}; let bad = false;
         document.querySelectorAll(".modal [id^=inv-][data-sel]").forEach(i => {

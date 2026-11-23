@@ -1,4 +1,5 @@
 // Essais de la v5.33 — heure de récupération du pain (Paramètres), vraie appli dans Chromium, faux Supabase, données inventées.
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //  Tournée de nuit : un « Remplir » à 03:59 propose la date de la VEILLE à 19 h (avant : la veille à 06:00, le pain neuf
 //  affichait déjà « 22 h » juste après le chargement). L'heure se change dans Paramètres (admin) et l'appli opérateur la suit.
 // node v540.mjs <dossier du site> <dossier des captures>
@@ -73,8 +74,8 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
 
   console.log("== 2. « Remplir » à 03:59 (vue Machine) : pain daté de la veille à 19 h");
   await op.evaluate(() => { BA.MachineView.setMode("machine"); BA.Shell.go("fill"); }); await sleep(400);
-  await op.click("[data-fill]"); await op.waitForSelector("#mvw-inv-yes");
-  await op.click("#mvw-inv-yes"); await op.waitForSelector("#mvw-rm-next"); await op.click("#mvw-rm-next"); await op.waitForSelector("#mvl-date");
+  await op.click("[data-fill]"); await op.waitForSelector("#mvw-inv-yes, #mvw-inv-empty");
+  await invYes(op, true); await op.waitForSelector("#mvw-rm-next"); await op.click("#mvw-rm-next"); await op.waitForSelector("#mvl-date");
   const d3 = await op.$eval("#mvl-date", e => e.value);
   ok("étape 3 : « Date de livraison » proposée = 15/11 19:00", d3 === "2026-11-15T19:00", d3);
   await op.click("#mvw-ld-full"); await sleep(200); await op.click("#mvw-ld-ok"); await op.waitForSelector("#wz-close"); await sleep(300);

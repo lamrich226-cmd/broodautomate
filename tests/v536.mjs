@@ -1,4 +1,5 @@
 // AUDIT (v5.32.3) — « Remplir » sur une machine de 18 tiroirs de 3 pains, tous vides (comme la machine d'essai), sur téléphone.
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //  Inventaire « Oui », rien à retirer, chargement avec « + » puis « Tout remplir » : 54 pains dans la machine à la fin.
 // node v536.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
@@ -65,7 +66,7 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   }, [11, 15, 19, 21, 25, 29, 31, 35, 39, 41, 45, 49, 51, 55, 59, 61, 65, 69]);
   await p.evaluate(() => BA.Wizard.open(1)); await p.waitForSelector("#wz-mv"); await sleep(400);
   await p.screenshot({ path: path.join(OUT, "tel-18-etape1.png") });
-  await p.click("#mvw-inv-yes"); await p.waitForSelector("#mvw-rm-next, #mvw-rm-yes, #mvw-rm-ok"); await sleep(300);
+  await invYes(p, true); await p.waitForSelector("#mvw-rm-next, #mvw-rm-yes, #mvw-rm-ok"); await sleep(300);
   await p.screenshot({ path: path.join(OUT, "tel-18-etape2.png") });
   await p.click("#mvw-rm-next"); await p.waitForSelector("#mvw-ld-ok"); await sleep(300);
   await p.screenshot({ path: path.join(OUT, "tel-18-etape3.png") });

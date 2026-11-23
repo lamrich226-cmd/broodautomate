@@ -582,6 +582,7 @@ window.BA = window.BA || {};
           return { sel: sel.n, type: sel.type, exp, real };
         });
         it.invSkipped = !!skipped;
+        if (!skipped) M.resolveEvents(s, m.num, "STOCK_UNKNOWN");
         it.invAt = s.now;           // v5.33 : heure de l'inventaire (relevé 4G pris avant, traité après : déjà compté, voir reel.js)
         if (lost || gained) M.addEvent(s, m.num, "STOCK_GAP", { lost, gained, key: "i" + it.id });
         it.step = 2;
@@ -688,8 +689,24 @@ window.BA = window.BA || {};
     cancelIntervention(itId) {
       Store.update(s => {
         const it = s.interventions.find(x => x.id === itId); if (!it) return;
-        if (it.status === "open") { it.status = it.step > 1 ? "partial" : "cancelled"; it.end = s.now; }
         const m = M.machine(s, it.num);
+        // v5.34.3 : « Annuler » défait tout ce qui a été validé dans ce Remplir (stock remis comme avant, lignes d'historique retirées)
+        if (it.status === "open") {
+          while (m && it.step > 1) {
+            if (it.step === 3) {
+              restoreLots(m, it.snaps && it.snaps[2]);
+              if (it.remTotal) M.addDaily(s, it.remAt || s.now, m.num, { x: -it.remTotal });
+              s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 2));
+              it.rem = []; it.remMode = null; it.remTotal = 0; it.step = 2;
+            } else {
+              restoreLots(m, it.snaps && it.snaps[1]);
+              s.events = s.events.filter(e => !(e.num === m.num && e.code === "STOCK_GAP" && e.key === "i" + it.id));
+              s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 1));
+              it.inv = []; it.invSkipped = false; it.step = 1;
+            }
+          }
+          it.status = "cancelled"; it.end = s.now;
+        }
         if (m) { m.door = false; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
       });
     }

@@ -15,7 +15,7 @@
 // ============================================================
 
 const BA_CONFIG = {
-  app: { name: "Broodautomate", version: "5.34.2" },
+  app: { name: "Broodautomate", version: "5.34.3" },
   currency: "EUR",
 
   supabase: {
@@ -41,7 +41,7 @@ const BA_CONFIG = {
   machineErrorHours: 6,
   // v5.25 : « Remplir » commencé puis jamais terminé ni annulé (appli fermée, téléphone éteint…) : il est clos tout seul
   // après N heures (ce qui a déjà été validé est gardé) ; sinon la machine restait notée « porte ouverte » sans fin
-  interventionMaxHours: 4,
+  interventionMaxHours: 4, interventionIdleHours: 1,
 
   // Réglages par défaut (modifiables dans l'onglet « Paramètres » de l'admin)
   defaults: {

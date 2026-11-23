@@ -137,7 +137,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   });
   ok("stock = ce que l'opérateur a compté (la vente n'est pas retirée une 2e fois)", c.qInv === c.q0 - 1 && c.qApres === c.qInv, c);
   ok("la vente compte quand même dans les chiffres du jour", c.v1 === c.v0 + 1, c);
-  ok("relevé pris après l'inventaire : vente retirée normalement", c.qFin === c.qApres - 1, c);
+  ok("relevé pris après l'inventaire : vente retirée normalement (v5.34.3 : « Annuler » avait remis le stock d’avant)", c.qFin === c.q0 - 1, c);
 
   console.log("== 4. Téléphone : aucune page de Technique ne dépasse de l'écran");
   await p.evaluate(() => BA.Shell.go("technique")); await sleep(500);

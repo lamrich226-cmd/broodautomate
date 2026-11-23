@@ -47,6 +47,7 @@ window.BA = window.BA || {};
     PRICE_CHANGED: { cat: "price",    level: "info" },
     FAS_45:        { cat: "tech",     level: "err"  },
     FAS_33:        { cat: "tech",     level: "err"  },
+    STOCK_UNKNOWN: { cat: "stock",    level: "err"  },
     STOCK_GAP:     { cat: "business", level: "warn" }
   };
   const OPERATOR_CATS = ["door", "stock", "fresh", "temp", "power", "price", "tech"];

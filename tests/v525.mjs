@@ -1,4 +1,5 @@
 // Essais de la v5.25 (design-test) : corrections de la vérification complète de l'appli.
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //  A. MODE DÉMO : 1) fenêtre « Déplacer » avec ses vrais titres ; 2) la fenêtre d'un tiroir garde sa position (écran
 //     redessiné, + / − dans Remplir) et n'apparaît que sur sa page ; 3) « Remplir » oublié : clos tout seul, bandeau et
 //     bouton dans Détail machine ; 4) ventes d'un relevé traité APRÈS un inventaire : pas retirées deux fois du stock ;
@@ -89,7 +90,7 @@ const attendre = async (p, f, arg, ms = 15000) => { const t0 = Date.now(); while
   // Remplir sur un petit téléphone : + ne fait pas remonter la fenêtre
   const t2 = await demo("tel-petit", "operateur.html", { viewport: { width: 360, height: 600 }, isMobile: true, hasTouch: true });
   const n2 = await t2.evaluate(() => { const s = BA.Store.get(), M = BA.Model; const m = s.machines.find(x => !x.door && !x.power && x.sels.some(z => z.cap - M.qty(z) >= 2)); BA.Wizard.open(m.num); return m.num; });
-  await sleep(300); await t2.tap("#mvw-inv-yes"); await t2.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
+  await sleep(300); await invYes(t2, true, "tap"); await t2.waitForSelector("#mvw-rm-yes, #mvw-rm-ok, #mvw-rm-next");
   await t2.tap((await t2.$("#mvw-rm-yes")) ? "#mvw-rm-yes" : "#mvw-rm-next"); await t2.waitForSelector("#mvw-ld-ok");
   const s2 = await t2.evaluate(n => { const M = BA.Model, m = M.machine(BA.Store.get(), n); return m.sels.find(z => z.cap - M.qty(z) >= 2).n; }, n2);
   await t2.tap(`#mvt-${n2}-${s2}`); await sleep(300);

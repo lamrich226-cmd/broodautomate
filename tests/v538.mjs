@@ -94,7 +94,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
           const it2 = it0(), t2 = tot(mach(num));
           if (t2 !== t1 - (it2.remTotal || 0)) fail("fill", "après le retrait, stock ≠ avant − retirés", { t1, t2, rem: it2.remTotal });
           if (rnd() < .25) { A.undoToStep(id, 2); const back = JSON.stringify(mach(num).sels.map(z => z.lots)); if (back !== snap1) fail("fill", "retour à l'étape 2 : stock pas remis comme avant", {}); if (rnd() < .5) { A.cancelIntervention(id); return; } A.applyRemoval(id, [], "none"); }
-          if (rnd() < .15) { const t = tot(mach(num)); A.cancelIntervention(id); if (tot(mach(num)) !== t) fail("fill", "annuler à l'étape 3 a changé le stock"); return; }
+          if (rnd() < .15) { A.cancelIntervention(id); if (JSON.stringify(mach(num).sels.map(z => z.lots)) !== snap0) fail("fill", "annuler à l'étape 3 : stock pas remis comme avant le Remplir (v5.34.3)"); return; }
           const loads = {}; mach(num).sels.forEach(z => { loads[z.n] = rnd() < .2 ? [{ qty: int(0, 2), date: Date.now() - 3600000 }, { qty: rnd() < .8 ? int(0, 3) : weird(), date: rnd() < .9 ? Date.now() : weird() }] : (rnd() < .85 ? int(0, z.cap + 2) : weird()); });
           const t3 = tot(mach(num));
           A.applyLoad(id, loads, Date.now() - int(0, 20) * 3600000);

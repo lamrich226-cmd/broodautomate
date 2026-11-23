@@ -17,6 +17,7 @@ un **faux câble RS232** et un **faux Firebase**. Rien n'est envoyé sur Interne
 | `v541.mjs` | v5.41 (design-test) : la 3D dans les pages (Détail machine) et dans « Remplir » de l'opérateur (inventaire, retrait, remplissage), le tiroir en 3D dans sa fenêtre (sélection, modification), couleurs des pains par état, choix 2D / 3D |
 | `v5341.mjs` | v5.34.1 : appli opérateur installable sur l'écran d'accueil (manifeste, icônes PNG, balises iPhone), essai statique |
 | `v5342.mjs` | v5.34.2 : la porte suit le capteur de la machine, même pendant un « Remplir » encore ouvert (porte fermée par le serveur, rouverte, refermée ; le « Remplir » reste ouvert) |
+| `v5343.mjs` | v5.34.3 : « Remplir » sécurisé — « Annuler » défait tout, Remplir oublié (1 h) ignoré, inventaire à 0 refusé sans compter, chargement à 0 confirmé, alerte « stock inconnu » |
 | `v527.mjs` | v5.27 (design-test) : plein écran direct depuis le Dashboard (bouton ⛶ sur chaque carte / ligne), machine exactement à la taille de l'écran sur téléphone |
 | `v526.mjs` | v5.26 (design-test) : machine en plein écran (bouton ⛶, fenêtre d'un tiroir par-dessus, Échap, téléphone opérateur et PC admin) |
 | `sql/operateur.test.mjs` | `supabase/operateur-compte.sql` dans une vraie base PostgreSQL en mémoire : le compte opérateur LIT les relevés 4G mais ne peut rien y écrire ni effacer ; l'admin garde tout |
