@@ -1,5 +1,5 @@
 // Essais de la v5.19 :
-const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-ok" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.4 : machine « vide » → pas de bouton Oui
 //   1. Remplissage SPONTANÉ (sans commande) : 0 pain par défaut ; remplissage d'une MISSION : quantités de la commande déjà écrites ;
 //      « Total à charger » qui suit la saisie.
 //   2. Contrôle général : chaque écran (admin sur PC et sur téléphone, opérateur sur téléphone), 3 langues, 2 thèmes :
@@ -122,7 +122,7 @@ const DEFAUTS = `() => {
   const inutiles = fs.readdirSync(path.join(ROOT, "js")).filter(f => f.endsWith(".js") && !sIdx.includes(f) && !sOp.includes(f));
   ok("chaque fichier js du dossier sert à une page", inutiles.length === 0, inutiles);
   const version = (html("js/config.js").match(/version:\s*"([^"]+)"/) || [])[1];
-  ok("version 5.34.3 dans config.js", version === "5.34.3", version);
+  ok("version 5.34.4 dans config.js", version === "5.34.4", version);
   // v5.19 : chaque fichier js / css est demandé avec « ?v=<version> » : après une publication, un simple
   // rechargement de la page prend TOUS les nouveaux fichiers (plus de mélange ancienne / nouvelle version).
   for (const f of ["index.html", "operateur.html"]) {
@@ -192,7 +192,7 @@ const DEFAUTS = `() => {
   ok("saisie au clavier : « Total à charger : 6 »", /: 6 /.test(await o.innerText("#ld-total")), await o.innerText("#ld-total"));
   await o.$eval("#ld-total", e => e.scrollIntoView({ block: "center" })); await sleep(200);
   await o.screenshot({ path: path.join(OUT, "v519-02-remplir-spontane-saisie.png") });
-  await o.click("#ld-validate"); await o.waitForSelector("#wz-close");
+  await o.click("#ld-validate"); await o.waitForTimeout(300); if (!(await o.$("#wz-close"))) await o.click("#ld-validate"); await o.waitForSelector("#wz-close");
   ok("spontané validé : sél. 1 = 1 + 5 = 6, sél. 4 = 1", (await qte(3, 1)) === 6 && (await qte(3, 4)) === 1, [await qte(3, 1), await qte(3, 4)]);
   await o.click("#wz-close"); await sleep(400);
 
@@ -204,7 +204,7 @@ const DEFAUTS = `() => {
   ok("mission : « Total à charger : 6 »", /: 6 /.test(await o.innerText("#ld-total")), await o.innerText("#ld-total"));
   await o.$eval("#ld-1-0", e => e.scrollIntoView({ block: "center" })); await sleep(200);
   await o.screenshot({ path: path.join(OUT, "v519-03-remplir-mission.png") });
-  await o.click("#ld-validate"); await o.waitForSelector("#wz-close");
+  await o.click("#ld-validate"); await o.waitForTimeout(300); if (!(await o.$("#wz-close"))) await o.click("#ld-validate"); await o.waitForSelector("#wz-close");
   const mis = await o.evaluate(() => BA.Store.get().missions.map(x => x.num + ":" + x.status).join(" "));
   ok("mission validée : sél. 1 = 10 (plein), mission #1 terminée, mission #2 encore ouverte", (await qte(1, 1)) === 10 && /1:done/.test(mis) && /2:open/.test(mis), [await qte(1, 1), mis]);
   await o.click("#wz-close"); await sleep(400);

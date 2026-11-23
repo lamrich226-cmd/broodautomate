@@ -1,5 +1,5 @@
 // Essais de la v5.24 (design-test) : vue machine (tiroirs, prix, places « Non utilisé ») et « Remplir » en touchant les tiroirs.
-const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-ok" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 // Tourne sur le MODE DÉMO (?demo&tick=0) : 20 machines inventées, aucune donnée réelle, rien n'est envoyé.
 // node v524.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
@@ -187,7 +187,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   ok("chargement : 2 nouveaux pains dessinés (＋) et le total suit", (await o.$$(`#mvt-${num}-${ld.n} .mv-loaf.k-new`)).length === 2 && /2 pain/.test(await o.innerText("#mvl-total")));
   await shot(o, "v524-06-chargement-tel");
   await o.keyboard.press("Escape"); await sleep(250);
-  await o.click("#mvw-ld-ok"); await o.waitForSelector("#wz-close");
+  await o.click("#mvw-ld-ok"); await o.waitForTimeout(300); if (!(await o.$("#wz-close"))) await o.click("#mvw-ld-ok"); await o.waitForSelector("#wz-close");
   const after3 = await S(o, a => { const s = BA.Store.get(), M = BA.Model, sel = M.sel(M.machine(s, a.num), a.n); const it = s.interventions.find(x => x.num === a.num); const l = sel.lots.find(x => x.date === a.delivery); return { q: M.qty(sel), load: it.load.find(r => r.sel === a.n).qty, status: it.status, lot: l ? l.qty : 0 }; }, Object.assign({ num }, ld));
   ok("chargement enregistré : +2 pains avec la date de livraison, intervention terminée", after3.q === ld.q + 2 && after3.load === 2 && after3.status === "done" && after3.lot >= 2, after3);
   ok("fin : la machine telle qu'elle est maintenant", !!(await o.$("#modal-root .mv-glass")));
@@ -203,7 +203,7 @@ const ok = (n, c, x) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c 
   await S(t2, n => BA.Wizard.open(n), n2);
   await invYes(t2, false);
   await t2.waitForSelector("#rm-next, #rm-yes"); await t2.click((await t2.$("#rm-yes")) ? "#rm-yes" : "#rm-next");
-  await t2.waitForSelector("#ld-validate"); await t2.click("#ld-validate"); await t2.waitForSelector("#wz-close");
+  await t2.waitForSelector("#ld-validate"); await t2.click("#ld-validate"); await t2.waitForTimeout(300); if (!(await t2.$("#wz-close"))) await t2.click("#ld-validate"); await t2.waitForSelector("#wz-close");
   ok("tableau : inventaire → retrait → chargement, comme avant", await S(t2, n => BA.Store.get().interventions.find(x => x.num === n).status === "done", n2));
 
   console.log("\n== 4. Ordinateur : Remplir avec la fenêtre pop-up");

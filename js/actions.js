@@ -48,15 +48,76 @@ window.BA = window.BA || {};
     return { ok: true, qty: q };
   }
 
-  // Copie / restauration des lots d'une machine (retour arrière dans « Remplir »)
-  function snapLots(m) {
-    const o = {};
-    m.sels.forEach(sel => { o[sel.n] = JSON.parse(JSON.stringify(sel.lots)); });
-    return o;
-  }
+  // Restauration des lots d'une machine : seulement pour un « Remplir » commencé avant la v5.34.4 (copie « snaps »)
   function restoreLots(m, snap) {
     if (!snap) return;
     m.sels.forEach(sel => { if (snap[sel.n]) sel.lots = JSON.parse(JSON.stringify(snap[sel.n])); });
+  }
+
+  // ---- v5.34.4 : « Remplir » sûr avec plusieurs appareils ----
+  // Qui et quel appareil a commencé un Remplir (montré si un autre appareil le reprend)
+  function appareil() {
+    let id = "?";
+    try { id = localStorage.getItem("ba-appareil") || ""; if (!id) { id = Math.random().toString(36).slice(2, 10); localStorage.setItem("ba-appareil", id); } } catch (e) { id = "?"; }
+    const ua = (typeof navigator !== "undefined" && navigator.userAgent) || "";
+    const type = /iPhone/i.test(ua) ? "iPhone" : /iPad/i.test(ua) ? "iPad" : /Android/i.test(ua) ? "Android" : "PC";
+    return { id, type };
+  }
+  BA.Appareil = appareil;
+  // Une étape ne s'applique qu'à un Remplir OUVERT et à la BONNE étape (avant : sur un Remplir annulé ailleurs, ou deux fois).
+  // Un Remplir fermé automatiquement (oublié ?) reprend si quelqu'un y travaille encore (action faite hors ligne, par ex.),
+  // seulement s'il n'y a pas d'autre Remplir ouvert sur la machine.
+  function itOpen(s, itId, step) {
+    const it = s.interventions.find(x => x.id === itId); if (!it) return null;
+    if (it.status !== "open") {
+      const autre = s.interventions.some(x => x !== it && x.num === it.num && x.status === "open");
+      if (!it.auto || autre) return null;
+      it.status = "open"; it.end = null; it.auto = false;
+    }
+    if (it.step !== step) return null;
+    it.seen = s.now;
+    return it;
+  }
+  // Défaire une étape par ÉCARTS : ce qu'elle a retiré est remis, ce qu'elle a ajouté est enlevé. Les ventes arrivées
+  // pendant le Remplir restent comptées (avant : le stock d'avant était recopié et ces ventes disparaissaient du stock).
+  const sameMin = (a, b) => Math.floor(a / M.MIN) === Math.floor(b / M.MIN);
+  function rendre(sel, before, k) {
+    const l = sel.lots.find(x => x.id === before.id) || sel.lots.find(x => sameMin(x.date, before.date) && !!x.kept === !!before.kept);
+    if (l) {
+      l.qty += k;
+      ["kept", "keptAt", "estimated"].forEach(f => { if (f in before) l[f] = before[f]; else delete l[f]; });
+    } else if (k > 0) sel.lots.push(Object.assign({}, before, { qty: k }));
+  }
+  function undoInventory(s, m, it) {
+    if (Array.isArray(it.u1)) {
+      it.u1.slice().reverse().forEach(r => {
+        const sel = M.sel(m, r.s); if (!sel) return;
+        if (r.add) {
+          const l = sel.lots.find(x => x.id === r.id) || sel.lots.find(x => sameMin(x.date, r.d));
+          if (l) { l.qty -= Math.min(l.qty, r.add); if (l.qty <= 0) sel.lots.splice(sel.lots.indexOf(l), 1); }
+        }
+        (r.take || []).slice().reverse().forEach(p => rendre(sel, p.lot, p.k));
+        M.sortLots(sel);
+      });
+    } else if (it.snaps && it.snaps[1]) restoreLots(m, it.snaps[1]);
+    else return false;          // rien pour défaire (Remplir d'une ancienne version) : on ne touche à rien
+    s.events = s.events.filter(e => !(e.num === m.num && e.code === "STOCK_GAP" && e.key === "i" + it.id));
+    s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 1));
+    if (it.unk) M.addEvent(s, m.num, "STOCK_UNKNOWN", { sels: it.unk });     // l'alerte effacée par cet inventaire revient
+    it.inv = []; it.invSkipped = false; it.step = 1;
+    delete it.u1; delete it.unk; if (it.snaps) delete it.snaps[1];
+    return true;
+  }
+  function undoRemoval(s, m, it) {
+    if (Array.isArray(it.u2)) {
+      it.u2.slice().reverse().forEach(r => { const sel = M.sel(m, r.s); if (sel) { rendre(sel, r.lot, r.removed); M.sortLots(sel); } });
+    } else if (it.snaps && it.snaps[2]) restoreLots(m, it.snaps[2]);
+    else return false;
+    if (it.remTotal) M.addDaily(s, it.remAt || s.now, m.num, { x: -it.remTotal });
+    s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 2));
+    it.rem = []; it.remMode = null; it.remTotal = 0; it.step = 2;
+    delete it.u2; if (it.snaps) delete it.snaps[2];
+    return true;
   }
 
   // Dates du calendrier qui tombent ce jour-là : confirmées avec le jour
@@ -547,10 +608,13 @@ window.BA = window.BA || {};
         const m = M.machine(s, num); if (!m) return null;
         let it = s.interventions.find(x => x.num === m.num && x.status === "open");
         if (!it) {
-          it = { id: s.seq++, num: m.num, start: s.now, end: null, status: "open", inv: [], rem: [], load: [], delivery: null, step: 1 };
+          const a = appareil();
+          it = { id: s.seq++, num: m.num, start: s.now, end: null, status: "open", inv: [], rem: [], load: [], delivery: null, step: 1,
+            by: { u: (BA.DB && BA.DB.email) || null, d: a.id, t: a.type } };     // v5.34.4 : qui l'a commencé, sur quel appareil
           s.interventions.unshift(it);
           if (s.interventions.length > 300) s.interventions.length = 300;
         }
+        it.seen = s.now;         // v5.34.4 : dernière activité (la règle « oublié depuis 1 h » compte à partir d'ici)
         m.door = true;
         M.addEvent(s, m.num, "DOOR_OPEN", {});
         return it.id;
@@ -559,33 +623,44 @@ window.BA = window.BA || {};
 
     // Étape 1 : inventaire. counts = { sélection: quantité comptée }
     applyInventory(itId, counts, skipped) {
-      Store.update(s => {
-        const it = s.interventions.find(x => x.id === itId); if (!it) return;
-        const m = M.machine(s, it.num);
+      return Store.update(s => {
+        const it = itOpen(s, itId, 1); if (!it) return false;
+        const m = M.machine(s, it.num); if (!m) return false;
         let lost = 0, gained = 0;
-        (it.snaps = it.snaps || {})[1] = snapLots(m);   // pour pouvoir revenir en arrière
+        const und = [];            // v5.34.4 : ce qu'il faut défaire pour revenir en arrière (par écarts, voir undoInventory)
         it.inv = m.sels.map(sel => {
           const exp = M.qty(sel);
           // v5.33 : une valeur qui n'est pas un nombre (vide, texte…) = « pas compté » (avant : NaN enregistré)
           const c = counts && counts[sel.n] != null && counts[sel.n] !== "" ? Number(counts[sel.n]) : NaN;
           const real = skipped || !isFinite(c) ? exp : Math.max(0, Math.min(sel.cap, Math.round(c)));
           const diff = real - exp;
-          if (diff < 0) { M.sortLots(sel); const l0 = sel.lots[0]; M.takeOldest(sel, -diff); lost += -diff; M.log(s, { k: "inv", n: m.num, s: sel.n, y: sel.type, q: diff, l: l0 ? l0.date : null, it: it.id, st: 1 }); }
+          if (diff < 0) {
+            M.sortLots(sel); const l0 = sel.lots[0];
+            const take = []; let left = -diff;           // les pains qui sortent (les plus anciens), gardés pour pouvoir les remettre
+            for (const l of sel.lots) { if (left <= 0) break; const k = Math.min(l.qty, left); if (k > 0) { take.push({ lot: Object.assign({}, l), k }); left -= k; } }
+            M.takeOldest(sel, -diff); lost += -diff; und.push({ s: sel.n, take });
+            M.log(s, { k: "inv", n: m.num, s: sel.n, y: sel.type, q: diff, l: l0 ? l0.date : null, it: it.id, st: 1 });
+          }
           if (diff > 0) {
             M.sortLots(sel);
             const last = sel.lots[sel.lots.length - 1];
-            if (last) last.qty += diff;
-            else sel.lots.push({ id: s.seq++, qty: diff, date: s.now, kept: false, estimated: true });
+            if (last) { last.qty += diff; und.push({ s: sel.n, add: diff, id: last.id, d: last.date }); }
+            else { const nl = { id: s.seq++, qty: diff, date: s.now, kept: false, estimated: true }; sel.lots.push(nl); und.push({ s: sel.n, add: diff, id: nl.id, d: nl.date }); }
             gained += diff;
             M.log(s, { k: "inv", n: m.num, s: sel.n, y: sel.type, q: diff, l: last ? last.date : s.now, it: it.id, st: 1 });
           }
           return { sel: sel.n, type: sel.type, exp, real };
         });
         it.invSkipped = !!skipped;
-        if (!skipped) M.resolveEvents(s, m.num, "STOCK_UNKNOWN");
+        it.u1 = und;
+        if (!skipped) {
+          const unk = s.events.find(e => e.num === m.num && e.code === "STOCK_UNKNOWN" && !e.resolved);
+          if (unk) { it.unk = (unk.data && unk.data.sels) || []; M.resolveEvents(s, m.num, "STOCK_UNKNOWN"); }
+        }
         it.invAt = s.now;           // v5.33 : heure de l'inventaire (relevé 4G pris avant, traité après : déjà compté, voir reel.js)
         if (lost || gained) M.addEvent(s, m.num, "STOCK_GAP", { lost, gained, key: "i" + it.id });
         it.step = 2;
+        return true;
       });
     },
 
@@ -595,14 +670,15 @@ window.BA = window.BA || {};
     // (invalide au jour suivant). Un pain déjà gardé pendant cette tournée (annuler puis relancer
     // « Remplir ») n'est pas encore obligatoire : s'il reste, il garde sa date « gardé le » (pas de nouveau sursis).
     applyRemoval(itId, rows, mode) {
-      Store.update(s => {
-        const it = s.interventions.find(x => x.id === itId); if (!it) return;
-        const m = M.machine(s, it.num);
+      return Store.update(s => {
+        const it = itOpen(s, itId, 2); if (!it) return false;
+        const m = M.machine(s, it.num); if (!m) return false;
         let total = 0;
-        (it.snaps = it.snaps || {})[2] = snapLots(m);
+        const und = [];            // v5.34.4 : pour défaire par écarts (voir undoRemoval)
         it.rem = rows.map(r => {
           const { sel, lot, i } = findLot(m, r.sel, r.lotId);
           if (!lot) return { sel: r.sel, lotDate: r.date, planned: r.planned, removed: 0, kept: false };
+          const before = Object.assign({}, lot);
           const mand = M.isMandatory(s, lot);
           const want = Number(r.removed);       // v5.33 : pas un nombre → rien retiré (avant : stock NaN)
           const removed = mand ? lot.qty : mode === "none" || !isFinite(want) ? 0 : Math.max(0, Math.min(lot.qty, Math.round(want)));
@@ -618,21 +694,24 @@ window.BA = window.BA || {};
               M.log(s, { k: "keep", n: m.num, s: sel.n, y: sel.type, q: lot.qty, l: lotDate, it: it.id, st: 2 });
             }
           }
+          und.push({ s: sel.n, lot: before, removed });
           return { sel: r.sel, type: sel.type, lotDate, planned: r.planned, removed, kept, mandatory: mand };
         });
         it.remMode = mode;
+        it.u2 = und;
         if (total) M.addDaily(s, s.now, m.num, { x: total });
         it.remTotal = total; it.remAt = s.now;
         it.step = 3;
+        return true;
       });
     },
 
     // Étape 3 : chargement. loads = { sélection: quantité } (une seule date : deliveryMs)
     // ou { sélection: [ { qty, date }, ... ] } (plusieurs dates de livraison pour une même sélection)
     applyLoad(itId, loads, deliveryMs) {
-      Store.update(s => {
-        const it = s.interventions.find(x => x.id === itId); if (!it) return;
-        const m = M.machine(s, it.num);
+      return Store.update(s => {
+        const it = itOpen(s, itId, 3); if (!it) return false;
+        const m = M.machine(s, it.num); if (!m) return false;
         const P = s.settings.purchase;
         let n = 0, cost = 0;
         const dates = [];
@@ -661,53 +740,41 @@ window.BA = window.BA || {};
         m.door = false;
         M.resolveEvents(s, m.num, "DOOR_OPEN");
         s.missions.forEach(x => { if (x.num === m.num && x.status === "open") { x.status = "done"; x.doneAt = s.now; } });
+        delete it.u1; delete it.u2; delete it.unk;     // terminé : plus besoin de quoi défaire
+        return true;
       });
     },
 
-    // Retour arrière : annule l'étape déjà validée (stock remis comme avant) pour la refaire
+    // Retour arrière : annule l'étape déjà validée (stock remis par écarts) pour la refaire
     undoToStep(itId, toStep) {
-      Store.update(s => {
-        const it = s.interventions.find(x => x.id === itId); if (!it || it.status !== "open") return;
-        const m = M.machine(s, it.num);
+      return Store.update(s => {
+        const it = s.interventions.find(x => x.id === itId); if (!it || it.status !== "open") return false;
+        const m = M.machine(s, it.num); if (!m) return false;
+        // (les mouvements de l'étape annulée sont retirés de l'historique : ils n'ont pas eu lieu)
         while (it.step > toStep && it.step > 1) {
-          // (les mouvements de l'étape annulée sont retirés de l'historique : ils n'ont pas eu lieu)
-          if (it.step === 3) {
-            restoreLots(m, it.snaps && it.snaps[2]);
-            if (it.remTotal) M.addDaily(s, it.remAt || s.now, m.num, { x: -it.remTotal });
-            s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 2));
-            it.rem = []; it.remMode = null; it.remTotal = 0; it.step = 2;
-          } else if (it.step === 2) {
-            restoreLots(m, it.snaps && it.snaps[1]);
-            s.events = s.events.filter(e => !(e.num === m.num && e.code === "STOCK_GAP" && e.key === "i" + it.id));
-            s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 1));
-            it.inv = []; it.invSkipped = false; it.step = 1;
-          }
+          const ok = it.step === 3 ? undoRemoval(s, m, it) : it.step === 2 ? undoInventory(s, m, it) : false;
+          if (!ok) return false;
         }
+        it.seen = s.now;
+        return true;
       });
     },
 
+    // « Annuler » : tout ce qui a été validé dans ce Remplir est défait (par écarts : les ventes arrivées entre-temps restent).
+    // S'il n'y a pas de quoi défaire (Remplir d'une ancienne version), les étapes validées restent (« partiel »).
     cancelIntervention(itId) {
-      Store.update(s => {
-        const it = s.interventions.find(x => x.id === itId); if (!it) return;
+      return Store.update(s => {
+        const it = s.interventions.find(x => x.id === itId); if (!it) return false;
         const m = M.machine(s, it.num);
-        // v5.34.3 : « Annuler » défait tout ce qui a été validé dans ce Remplir (stock remis comme avant, lignes d'historique retirées)
         if (it.status === "open") {
           while (m && it.step > 1) {
-            if (it.step === 3) {
-              restoreLots(m, it.snaps && it.snaps[2]);
-              if (it.remTotal) M.addDaily(s, it.remAt || s.now, m.num, { x: -it.remTotal });
-              s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 2));
-              it.rem = []; it.remMode = null; it.remTotal = 0; it.step = 2;
-            } else {
-              restoreLots(m, it.snaps && it.snaps[1]);
-              s.events = s.events.filter(e => !(e.num === m.num && e.code === "STOCK_GAP" && e.key === "i" + it.id));
-              s.journal = (s.journal || []).filter(e => !(e.it === it.id && e.st === 1));
-              it.inv = []; it.invSkipped = false; it.step = 1;
-            }
+            const ok = it.step === 3 ? undoRemoval(s, m, it) : it.step === 2 ? undoInventory(s, m, it) : false;
+            if (!ok) break;
           }
-          it.status = "cancelled"; it.end = s.now;
+          it.status = it.step > 1 ? "partial" : "cancelled"; it.end = s.now;
         }
         if (m) { m.door = false; M.resolveEvents(s, m.num, "DOOR_OPEN"); }
+        return true;
       });
     }
   };

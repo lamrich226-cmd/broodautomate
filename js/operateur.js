@@ -191,7 +191,20 @@
   const Wizard = {
     w: null,
 
+    // v5.34.4 : un Remplir déjà ouvert sur cette machine par un AUTRE appareil (ou avant cette version) : on demande d'abord
+    // « continuer » ou « annuler et recommencer » (avant : on le reprenait sans le savoir, avec ce qu'un autre avait validé)
     open(num) {
+      const s = BA.Store.get(), m = M.machine(s, num); if (!m) return;
+      if (!this._sub) { this._sub = true; BA.Store.subscribe(() => this.check()); }
+      const ex = (s.interventions || []).find(x => x.num === num && x.status === "open");
+      const moi = BA.Appareil ? BA.Appareil().id : null;
+      if (ex && !(ex.by && ex.by.d === moi)) {
+        this.w = { itId: ex.id, num, step: Math.min(ex.step, 3), prompt: true, mode: "view", error: "" };
+        return this.render();
+      }
+      this.start(num);
+    },
+    start(num) {
       const itId = BA.Actions.startIntervention(num);
       const s = BA.Store.get();
       const it = s.interventions.find(x => x.id === itId);
@@ -200,16 +213,92 @@
     },
 
     close() {
-      if (this.w) clearTimeout(this.w.cancelTimer);
+      if (this.w) { clearTimeout(this.w.cancelTimer); clearInterval(this.w.syncT); this.disarm(); }
       this.w = null;
       document.getElementById("modal-root").innerHTML = "";
       BA.Shell.renderView();
     },
 
+    // v5.34.4 : chaque étape vérifie d'abord que ce Remplir est encore ouvert, à la même étape. Un autre appareil (ou la règle
+    // « oublié depuis 1 h ») a pu l'annuler, le terminer ou le faire avancer : la fenêtre l'explique et rien n'est enregistré.
+    // (Avant : l'étape s'appliquait quand même et « Annuler » ne remettait plus le stock.)
+    act(fn) {
+      const w = this.w; if (!w || this.stale()) return false;
+      w.acting = true;
+      let ok = false;
+      try { ok = !!fn(); } finally { w.acting = false; }
+      if (!ok) { this.stale(true); return false; }
+      return true;
+    },
+    stale(refused) {
+      const w = this.w; if (!w) return true;
+      if (w.lost) return true;
+      const s = BA.Store.get(), it = (s.interventions || []).find(x => x.id === w.itId);
+      let why = null;
+      if (!it) why = "wz_lost_gone";
+      else if (it.status !== "open") why = it.status === "done" ? "wz_lost_done" : it.auto ? (it.status === "partial" ? "wz_lost_auto4" : "wz_lost_auto") : "wz_lost_cancel";
+      else if (w.step <= 3 && it.step !== w.step) {
+        // avancé ou revenu en arrière sur un autre appareil : on se met à la même étape (les chiffres pas encore validés repartent)
+        w.step = Math.min(it.step, 3); w.mode = "view"; w.lines = null; w.inv = null; w.rmd = null; w.error = "";
+        w.info = t("wz_moved", { n: w.step }); this.disarm(); this.render();
+        return true;
+      } else if (refused) why = "wz_lost_refused";
+      if (!why) return false;
+      w.lost = why; this.disarm(); this.render();
+      return true;
+    },
+    // Changement arrivé d'ailleurs (autre appareil, entretien toutes les 30 s) pendant que la fenêtre est ouverte
+    check() {
+      const w = this.w; if (!w || w.acting || w.lost || w.prompt) return;
+      if (!document.querySelector("#modal-root .modal")) return;
+      if (w.step >= 4) return this.syncLine();
+      this.stale();
+    },
+    // v5.34.4 : fin du Remplir : envoyé au serveur ou pas encore (téléphone sans réseau)
+    syncHtml() {
+      const st = BA.Store.status ? BA.Store.status() : null;
+      if (!st || st.mode !== "cloud") return "";
+      const ok = !st.pending && st.sync === "ok";
+      return `<div class="alert ${ok ? "info" : "warn"}" id="wz-sync">${ok ? "✔ " + t("wz_sync_ok") : "⏳ " + t("wz_sync_wait")}</div>`;
+    },
+    syncLine() {
+      const el = document.getElementById("wz-sync"); if (!el) return;
+      const tmp = document.createElement("div"); tmp.innerHTML = this.syncHtml();
+      const n = tmp.firstElementChild; if (n) { el.className = n.className; el.textContent = n.textContent; }
+    },
+    // Écran « déjà ouvert ailleurs » / « fermé ailleurs »
+    special(s, m) {
+      const w = this.w;
+      if (w.prompt) {
+        const it = (s.interventions || []).find(x => x.id === w.itId) || {};
+        const by = it.by ? (it.by.u ? t("wz_by_user", { u: String(it.by.u).split("@")[0], d: it.by.t || "" }) : t("wz_by_device", { d: it.by.t || "" })) : t("wz_by_unknown");
+        return `<div class="alert warn">⚠️ ${E(t("wz_open_elsewhere", { h: F.dt(it.start), n: Math.min(it.step || 1, 3), by }))}</div>
+          <p class="note">${t("wz_open_elsewhere_help")}</p>
+          <div class="wz-actions"><button class="btn big" id="wz-continue">▶ ${t("wz_continue")}</button>
+            <button class="btn big secondary" id="wz-restart2">${w.restartArmed ? "⚠️ " + t("wz_restart_confirm") : "↺ " + t("wz_cancel_restart")}</button></div>
+          <div class="wz-actions"><button class="btn secondary" id="wz-close">${t("btn_close")}</button></div>`;
+      }
+      return `<div class="alert err">⚠️ ${t(w.lost)}</div>
+        <p class="note">${t("wz_lost_help")}</p>
+        <div class="wz-actions"><button class="btn big" id="wz-restart">↺ ${t("wz_restart")}</button><button class="btn big secondary" id="wz-close">${t("btn_close")}</button></div>`;
+    },
+    bindSpecial() {
+      const w = this.w, q = id => document.getElementById(id);
+      if (q("wz-close")) q("wz-close").onclick = () => this.close();
+      if (q("wz-restart")) q("wz-restart").onclick = () => { const n = w.num; this.close(); this.open(n); };
+      if (q("wz-continue")) q("wz-continue").onclick = () => { const n = w.num; this.disarm(); this.start(n); };
+      if (q("wz-restart2")) q("wz-restart2").onclick = () => {
+        if (!w.restartArmed) { this.arm("restartArmed", () => { const b = q("wz-restart2"); if (b) b.textContent = "↺ " + t("wz_cancel_restart"); }); q("wz-restart2").textContent = "⚠️ " + t("wz_restart_confirm"); return; }
+        this.disarm(); const n = w.num;
+        BA.Actions.cancelIntervention(w.itId);
+        this.start(n);
+      };
+    },
+
     // On peut revenir en arrière si l'étape précédente a été validée avec une copie du stock
     canBack(s, step) {
       const it = s.interventions.find(x => x.id === this.w.itId);
-      return !!(it && it.snaps && it.snaps[step - 1]);
+      return !!(it && it.status === "open" && it.step >= step && (it["u" + (step - 1)] || (it.snaps && it.snaps[step - 1])));
     },
     backBtn(id) { return `<button class="btn big secondary" id="${id}">${t("btn_back")}</button>`; },
 
@@ -222,6 +311,15 @@
       const w = this.w; if (!w) return;
       const s = BA.Store.get();
       const m = M.machine(s, w.num);
+      if (!m) return this.close();
+      if (w.prompt || w.lost) {
+        document.getElementById("modal-root").innerHTML = `
+          <div class="modal-back"><div class="modal" role="dialog" aria-modal="true">
+            <div class="modal-head"><div><h2>🧺 ${t("fill_title", { n: m.num })}</h2><div class="petit">${E(m.street)}, ${E(m.city)}</div></div></div>
+            ${this.special(s, m)}
+          </div></div>`;
+        return this.bindSpecial();
+      }
       let body = "";
       // v5.24 (design-test) : « Machine » (on touche les tiroirs) ou « Tableau » (comme avant) ; mêmes actions derrière
       const mach = !!BA.MachineView && this.vue() === "machine";
@@ -238,39 +336,61 @@
           </div>
           ${w.step <= 3 ? this.stepper(w.step) : ""}
           ${w.error ? `<div class="alert err">${w.error}</div>` : ""}
+          ${w.info ? `<div class="alert info">ℹ️ ${E(w.info)}</div>` : ""}
           ${w.step <= 3 && BA.MachineView ? this.vueSwitch() : ""}
           ${body}
         </div></div>`;
       this.bind();
       if (mach && w.step <= 3) this.mBind();
+      clearInterval(w.syncT);
+      if (w.step > 3 && document.getElementById("wz-sync")) w.syncT = setInterval(() => { if (this.w !== w) return clearInterval(w.syncT); this.syncLine(); }, 1500);
       const aft = mach && w.step > 3 ? document.getElementById("wz-after") : null;
       if (aft) { BA.MachineView.bind3(aft, (v) => { try { localStorage.setItem("ba_mv_3di", v === "on" ? "1" : "0"); } catch (e) { /* tant pis */ } this.render(); }); BA.MachineView.apply3(aft); }     // v5.41 : la machine finale peut aussi se tourner
     },
 
-    // v5.34.3 : l'appli croit la machine (presque) vide → on ne propose plus « Oui, c'est correct » : il faut compter et taper
-    suspect(m) {
-      const tot = m.sels.reduce((a, sel) => a + M.qty(sel), 0), cap = m.sels.reduce((a, sel) => a + sel.cap, 0);
-      return m.sels.length > 0 && (tot === 0 || tot <= cap * 0.1);
+    // v5.34.4 : « il faut compter » seulement quand l'appli croit la machine à 0, ou quand des ventes sont arrivées sur une
+    // sélection à 0 (alerte « Stock inconnu »). Renvoie les sélections à compter, ou null. (v5.34.3 : dès 10 % de la capacité,
+    // et en vue Machine il ne restait que « La machine est vraiment vide » : piège.)
+    suspectSels(s, m) {
+      if (!m.sels.length) return null;
+      if (m.sels.every(sel => M.qty(sel) === 0)) return m.sels.map(sel => sel.n);
+      const ev = (s.events || []).find(e => e.num === m.num && e.code === "STOCK_UNKNOWN" && !e.resolved);
+      if (!ev) return null;
+      const list = ((ev.data && ev.data.sels) || []).filter(n => M.sel(m, n));
+      const zeros = m.sels.filter(sel => M.qty(sel) === 0).map(sel => sel.n);
+      return list.length ? list : zeros.length ? zeros : null;
     },
+    allZero(m) { return m.sels.length > 0 && m.sels.every(sel => M.qty(sel) === 0); },
+    suspectText(m, list, mv) {
+      if (this.allZero(m)) return t(mv ? "inv_suspect_mv" : "inv_suspect");
+      return t(mv ? "inv_suspect_sel_mv" : "inv_suspect_sel", { list: list.join(", ") });
+    },
+    // Confirmation par un 2e appui, valable 10 s (v5.34.4 : avant, elle restait prête sans limite)
+    arm(key, redraw) {
+      const w = this.w; w[key] = true; clearTimeout(w[key + "T"]);
+      w[key + "T"] = setTimeout(() => { if (this.w === w && w[key]) { w[key] = false; if (redraw) redraw(); } }, 10000);
+    },
+    disarm() { const w = this.w; if (!w) return; ["emptyArmed", "zeroAsk", "zeroInv", "restartArmed"].forEach(k => { w[k] = false; clearTimeout(w[k + "T"]); }); },
 
     // ---------- Étape 1 : inventaire ----------
     step1(s, m) {
-      const susp = this.suspect(m);
-      const edit = this.w.mode === "edit" || susp;
+      const susp = this.suspectSels(s, m);
+      const edit = this.w.mode === "edit" || !!susp;
       return `
         <h3>${t("step1_title")}</h3>
         <p class="note">${t("step1_help")}</p>
-        ${susp ? `<div class="alert err">⚠️ ${t("inv_suspect")}</div>` : ""}
+        ${susp ? `<div class="alert err">⚠️ ${E(this.suspectText(m, susp, false))}</div>` : ""}
         <div class="table-scroll"><table class="wz">
           <thead><tr><th>${t("col_sel")}</th><th>${t("col_recorded")}</th><th>${t("col_counted")}</th></tr></thead>
           <tbody>${m.sels.map(sel => {
-            const q = M.qty(sel);
-            return `<tr>${selCell(sel.n, sel.type)}<td class="big-num">${q}</td>
-              <td><input type="number" class="num-in big-in" id="inv-${sel.n}" data-sel="${sel.n}" min="0" max="${sel.cap}" value="${edit && this.w.inv && this.w.inv[sel.n] != null ? this.w.inv[sel.n] : susp ? "" : q}" ${edit ? "" : "disabled"}> <span class="petit">/ ${sel.cap}</span></td></tr>`;
+            const q = M.qty(sel), aCompter = !!susp && susp.includes(sel.n);
+            const v = edit && this.w.inv && this.w.inv[sel.n] != null ? this.w.inv[sel.n] : aCompter ? "" : q;
+            return `<tr${aCompter ? ' class="row-compter"' : ""}>${selCell(sel.n, sel.type).replace("</span>", aCompter ? " ⚠️</span>" : "</span>")}<td class="big-num">${q}</td>
+              <td><input type="number" class="num-in big-in" id="inv-${sel.n}" data-sel="${sel.n}" min="0" max="${sel.cap}" value="${v}" ${edit ? "" : "disabled"}> <span class="petit">/ ${sel.cap}</span></td></tr>`;
           }).join("")}</tbody></table></div>
         ${edit
           ? `<div class="wz-actions">${susp ? "" : this.backBtn("inv-back")}<button class="btn big" id="inv-validate">✔ ${t("btn_validate_inv")}</button></div>
-             ${susp ? `<div class="wz-actions"><button class="btn secondary" id="inv-empty">${this.w.emptyArmed ? "⚠️ " + t("btn_empty_confirm") : t("btn_really_empty")}</button></div>` : ""}`
+             ${susp && this.allZero(m) ? `<div class="wz-actions"><button class="btn secondary" id="inv-empty">${this.w.emptyArmed ? "⚠️ " + t("btn_empty_confirm") : t("btn_really_empty")}</button></div>` : ""}`
           : `<div class="q-title">${t("step1_question")}</div>
              <div class="wz-actions">
                <button class="btn big" id="inv-yes">✔ ${t("btn_inv_yes")}</button>
@@ -390,6 +510,7 @@
       const load = it.load.reduce((a, r) => a + r.qty, 0);
       return `
         <div class="alert info">✅ <b>${t("done_title")}</b> — ${t("done_door")}</div>
+        ${this.syncHtml()}
         <div class="cards">
           <div class="card"><div class="label">${t("step1")}</div><div class="value v-small">${it.invSkipped ? t("skipped") : gap === 0 ? t("inv_ok") : t("inv_gap", { n: (gap > 0 ? "+" : "") + gap })}</div></div>
           <div class="card"><div class="label">${t("step2")}</div><div class="value v-small">${t("removed_n", { n: rem })}${kept ? " · " + t("kept_n", { n: kept }) : ""}</div></div>
@@ -415,13 +536,19 @@
         if (sum > need) bad = true;
       });
       if (bad) { w.error = t("err_load"); this.render(); return; }
-      // v5.34.3 : rien chargé = la machine sera notée VIDE → on demande une confirmation explicite (2e appui)
+      // v5.34.3 / v5.34.4 : rien chargé alors qu'il reste de la place → confirmation explicite (2e appui dans les 10 s).
+      // (v5.34.3 : seulement si la machine était vide ; le 22/11, 0 pain noté sur une machine pas vide est passé sans question)
       const total = Object.keys(loads).reduce((a, k) => a + loads[k].reduce((b, x) => b + x.qty, 0), 0);
-      const vide = m.sels.every(sel => M.qty(sel) === 0);
-      if (total === 0 && vide && !w.zeroAsk) { w.zeroAsk = true; w.error = t("ld_zero_ask"); this.render(); return; }
-      w.zeroAsk = false;
-      BA.Actions.applyLoad(w.itId, loads, w.delivery);
-      w.step = 4; w.error = ""; this.render();
+      const room = m.sels.some(sel => sel.cap - M.qty(sel) > 0);
+      if (total === 0 && room && !w.zeroAsk) {
+        const n = m.sels.reduce((a, sel) => a + M.qty(sel), 0);
+        this.arm("zeroAsk");
+        w.error = n === 0 ? t("ld_zero_ask") : t("ld_zero_ask_stock", { n });
+        this.render(); return;
+      }
+      this.disarm();
+      if (!this.act(() => BA.Actions.applyLoad(w.itId, loads, w.delivery))) return;
+      w.step = 4; w.error = ""; w.info = ""; this.render();
     },
 
     // ================= v5.24 (design-test) : « Remplir » en touchant les tiroirs =================
@@ -515,6 +642,12 @@
       const w = this.w, V = BA.MachineView, C = w.inv || (w.inv = {});
       const cnt = sel => (C[sel.n] != null ? C[sel.n] : M.qty(sel));
       const changed = m.sels.filter(sel => cnt(sel) !== M.qty(sel)).length;
+      const susp = this.suspectSels(s, m);
+      // texte du 2e appui : machine entière à 0, ou sélections « à compter » laissées à 0
+      const zeroTxt = () => {
+        if (m.sels.every(sel => !(cnt(sel) > 0))) return t("btn_empty_confirm");
+        return t("btn_zero_sel_confirm", { list: (susp || []).filter(n => { const z = M.sel(m, n); return z && !(cnt(z) > 0); }).join(", ") });
+      };
       return {
         mode: "inv",
         list: sel => V.items.inv(s, m, sel, C[sel.n]),
@@ -528,12 +661,14 @@
             ${d < 0 ? `<p class="petit mv-warn">${t("vm_inv_less", { n: -d })}</p>` : d > 0 ? `<p class="petit">${t("vm_inv_more", { n: d })}</p>` : ""}
             ${d ? `<div class="mv-btns"><button type="button" class="btn secondary" id="mvi-r" data-mvi-r="${sel.n}">↺ ${t("vm_inv_reset_one")}</button></div>` : ""}</div>`;
         },
-        footer: changed
+        // v5.34.4 : machine à 0 ou stock inconnu → message + « Valider » toujours là (v5.34.3 : seulement « vraiment vide » = piège)
+        footer: susp
+          ? `<div class="alert err">⚠️ ${E(this.suspectText(m, susp, true))}</div>
+             ${changed ? `<p class="petit">${t("vm_inv_changed", { n: changed })}</p>` : ""}
+             <div class="wz-actions"><button class="btn big" id="mvw-inv-ok">${w.zeroInv ? "⚠️ " + zeroTxt() : "✔ " + t("btn_validate_inv")}</button>${changed ? `<button class="btn big secondary" id="mvw-inv-reset">↺ ${t("vm_reset")}</button>` : ""}</div>`
+          : changed
           ? `<p class="petit">${t("vm_inv_changed", { n: changed })}</p>
              <div class="wz-actions"><button class="btn big" id="mvw-inv-ok">✔ ${t("btn_validate_inv")}</button><button class="btn big secondary" id="mvw-inv-reset">↺ ${t("vm_reset")}</button></div>`
-          : this.suspect(m)
-            ? `<div class="alert err">⚠️ ${t("inv_suspect_mv")}</div>
-               <div class="wz-actions"><button class="btn secondary" id="mvw-inv-empty">${w.emptyArmed ? "⚠️ " + t("btn_empty_confirm") : t("btn_really_empty")}</button></div>`
             : `<div class="q-title">${t("step1_question")}</div>
              <div class="wz-actions"><button class="btn big" id="mvw-inv-yes">✔ ${t("btn_inv_yes")}</button><button class="btn secondary" id="mvw-inv-skip">⏭ ${t("btn_skip")}</button></div>`
       };
@@ -647,7 +782,7 @@
     mBind() {
       const w = this.w, box = document.getElementById("wz-mv"); if (!box) return;
       const A = BA.Actions;
-      const go = step => { w.step = step; w.mode = "view"; w.error = ""; w.mvKey = null; w.mvOpen = false; this.render(); };
+      const go = step => { w.step = step; w.mode = "view"; w.error = ""; w.info = ""; w.mvKey = null; w.mvOpen = false; this.disarm(); this.render(); };
       const all = document.getElementById("mvl-date");
       if (all) U.dateInput(all, val => {
         const v = F.fromInput(val); if (!v) return;
@@ -702,43 +837,41 @@
         if (d.mvlDel != null) { const o = lineOf(d.mvlDel); if (!o || o.L.length < 2) return; o.L.splice(Number(d.i), 1); return this.mRefresh(); }
         const rowsAll = () => (w.rows || []).map(r => ({ sel: r.sel, lotId: r.lotId, date: r.date, planned: r.qty, removed: r.qty, keep: false }));
         switch (b.id) {
-          case "mvw-inv-yes": A.applyInventory(w.itId, {}, false); return go(2);
-          case "mvw-inv-skip": A.applyInventory(w.itId, {}, true); return go(2);
-          case "mvw-inv-empty": {
-            if (!w.emptyArmed) { w.emptyArmed = true; return this.mRefresh(); }
-            w.emptyArmed = false;
-            const counts = {}; m.sels.forEach(sel => { counts[sel.n] = 0; });
-            A.applyInventory(w.itId, counts, false); return go(2);
-          }
-          case "mvw-inv-reset": w.inv = {}; return this.mRefresh();
+          case "mvw-inv-yes": return this.act(() => A.applyInventory(w.itId, {}, false)) && go(2);
+          case "mvw-inv-skip": return this.act(() => A.applyInventory(w.itId, {}, true)) && go(2);
+          case "mvw-inv-reset": w.inv = {}; this.disarm(); return this.mRefresh();
           case "mvw-inv-ok": {
             const counts = {};
             m.sels.forEach(sel => { counts[sel.n] = w.inv && w.inv[sel.n] != null ? w.inv[sel.n] : M.qty(sel); });
-            A.applyInventory(w.itId, counts, false); return go(2);
+            // v5.34.4 : sélection « à compter » laissée à 0 (ou machine entière à 0) → 2e appui pour confirmer (10 s)
+            const susp = this.suspectSels(s, m), zeros = susp ? susp.filter(n => !(counts[n] > 0)) : [];
+            if (zeros.length && !w.zeroInv) { this.arm("zeroInv", () => this.mRefresh()); return this.mRefresh(b.id); }
+            this.disarm();
+            return this.act(() => A.applyInventory(w.itId, counts, false)) && go(2);
           }
-          case "mvw-rm-next": A.applyRemoval(w.itId, [], "none"); return go(3);
-          case "mvw-rm-yes": A.applyRemoval(w.itId, rowsAll(), "all"); return go(3);
-          case "mvw-rm-no": A.applyRemoval(w.itId, rowsAll(), "none"); return go(3);
+          case "mvw-rm-next": return this.act(() => A.applyRemoval(w.itId, [], "none")) && go(3);
+          case "mvw-rm-yes": return this.act(() => A.applyRemoval(w.itId, rowsAll(), "all")) && go(3);
+          case "mvw-rm-no": return this.act(() => A.applyRemoval(w.itId, rowsAll(), "none")) && go(3);
           case "mvw-rm-reset": w.rmd = {}; return this.mRefresh();
           case "mvw-rm-ok": {
             const list = (w.rows || []).map(r => {
               const v = this.rmDraft(r);
               return { sel: r.sel, lotId: r.lotId, date: r.date, planned: r.qty, removed: v, keep: !r.mandatory && v === 0 };
             });
-            A.applyRemoval(w.itId, list, "edit"); return go(3);
+            return this.act(() => A.applyRemoval(w.itId, list, "edit")) && go(3);
           }
           case "mvw-ld-full":
             m.sels.forEach(sel => { const L = w.lines && w.lines[sel.n]; if (!L || !L.length) return; L[0].qty = Math.max(0, sel.cap - M.qty(sel) - L.slice(1).reduce((a, x) => a + (Number(x.qty) || 0), 0)); });
             return this.mRefresh(b.id);
           case "mvw-ld-ok": return this.doLoad();
-          case "mvw-back": { const to = w.step - 1; A.undoToStep(w.itId, to); w.lines = null; w.inv = null; w.rmd = null; return go(to); }
+          case "mvw-back": { const to = w.step - 1; if (!this.act(() => A.undoToStep(w.itId, to))) return; w.lines = null; w.inv = null; w.rmd = null; return go(to); }
         }
       };
     },
 
     bind() {
       const w = this.w, q = id => document.getElementById(id);
-      const go = (step) => { w.step = step; w.mode = "view"; w.error = ""; this.render(); };
+      const go = (step) => { w.step = step; w.mode = "view"; w.error = ""; w.info = ""; this.disarm(); this.render(); };
       // v5.19 : « Annuler » demande une confirmation pendant 4 s. Avant, le délai redessinait toute la fenêtre
       // (les chiffres tapés pas encore validés étaient effacés) et un délai d'un « Remplir » précédent pouvait
       // désarmer le suivant (le 2e clic n'annulait pas). Maintenant : seul le texte du bouton change, et le délai
@@ -761,21 +894,23 @@
       if (q("wz-close")) q("wz-close").onclick = () => this.close();
 
       // retour arrière (annule l'étape déjà validée)
-      const back = (to) => { BA.Actions.undoToStep(w.itId, to); w.lines = null; w.inv = null; w.rmd = null; go(to); };
+      const back = (to) => { if (!this.act(() => BA.Actions.undoToStep(w.itId, to))) return; w.lines = null; w.inv = null; w.rmd = null; go(to); };
       if (q("wz-back")) q("wz-back").onclick = () => back(w.step - 1);
       if (q("inv-back")) q("inv-back").onclick = () => { w.mode = "view"; w.error = ""; this.render(); };
       if (q("rm-back")) q("rm-back").onclick = () => { w.mode = "view"; w.error = ""; this.render(); };
 
       // étape 1
-      if (q("inv-yes")) q("inv-yes").onclick = () => { BA.Actions.applyInventory(w.itId, {}, false); go(2); };
-      if (q("inv-skip")) q("inv-skip").onclick = () => { BA.Actions.applyInventory(w.itId, {}, true); go(2); };
+      if (q("inv-yes")) q("inv-yes").onclick = () => { if (this.act(() => BA.Actions.applyInventory(w.itId, {}, false))) go(2); };
+      if (q("inv-skip")) q("inv-skip").onclick = () => { if (this.act(() => BA.Actions.applyInventory(w.itId, {}, true))) go(2); };
       if (q("inv-edit")) q("inv-edit").onclick = () => { w.mode = "edit"; this.render(); const f = document.querySelector(".modal input[type=number]"); if (f) f.focus(); };
+      // « La machine est vraiment vide » : 2e appui dans les 10 s (seul le texte du bouton change : les chiffres tapés restent)
       if (q("inv-empty")) q("inv-empty").onclick = () => {
-        if (!w.emptyArmed) { w.emptyArmed = true; this.render(); return; }
-        w.emptyArmed = false;
-        const counts = {}; BA.Store.get(); const mm = M.machine(BA.Store.get(), w.num);
+        const btn = q("inv-empty");
+        if (!w.emptyArmed) { this.arm("emptyArmed", () => { const b2 = q("inv-empty"); if (b2) b2.textContent = t("btn_really_empty"); }); btn.textContent = "⚠️ " + t("btn_empty_confirm"); return; }
+        this.disarm();
+        const counts = {}; const mm = M.machine(BA.Store.get(), w.num);
         mm.sels.forEach(sel => { counts[sel.n] = 0; });
-        BA.Actions.applyInventory(w.itId, counts, false); go(2);
+        if (this.act(() => BA.Actions.applyInventory(w.itId, counts, false))) go(2);
       };
       if (q("inv-validate")) q("inv-validate").onclick = () => {
         const counts = {}; let bad = false;
@@ -785,14 +920,14 @@
           counts[i.dataset.sel] = v;
         });
         if (bad) { w.error = t("err_inv"); this.render(); return; }
-        BA.Actions.applyInventory(w.itId, counts, false); go(2);
+        if (this.act(() => BA.Actions.applyInventory(w.itId, counts, false))) go(2);
       };
 
       // étape 2
-      if (q("rm-next")) q("rm-next").onclick = () => { BA.Actions.applyRemoval(w.itId, [], "none"); go(3); };
+      if (q("rm-next")) q("rm-next").onclick = () => { if (this.act(() => BA.Actions.applyRemoval(w.itId, [], "none"))) go(3); };
       const rows = () => (w.rows || []).map(r => ({ sel: r.sel, lotId: r.lotId, date: r.date, planned: r.qty, removed: r.qty, keep: false }));
-      if (q("rm-yes")) q("rm-yes").onclick = () => { BA.Actions.applyRemoval(w.itId, rows(), "all"); go(3); };
-      if (q("rm-no")) q("rm-no").onclick = () => { BA.Actions.applyRemoval(w.itId, rows(), "none"); go(3); };
+      if (q("rm-yes")) q("rm-yes").onclick = () => { if (this.act(() => BA.Actions.applyRemoval(w.itId, rows(), "all"))) go(3); };
+      if (q("rm-no")) q("rm-no").onclick = () => { if (this.act(() => BA.Actions.applyRemoval(w.itId, rows(), "none"))) go(3); };
       if (q("rm-edit")) q("rm-edit").onclick = () => { w.mode = "edit"; this.render(); };
       document.querySelectorAll(".modal [id^=keep-]").forEach(cb => cb.onchange = () => {
         const inp = q("rm-" + cb.dataset.i);
@@ -807,7 +942,7 @@
           return { sel: r.sel, lotId: r.lotId, date: r.date, planned: r.qty, removed: v, keep: q("keep-" + i).checked };
         });
         if (bad) { w.error = t("err_rm"); this.render(); return; }
-        BA.Actions.applyRemoval(w.itId, list, "edit"); go(3);
+        if (this.act(() => BA.Actions.applyRemoval(w.itId, list, "edit"))) go(3);
       };
 
       // étape 3

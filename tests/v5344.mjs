@@ -1,0 +1,183 @@
+import { createRequire } from "node:module"; import fs from "node:fs"; import path from "node:path"; import http from "node:http"; import { fileURLToPath } from "node:url";
+const here = path.dirname(fileURLToPath(import.meta.url));
+const { chromium } = createRequire(path.join(here, "x.js"))("playwright");
+const ROOT = path.resolve(here, process.argv[2] || ".."), OUT = path.resolve(process.argv[3] || path.join(here, "captures-v5344")); fs.mkdirSync(OUT, { recursive: true });
+const NM = path.join(here, "node_modules");
+const LIB = { "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js": "@supabase/supabase-js/dist/umd/supabase.js", "https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js": "chart.js/dist/chart.umd.js", "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js": "xlsx/dist/xlsx.full.min.js" };
+const srv = http.createServer((q, r) => { const f = path.join(ROOT, decodeURIComponent(new URL(q.url, "http://x").pathname)); if (!fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end(); return; } r.writeHead(200, { "content-type": f.endsWith(".js") ? "application/javascript; charset=utf-8" : f.endsWith(".css") ? "text/css" : "text/html; charset=utf-8" }); fs.createReadStream(f).pipe(r); });
+await new Promise(r => srv.listen(0, "127.0.0.1", r)); const U = "http://127.0.0.1:" + srv.address().port + "/";
+
+
+// v5.34.4 : corrections de l'audit du 23/11 (« Remplir » sûr avec plusieurs appareils, inventaire, chargement à 0, annuler par écarts)
+let bad = 0; const ok = (n, c, d) => { console.log((c ? "  OK     " : "  ÉCHEC  ") + n + (c ? "" : " → " + JSON.stringify(d))); if (!c) bad++; };
+const b = await chromium.launch(), errs = [];
+const ctx = await b.newContext({ locale: "fr-BE", viewport: { width: 390, height: 780 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true });
+for (const [u, f] of Object.entries(LIB)) await ctx.route(u, r => r.fulfill({ status: 200, contentType: "application/javascript", body: fs.readFileSync(path.join(NM, f), "utf8") }));
+const p = await ctx.newPage(); p.on("pageerror", e => errs.push(e.message));
+await p.goto(U + "operateur.html?demo&tick=0"); await p.waitForSelector("#app-nav button, #app-tabbar button", { state: "attached", timeout: 30000 }); await p.waitForTimeout(2000);
+const num = await p.evaluate(() => BA.Store.get().machines[0].num);
+const sel0 = await p.evaluate(n => BA.Store.get().machines.find(x => x.num === n).sels[0].n, num);
+const qtys = () => p.evaluate(n => BA.Store.get().machines.find(x => x.num === n).sels.map(s => BA.Model.qty(s)), num);
+const lots = () => p.evaluate(n => JSON.stringify(BA.Store.get().machines.find(x => x.num === n).sels.map(s => s.lots)), num);
+const setStock = mode => p.evaluate(([n, mode]) => BA.Store.update(s => {
+  const m = s.machines.find(x => x.num === n);
+  m.sels.forEach((sel, i) => {
+    const q = mode === "deux" ? Math.min(2, sel.cap) : mode === "bas" ? (i < 4 ? 1 : 0) : mode === "zero" ? 0 : mode === "plein" ? sel.cap : mode === "un-vide" ? (i === 0 ? 0 : Math.min(2, sel.cap)) : 0;
+    sel.lots = q > 0 ? [{ id: s.seq++, qty: q, date: s.now - 3600000, kept: false }] : [];
+  });
+  s.events = s.events.filter(e => !(e.num === n && e.code === "STOCK_UNKNOWN"));
+}), [num, mode]);
+const clean = () => p.evaluate(n => { if (BA.Wizard.w) BA.Wizard.close(); BA.Store.get().interventions.filter(x => x.num === n && x.status === "open").forEach(x => BA.Actions.cancelIntervention(x.id)); }, num);
+const openW = async vue => { await p.evaluate(v => BA.MachineView.setMode(v), vue); await p.evaluate(n => BA.Wizard.open(n), num); await p.waitForTimeout(500); };
+const txt = () => p.evaluate(() => (document.querySelector("#modal-root .modal") || {}).innerText || "");
+const step = () => p.evaluate(() => BA.Wizard.w ? BA.Wizard.w.step : null);
+const sale = (sel, dt) => p.evaluate(([n, sel, dt]) => BA.Store.update(s => { s.now += dt; BA.Reel.applyAudit(s, n, { t: Date.now() + dt, src: "4g", analyse: { events: [] }, audit: { errors: [], total_count: 1001 }, ancien: { total_count: 1000 },
+  diff: { baseline: false, anomalies: false, identique: false, deltaCount: 1, deltaValue: 2.5, parSelection: [{ selection: String(sel), delta: 1, deltaValue: 2.5 }], ecartSelections: 0 }, nv: { eva: [], fas: [], pow: [], activations: [], temp: [] } }); }), [num, sel, dt]);
+
+console.log("== 2. Inventaire : peu de pains = question normale ; machine à 0 = compter, « Valider » toujours là");
+await clean(); await setStock("bas"); await openW("machine");
+let ids = await p.evaluate(() => Array.from(document.querySelectorAll(".modal .wz-actions button")).map(x => x.id));
+ok("vue Machine, 4 pains sur 54 : « Oui, c'est correct » proposé, pas de piège « vraiment vide »", ids.includes("mvw-inv-yes") && !ids.includes("mvw-inv-empty"), ids);
+await clean(); await setStock("zero"); await openW("machine");
+ids = await p.evaluate(() => Array.from(document.querySelectorAll(".modal .wz-actions button")).map(x => x.id));
+ok("vue Machine, machine à 0 : message + bouton « Valider »", ids.includes("mvw-inv-ok") && /croit cette machine vide/.test(await txt()), ids);
+await p.click("#mvw-inv-ok"); await p.waitForTimeout(300);
+ok("1er appui : rien n'est validé, le bouton demande de confirmer", (await step()) === 1 && /Appuyez encore/.test(await p.innerText("#mvw-inv-ok")), await p.innerText("#mvw-inv-ok"));
+await p.screenshot({ path: path.join(OUT, "1-vue-machine-zero-confirmer.png") });
+await p.waitForTimeout(10600);
+ok("sans 2e appui, la confirmation s'éteint après 10 s", !/Appuyez encore/.test(await p.innerText("#mvw-inv-ok")), await p.innerText("#mvw-inv-ok"));
+await p.click("#mvw-inv-ok"); await p.waitForTimeout(200); await p.click("#mvw-inv-ok"); await p.waitForTimeout(400);
+ok("2 appuis : inventaire « vide » validé (étape 2)", (await step()) === 2 && (await qtys()).every(x => x === 0), await step());
+await clean(); await setStock("zero"); await openW("machine");
+await p.evaluate(s0 => { BA.Wizard.w.inv = { [s0]: 2 }; BA.Wizard.mRefresh(); }, sel0); await p.waitForTimeout(200);
+await p.click("#mvw-inv-ok"); await p.waitForTimeout(200);
+ok("un tiroir compté, les autres à 0 : confirmation « 0 pain dans … »", /0 pain dans/.test(await p.innerText("#mvw-inv-ok")), await p.innerText("#mvw-inv-ok"));
+await p.click("#mvw-inv-ok"); await p.waitForTimeout(400);
+ok("2e appui : validé, le tiroir compté a 2 pains", (await step()) === 2 && (await qtys())[0] === 2, await qtys());
+
+console.log("== 5. « Stock inconnu » : la sélection concernée doit être comptée");
+await clean(); await setStock("un-vide"); await sale(sel0, 60000);
+const ev = await p.evaluate(n => { const e = BA.Store.get().events.find(x => x.num === n && x.code === "STOCK_UNKNOWN" && !x.resolved); return e && e.data; }, num);
+ok("vente sur une sélection à 0 : alerte « Stock inconnu » avec la sélection", ev && (ev.sels || []).includes(sel0), ev);
+await openW("classic");
+const c5 = await p.evaluate(s0 => ({ yes: !!document.getElementById("inv-yes"), rouge: Array.from(document.querySelectorAll(".modal tr.row-compter input")).map(i => i.dataset.sel), vide: document.getElementById("inv-" + s0).value, autres: Array.from(document.querySelectorAll(".modal input[id^=inv-][data-sel]")).filter(i => i.dataset.sel !== String(s0)).every(i => i.value === "2") }), sel0);
+ok("tableau : pas de « Oui, c'est correct », seule la sélection concernée en rouge et vide, les autres remplies", !c5.yes && c5.rouge.length === 1 && c5.rouge[0] === String(sel0) && c5.vide === "" && c5.autres, c5);
+await p.screenshot({ path: path.join(OUT, "2-stock-inconnu-inventaire.png") });
+await p.click("#inv-validate"); await p.waitForTimeout(300);
+ok("valider sans compter la sélection concernée : refusé", (await step()) === 1 && /Vérifiez les quantités/.test(await txt()), await step());
+await p.fill("#inv-" + sel0, "3"); await p.click("#inv-validate"); await p.waitForTimeout(400);
+const r5 = await p.evaluate(n => ({ q: BA.Model.qty(BA.Store.get().machines.find(x => x.num === n).sels[0]), alerte: BA.Store.get().events.some(e => e.num === n && e.code === "STOCK_UNKNOWN" && !e.resolved) }), num);
+ok("sélection comptée (3) : validée, alerte effacée", (await step()) === 2 && r5.q === 3 && !r5.alerte, r5);
+await clean(); await setStock("un-vide"); await sale(sel0, 60000); await openW("machine");
+await p.click("#mvw-inv-ok"); await p.waitForTimeout(300);
+ok("vue Machine : « Valider » avec la sélection concernée à 0 → « 0 pain dans " + sel0 + " » à confirmer", new RegExp("0 pain dans " + sel0).test(await p.innerText("#mvw-inv-ok")) && (await step()) === 1, await p.innerText("#mvw-inv-ok"));
+
+console.log("== 3. Chargement à 0 : question dès qu'il reste de la place");
+await clean(); await setStock("deux"); await openW("classic");
+await p.click("#inv-yes"); await p.waitForSelector("#rm-next, #rm-no"); if (await p.$("#rm-next")) await p.click("#rm-next"); else await p.click("#rm-no");
+await p.waitForSelector("#ld-validate"); await p.click("#ld-validate"); await p.waitForTimeout(300);
+ok("rien chargé, machine pas vide : bloqué, « Le stock restera à 36 pains »", (await step()) === 3 && /restera à 36 pains/.test(await txt()), (await txt()).slice(0, 300));
+await p.screenshot({ path: path.join(OUT, "3-chargement-zero-pas-vide.png") });
+await p.click("#ld-validate"); await p.waitForTimeout(400);
+ok("2e appui : chargement validé", (await step()) === 4, await step());
+await clean(); await setStock("plein"); await openW("classic");
+await p.click("#inv-yes"); await p.waitForSelector("#rm-next, #rm-no"); if (await p.$("#rm-next")) await p.click("#rm-next"); else await p.click("#rm-no");
+await p.waitForSelector("#ld-validate"); await p.click("#ld-validate"); await p.waitForTimeout(400);
+ok("machine pleine (pas de place) : 0 chargé validé sans question", (await step()) === 4, await step());
+
+console.log("== 1. L'assistant suit les autres appareils");
+await clean(); await setStock("deux"); const avant = await qtys(); await openW("classic");
+await p.evaluate(() => BA.Store.update(s => { const it = s.interventions.find(x => x.id === BA.Wizard.w.itId); it.start = s.now - 70 * 60000; it.seen = it.start; BA.Live._housekeepAll(s); }));
+await p.waitForTimeout(300);
+ok("Remplir oublié annulé (règle 1 h) pendant que la fenêtre est ouverte : la fenêtre l'explique tout de suite", !!(await p.$("#wz-restart")) && /plus d'1 heure/.test(await txt()) && !(await p.$("#inv-yes")), (await txt()).slice(0, 200));
+await p.screenshot({ path: path.join(OUT, "4-remplir-ferme-ailleurs.png") });
+ok("rien n'a changé dans le stock", JSON.stringify(await qtys()) === JSON.stringify(avant), await qtys());
+await p.click("#wz-restart"); await p.waitForTimeout(500);
+const r1 = await p.evaluate(n => ({ open: BA.Store.get().interventions.filter(x => x.num === n && x.status === "open").length, yes: !!document.getElementById("inv-yes") }), num);
+ok("« Recommencer » : un nouveau Remplir, à l'étape 1", r1.open === 1 && r1.yes, r1);
+await p.click("#inv-edit"); await p.evaluate(() => document.querySelectorAll(".modal input[id^=inv-][data-sel]").forEach(i => { i.value = "0"; })); await p.click("#inv-validate"); await p.waitForTimeout(400);
+ok("inventaire à 0 validé (étape 2)", (await step()) === 2 && (await qtys()).every(x => x === 0), await qtys());
+await p.evaluate(() => BA.Actions.cancelIntervention(BA.Wizard.w.itId)); await p.waitForTimeout(300);
+ok("annulé sur un autre appareil : la fenêtre le dit, le stock est remis", /annulé sur un autre appareil/.test(await txt()) && JSON.stringify(await qtys()) === JSON.stringify(avant), { t: (await txt()).slice(0, 150), q: await qtys() });
+await clean(); await openW("classic");
+await p.evaluate(() => BA.Actions.applyInventory(BA.Wizard.w.itId, {}, false)); await p.waitForTimeout(300);
+ok("avancé sur un autre appareil : la fenêtre passe à l'étape 2 et le dit", (await step()) === 2 && /étape 2/.test(await txt()), (await txt()).slice(0, 200));
+
+console.log("== 1. Les étapes refusent un Remplir fermé ou déjà avancé");
+await clean(); await setStock("deux");
+const g = await p.evaluate(n => {
+  const A = BA.Actions, S = BA.Store, q = () => S.get().machines.find(x => x.num === n).sels.map(s => BA.Model.qty(s)).join(",");
+  const zero = () => { const c = {}; S.get().machines.find(x => x.num === n).sels.forEach(s => { c[s.n] = 0; }); return c; };
+  const out = {};
+  const a = A.startIntervention(n); A.cancelIntervention(a); const q0 = q();
+  out.surAnnule = A.applyInventory(a, zero(), false); out.stockSurAnnule = q() === q0;
+  const b2 = A.startIntervention(n); out.premier = A.applyInventory(b2, {}, false); out.deuxieme = A.applyInventory(b2, zero(), false); out.stockApres2 = q() === q0;
+  A.cancelIntervention(b2);
+  const c = A.startIntervention(n); S.update(s => { const it = s.interventions.find(x => x.id === c); it.start = s.now - 70 * 60000; it.seen = it.start; BA.Live._housekeepAll(s); });
+  out.auto = S.get().interventions.find(x => x.id === c).status;
+  out.repris = A.applyInventory(c, {}, false); const itc = S.get().interventions.find(x => x.id === c); out.reprisEtat = itc.status + "/" + itc.step;
+  A.cancelIntervention(c);
+  const d = A.startIntervention(n); S.update(s => { const it = s.interventions.find(x => x.id === d); it.start = s.now - 70 * 60000; it.seen = it.start; BA.Live._housekeepAll(s); });
+  const e2 = A.startIntervention(n); out.pasRepris = A.applyInventory(d, {}, false); A.cancelIntervention(e2);
+  return out;
+}, num);
+ok("étape sur un Remplir annulé : refusée, stock inchangé", g.surAnnule === false && g.stockSurAnnule, g);
+ok("même étape deux fois : la 2e est refusée", g.premier === true && g.deuxieme === false && g.stockApres2, g);
+ok("Remplir fermé tout seul puis étape faite (hors ligne) : il reprend", g.auto === "cancelled" && g.repris === true && g.reprisEtat === "open/2", g);
+ok("… mais pas s'il y a déjà un autre Remplir ouvert", g.pasRepris === false, g);
+
+console.log("== F. Remplir déjà ouvert sur un autre appareil");
+await clean(); await setStock("deux");
+const idF = await p.evaluate(n => { const id = BA.Actions.startIntervention(n); BA.Store.update(s => { s.interventions.find(x => x.id === id).by = { u: "collegue@exemple.be", d: "autre", t: "iPhone" }; }); return id; }, num);
+await openW("classic");
+const tF = await txt();
+ok("avertissement : déjà en cours, par qui, sur quel appareil, « Continuer » / « Annuler et recommencer »", /déjà en cours/.test(tF) && /collegue/.test(tF) && /iPhone/.test(tF) && !!(await p.$("#wz-continue")) && !!(await p.$("#wz-restart2")), tF.slice(0, 300));
+await p.screenshot({ path: path.join(OUT, "5-deja-ouvert-ailleurs.png") });
+await p.click("#wz-continue"); await p.waitForTimeout(400);
+ok("« Continuer » : on reprend ce Remplir à son étape", await p.evaluate(id => BA.Wizard.w.itId === id && BA.Wizard.w.step === 1 && !!document.getElementById("inv-yes"), idF), "");
+await p.evaluate(n => { BA.Wizard.close(); const it = BA.Store.get().interventions.find(x => x.num === n && x.status === "open"); const c = {}; BA.Store.get().machines.find(x => x.num === n).sels.forEach(s => { c[s.n] = 0; }); BA.Actions.applyInventory(it.id, c, false); BA.Store.update(s => { s.interventions.find(x => x.id === it.id).by = { u: null, d: "autre", t: "Android" }; }); }, num);
+await openW("classic");
+await p.click("#wz-restart2"); await p.waitForTimeout(200);
+ok("« Annuler et recommencer » : 1er appui demande confirmation", /Appuyez encore/.test(await p.innerText("#wz-restart2")) && (await p.evaluate(id => BA.Store.get().interventions.find(x => x.id === id).status, idF)) === "open", "");
+await p.click("#wz-restart2"); await p.waitForTimeout(500);
+const rF = await p.evaluate(([n, id]) => ({ ancien: BA.Store.get().interventions.find(x => x.id === id).status, nouveau: BA.Wizard.w.itId !== id && BA.Wizard.w.step === 1, q: BA.Store.get().machines.find(x => x.num === n).sels.map(s => BA.Model.qty(s)).every(v => v === 2) }), [num, idF]);
+ok("2e appui : l'ancien est annulé (stock remis), un nouveau commence à l'étape 1", rF.ancien === "cancelled" && rF.nouveau && rF.q, rF);
+
+console.log("== E. 1 heure comptée depuis la dernière activité");
+await clean();
+const rE = await p.evaluate(n => { const id = BA.Actions.startIntervention(n); BA.Store.update(s => { const it = s.interventions.find(x => x.id === id); it.start = s.now - 55 * 60000; it.seen = it.start; });
+  BA.Actions.startIntervention(n); BA.Store.update(s => { s.now += 6 * 60000; BA.Live._housekeepAll(s); }); const st = BA.Store.get().interventions.find(x => x.id === id).status; BA.Actions.cancelIntervention(id); return st; }, num);
+ok("repris à 55 min : toujours ouvert 6 min plus tard", rE === "open", rE);
+
+console.log("== 4. Annuler / Retour gardent les ventes arrivées pendant le Remplir");
+await clean(); await setStock("deux");
+const l0 = await lots();
+const r4 = await p.evaluate(([n, s0]) => { const A = BA.Actions, S = BA.Store; const c = {}; S.get().machines.find(x => x.num === n).sels.forEach((s, i) => { c[s.n] = i === 0 ? 0 : i === 1 ? 3 : 2; });
+  const id = A.startIntervention(n); A.applyInventory(id, c, false); A.applyRemoval(id, [], "none"); A.cancelIntervention(id); return S.get().interventions.find(x => x.id === id).status; }, [num, sel0]);
+ok("sans vente : « Annuler » remet exactement les mêmes lots", r4 === "cancelled" && (await lots()) === l0, r4);
+const id4 = await p.evaluate(n => { const A = BA.Actions; const id = A.startIntervention(n); A.applyInventory(id, {}, false); A.applyRemoval(id, [], "none"); return id; }, num);
+await sale(sel0, 5 * 60000);
+await p.evaluate(id => BA.Actions.cancelIntervention(id), id4);
+ok("vente pendant le Remplir puis « Annuler » : la vente reste (2 → 1)", (await qtys())[0] === 1, await qtys());
+await setStock("deux");
+const id4b = await p.evaluate(([n, s0]) => { const A = BA.Actions; const id = A.startIntervention(n); A.applyInventory(id, { [s0]: 3 }, false); return id; }, [num, sel0]);
+await sale(sel0, 5 * 60000);
+await p.evaluate(id => { BA.Actions.undoToStep(id, 1); BA.Actions.cancelIntervention(id); }, id4b);
+ok("inventaire +1, vente, puis « Retour » : 2 − 1 vente = 1", (await qtys())[0] === 1, await qtys());
+
+console.log("== 7. Fin du Remplir : envoyé au serveur ou pas encore");
+await clean(); await setStock("plein");
+await p.evaluate(() => { window.__st = BA.Store.status; window.__s = { mode: "cloud", pending: 1, sync: "sending" }; BA.Store.status = () => Object.assign({}, window.__st(), window.__s); });
+await openW("classic");
+await p.click("#inv-yes"); await p.waitForSelector("#rm-next, #rm-no"); if (await p.$("#rm-next")) await p.click("#rm-next"); else await p.click("#rm-no");
+await p.waitForSelector("#ld-validate"); await p.click("#ld-validate"); await p.waitForSelector("#wz-sync");
+ok("pas encore envoyé : message « Gardez l'appli ouverte »", /Pas encore envoyé/.test(await p.innerText("#wz-sync")), await p.innerText("#wz-sync"));
+await p.screenshot({ path: path.join(OUT, "6-fin-pas-encore-envoye.png") });
+await p.evaluate(() => { window.__s = { mode: "cloud", pending: 0, sync: "ok" }; }); await p.waitForTimeout(2000);
+ok("envoyé : le message passe à « Enregistré sur le serveur »", /Enregistré sur le serveur/.test(await p.innerText("#wz-sync")), await p.innerText("#wz-sync"));
+await p.evaluate(() => { BA.Store.status = window.__st; BA.Wizard.close(); });
+
+ok("textes FR/NL/EN présents", await p.evaluate(() => ["fr", "nl", "en"].every(l => ["wz_open_elsewhere", "wz_lost_cancel", "ld_zero_ask_stock", "inv_suspect_sel", "wz_sync_wait"].every(k => BA.I18n.dicts[l][k]))), "");
+ok("aucune erreur JavaScript", errs.length === 0, errs);
+await b.close(); srv.close();
+console.log(bad ? "\nv5.34.4 : " + bad + " ÉCHEC(S)" : "\nv5.34.4 : TOUT EST OK"); process.exit(bad ? 1 : 0);

@@ -1,6 +1,6 @@
 // Essais de bout en bout de Broodautomate v5 (Playwright, Chromium).
 // node run.js <dossier du site> <dossier des captures> [scénarios séparés par des virgules]
-const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-ok" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.4 : machine « vide » → pas de bouton Oui
 "use strict";
 const { chromium } = require("playwright");
 const http = require("http"), fs = require("fs"), path = require("path");
@@ -230,7 +230,7 @@ async function scenarioPrincipal() {
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.34.3, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.34.3") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.34.4, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.34.4") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";

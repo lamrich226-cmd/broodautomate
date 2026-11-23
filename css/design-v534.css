@@ -356,3 +356,7 @@ label.field-row input { margin-left: auto; }
 @media (prefers-reduced-motion: reduce) {
   .carte-machine:hover, .todo-item:active, .btn:active { transform: none; }
 }
+
+/* v5.34.4 : inventaire — sélections à compter (machine à 0 ou « Stock inconnu ») */
+table.wz tr.row-compter > td { background: rgba(196, 39, 39, 0.07); }
+table.wz tr.row-compter > td:first-child { box-shadow: inset 4px 0 0 var(--c-empty); }

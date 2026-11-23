@@ -1,5 +1,5 @@
 // AUDIT (v5.32.3) — « Remplir » sur une machine de 18 tiroirs de 3 pains, tous vides (comme la machine d'essai), sur téléphone.
-const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-ok" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //  Inventaire « Oui », rien à retirer, chargement avec « + » puis « Tout remplir » : 54 pains dans la machine à la fin.
 // node v536.mjs <dossier du site> <dossier des captures>
 import { createRequire } from "node:module";
@@ -79,7 +79,7 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
   await p.click("#mvw-ld-full"); await sleep(200);
   const t4 = await p.$eval("#mvl-total", e => e.textContent);
   ok("« tout remplir » : 54 pains annoncés : " + t4.trim(), /54/.test(t4), t4);
-  await p.click("#mvw-ld-ok"); await p.waitForSelector("#wz-close"); await sleep(300);
+  await p.click("#mvw-ld-ok"); await p.waitForTimeout(300); if (!(await p.$("#wz-close"))) await p.click("#mvw-ld-ok"); await p.waitForSelector("#wz-close"); await sleep(300);
   await p.screenshot({ path: path.join(OUT, "tel-18-fin.png") });
   const tot = await p.evaluate(() => BA.Store.get().machines[0].sels.reduce((a, x) => a + x.lots.reduce((b, l) => b + l.qty, 0), 0));
   ok("fin : 54 pains dans la machine", tot === 54, tot);

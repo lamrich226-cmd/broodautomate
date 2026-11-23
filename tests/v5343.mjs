@@ -34,21 +34,21 @@ ok("« Annuler » : statut annulé, plus de lignes d'historique, porte pas bloqu
 console.log("== E : « Remplir » ouvert par erreur / formation = ignoré");
 const E = await p.evaluate(n => {
   const id1 = BA.Actions.startIntervention(n);
-  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id1); it.start = s.now - 70 * 60000; });
+  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id1); it.start = s.now - 70 * 60000; it.seen = it.start; });
   const r0 = BA.Store.get().machines.find(x => x.num === n).sels.map(s => BA.Model.qty(s));
   BA.Store.update(s => BA.Live._housekeepAll(s));
   const s1 = BA.Store.get(), it1 = s1.interventions.find(x => x.id === id1), m1 = s1.machines.find(x => x.num === n);
   const out = { id1: { st: it1.status, auto: !!it1.auto, door: !!m1.door, same: JSON.stringify(m1.sels.map(s => BA.Model.qty(s))) === JSON.stringify(r0) } };
   // 40 min : encore ouvert
   const id2 = BA.Actions.startIntervention(n);
-  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id2); it.start = s.now - 40 * 60000; BA.Live._housekeepAll(s); });
+  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id2); it.start = s.now - 40 * 60000; it.seen = it.start; BA.Live._housekeepAll(s); });
   out.id2 = BA.Store.get().interventions.find(x => x.id === id2).status;
   // inventaire validé + 70 min : gardé ouvert (admin), puis > 4 h : clos partiel
-  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id2); it.start = s.now - 70 * 60000; });
+  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id2); it.start = s.now - 70 * 60000; it.seen = it.start; });
   const m = BA.Store.get().machines.find(x => x.num === n); const c = {}; m.sels.forEach(s => { c[s.n] = BA.Model.qty(s); }); BA.Actions.applyInventory(id2, c, false);
   BA.Store.update(s => BA.Live._housekeepAll(s));
   out.id2b = BA.Store.get().interventions.find(x => x.id === id2).status;
-  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id2); it.start = s.now - 5 * 3600000; BA.Live._housekeepAll(s); });
+  BA.Store.update(s => { const it = s.interventions.find(x => x.id === id2); it.start = s.now - 5 * 3600000; it.seen = it.start; BA.Live._housekeepAll(s); });
   out.id2c = BA.Store.get().interventions.find(x => x.id === id2).status;
   return out;
 }, num);

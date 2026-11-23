@@ -1,5 +1,5 @@
 // Essais de la v5.25 (design-test) : corrections de la vérification complète de l'appli.
-const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-empty" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
+const invYes = async (pg, mv, how) => { const y = mv ? "#mvw-inv-yes" : "#inv-yes", e = mv ? "#mvw-inv-ok" : "#inv-empty"; await pg.waitForSelector(y + ", " + e); const act = x => how === "tap" ? pg.tap(x) : how === "dbl" ? pg.dblclick(x) : pg.click(x); if (await pg.$(y)) await act(y); else { await pg.evaluate(() => { const w = BA.Wizard.w; BA.Actions.applyInventory(w.itId, {}, false); w.step = 2; w.mode = "view"; BA.Wizard.render(); }); await pg.waitForTimeout(300); } };   // v5.34.3 : machine « vide » → pas de bouton Oui
 //  A. MODE DÉMO : 1) fenêtre « Déplacer » avec ses vrais titres ; 2) la fenêtre d'un tiroir garde sa position (écran
 //     redessiné, + / − dans Remplir) et n'apparaît que sur sa page ; 3) « Remplir » oublié : clos tout seul, bandeau et
 //     bouton dans Détail machine ; 4) ventes d'un relevé traité APRÈS un inventaire : pas retirées deux fois du stock ;
@@ -115,7 +115,7 @@ const attendre = async (p, f, arg, ms = 15000) => { const t0 = Date.now(); while
   const auto = await a.evaluate(async () => {
     const s = BA.Store.get(), m = s.machines.find(x => !x.door && !x.power && x.num !== 101);
     BA.Actions.startIntervention(m.num);
-    BA.Store.update(st => { const i = st.interventions.find(x => x.num === m.num && x.status === "open"); i.start -= 5 * 3600000; i.step = 2; });   // commencé il y a 5 h
+    BA.Store.update(st => { const i = st.interventions.find(x => x.num === m.num && x.status === "open"); i.start -= 5 * 3600000; i.seen = i.start; i.step = 2; });   // commencé il y a 5 h, plus rien depuis (v5.34.4 : compté depuis la dernière activité)
     BA.Live.check(); await new Promise(r => setTimeout(r, 200));
     const s2 = BA.Store.get(), i2 = s2.interventions.find(x => x.num === m.num && x.auto);
     return { num: m.num, st: i2 && i2.status, porte: BA.Model.machine(s2, m.num).door };
