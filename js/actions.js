@@ -43,8 +43,7 @@ window.BA = window.BA || {};
     from.lots = from.lots.filter(l => l.qty > 0);
     M.sortLots(from); M.sortLots(to);
     M.log(s, { k: "mv", n: m.num, s: from.n, s2: to.n, y: from.type, q, l: lot.date, r: fromRequest ? "req" : "" });
-    if (M.qty(from) === 0) M.addEvent(s, m.num, "SEL_EMPTY", { sel: from.n, type: from.type });
-    if (m.sels.every(x => M.qty(x) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
+    M.stockAlerts(s, m, M.qty(from) === 0 ? [from.type] : []);     // v5.34.5 : rupture du TYPE, plus « sélection vide »
     return { ok: true, qty: q };
   }
 
@@ -203,8 +202,7 @@ window.BA = window.BA || {};
         if (!total) return { err: "rm_err" };
         sel.lots = sel.lots.filter(l => l.qty > 0);
         M.addDaily(s, s.now, m.num, { x: total });
-        if (M.qty(sel) === 0) M.addEvent(s, m.num, "SEL_EMPTY", { sel: sel.n, type: sel.type });
-        if (m.sels.every(x => M.qty(x) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
+        M.stockAlerts(s, m, M.qty(sel) === 0 ? [sel.type] : []);     // v5.34.5 : rupture du TYPE, plus « sélection vide »
         return { removed: total };
       });
     },
@@ -320,6 +318,7 @@ window.BA = window.BA || {};
           if (c < M.qty(sel)) return "err_cap_stock";
         }
         if (values.newType != null && values.newType !== "" && !String(values.newType).trim()) return "err_type";
+        const type0 = sel.type;
         if (values.newType) { const id = M.ensureType(s, values.newType); if (!id) return "err_type"; sel.type = id; }
         else if (values.type) sel.type = values.type;
         if (n != null && n !== sel.n) {
@@ -337,6 +336,7 @@ window.BA = window.BA || {};
           // v5.33.1 : un relevé plus ancien que ce changement ne remet pas l'ancien prix (voir BA.Reel, prix de la machine)
           if (p1 !== p0) sel.pt = s.now;
         }
+        if (sel.type !== type0) M.typeAlerts(s, m, [type0, sel.type]);    // v5.34.5 : un pain peut manquer après un changement de type
         return null;
       });
     },
@@ -354,7 +354,7 @@ window.BA = window.BA || {};
         const price = values.price != null && values.price !== "" && Number(values.price) >= 0 && isFinite(Number(values.price)) ? Number(values.price) : s.settings.salePrice;
         m.sels.push({ n, type, cap: c, price: Math.round(price * 100) / 100, lots: [] });
         m.sels.sort((a, b) => a.n - b.n);
-        M.addEvent(s, m.num, "SEL_EMPTY", { sel: n, type });
+        M.typeAlerts(s, m, [type]);          // v5.34.5 : alerte seulement si ce pain manque dans toute la machine (pas « sélection vide »)
         M.log(s, { k: "seladd", n: m.num, s: n, y: type, c });
         return null;
       });
@@ -373,6 +373,7 @@ window.BA = window.BA || {};
         s.moves = (s.moves || []).filter(r => !(r.num === m.num && (r.from === sel.n || r.to === sel.n)));
         M.resolveEvents(s, m.num, "SEL_EMPTY", e => e.data.sel === sel.n);
         M.resolveEvents(s, m.num, "OLD_BREAD", e => e.data.sel === sel.n);
+        M.typeAlerts(s, m, [sel.type]);      // v5.34.5 : la sélection supprimée était peut-être la dernière à avoir ce pain
         return null;
       });
     },

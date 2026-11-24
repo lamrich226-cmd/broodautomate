@@ -52,6 +52,15 @@ window.BA = window.BA || {};
     return M.customName(BA.Store.get(), type) || String(type);
   };
   const prod = type => F.esc(prodText(type));
+  // v5.34.5 : nom du pain au milieu d'une phrase (« Plus de pain gris ») : pour les pains de base, 1re lettre en minuscule
+  // (sauf un sigle : « MAYA-brood ») ; un nom écrit par l'utilisateur (« Multiduvel ») reste tel quel
+  const prodLow = type => {
+    const k = "prod_" + type, v = t(k);
+    if (v === k) return prodText(type);
+    return /^\p{Lu}\p{Ll}/u.test(v) ? v.charAt(0).toLowerCase() + v.slice(1) : v;
+  };
+  // v5.34.5 : puce « Plus de : pain gris, pain MAYA » (stats d'une machine), vide si aucun pain ne manque
+  const typesOutChip = x => x && x.typesOut && x.typesOut.length ? `<span class="chip c-empty">${t("chip_types_out", { list: x.typesOut.map(ty => F.esc(prodLow(ty))).join(", ") })}</span>` : "";
   // ---------- v5.11 : icônes du menu, des onglets et des titres (SVG, même trait partout — design de la version test 4.8.6) ----------
   const SVG = d => `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${d}</svg>`;
   const NAV_ICONS = {
@@ -184,7 +193,8 @@ window.BA = window.BA || {};
     if (x.toRemove) chips.push(`<span class="chip c-remove">🟠 ${t("chip_remove", { n: x.toRemove })}</span>`);
     if (x.mandatory) chips.push(`<span class="chip c-must" title="${E(t("kept_invalid_tip"))}">${t("chip_must", { n: x.mandatory })}</span>`);
     if (x.keptOnce) chips.push(`<span class="chip c-kept" title="${E(t("kept_next"))}">${t("chip_kept", { n: x.keptOnce })}</span>`);
-    if (x.emptySels && x.total > 0) chips.push(`<span class="chip c-empty">${t(x.emptySels > 1 ? "chip_emptyN" : "chip_empty1", { n: x.emptySels })}</span>`);
+    // v5.34.5 : le pain qui manque (« Plus de : pain gris ») au lieu du nombre de sélections vides
+    if (x.typesOut && x.typesOut.length) chips.push(typesOutChip(x));
     if (x.oldest !== null) chips.push(`<span class="chip">${t("chip_oldest")} ${F.age(s.now - x.oldest)}</span>`);
     chips.push(`<span class="chip ${tempBadOf(s, m) ? "c-error" : ""}">🌡 ${tempTxt(m)}</span>`);
     let left;
@@ -833,6 +843,8 @@ window.BA = window.BA || {};
     const vars = {
       ...raw,
       sel: d.sel, type: d.type ? prod(d.type) : "", temp: d.temp != null ? F.num(d.temp, 1) : "",
+      // v5.34.5 : « Plus de pain gris » (nom du pain dans la phrase) et les sélections concernées
+      typel: d.type ? F.esc(prodLow(d.type)) : "", sels: Array.isArray(d.sels) ? d.sels.map(Number).join(", ") : "", sn: Array.isArray(d.sels) ? d.sels.length : 0,
       from: d.from != null ? F.eur(d.from) : "", to: d.to != null ? F.eur(d.to) : "",
       lot: d.lotDate ? F.dt(d.lotDate) : "", qty: d.qty || "", lost: d.lost || 0, gained: d.gained || 0, h: s.settings.thrHours,
       kept: d.keptAt ? F.dt(d.keptAt) : ""
@@ -1046,7 +1058,7 @@ window.BA = window.BA || {};
   BA.UI = {
     F, E, t, prod, pill, ICON, NAV_ICONS, helpToggles,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
-    machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, evTitle, interventionsTable, prodText,
+    machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, evTitle, interventionsTable, prodText, prodLow, typesOutChip,
     confirmDialog, dateInput, afterClick, removeDialog, moveDialog, toast, openWindow,
     chartTheme, chartCrosshair, chartEndLabel, chartSignColor
   };

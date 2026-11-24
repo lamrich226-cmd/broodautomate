@@ -120,6 +120,7 @@ window.BA = window.BA || {};
       if (x.oldest != null) bits.push("plus ancien lot : " + F.age(now - x.oldest));
       bits.push("à retirer : " + x.toRemove);
       bits.push("sélections vides : " + x.emptySels);
+      if (x.typesOut && x.typesOut.length) bits.push("pains en rupture (toutes leurs sélections à 0) : " + x.typesOut.map(typeNom).join(", "));   // v5.34.5
       L.push("- " + bits.join(" · "));
       // ventes
       const today = (s.daily[M.dayKey(now)] || {})[m.num];

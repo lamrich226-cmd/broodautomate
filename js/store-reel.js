@@ -195,12 +195,9 @@ window.BA = window.BA || {};
   const BXL = /brux|brussel|ixelles|elsene|molenbeek|schaerbeek|schaarbeek|anderlecht|jette|etterbeek|uccle|ukkel|forest|vorst|evere|ganshoren|koekelberg|laeken|laken|saint-gilles|sint-gillis|saint-josse|woluwe|watermael|auderghem|oudergem|berchem-sainte|haren|neder-over/i;
   const regionOf = city => BXL.test(String(city || "")) ? "bxl" : "vl";
 
-  // Événements de départ (sélections vides…)
+  // Événements de départ (machine vide, pain qui manque…)
   function startEvents(s) {
-    s.machines.forEach(m => {
-      m.sels.forEach(sel => { if (M.qty(sel) === 0) M.addEvent(s, m.num, "SEL_EMPTY", { sel: sel.n, type: sel.type }); });
-      if (m.sels.length && m.sels.every(x => M.qty(x) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
-    });
+    s.machines.forEach(m => M.stockAlerts(s, m, m.sels.map(x => x.type)));     // v5.34.5 : par type de pain (plus « sélection vide »)
   }
 
   // ---------------- Reprise des données de la v3 (Supabase) ----------------

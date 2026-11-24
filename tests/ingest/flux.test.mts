@@ -14,7 +14,7 @@ const pushes: any[] = []; let tokenCalls = 0;
   const body = JSON.parse(o.body); if (body.message.token === "mort") return new Response('{"error":{"status":"NOT_FOUND","details":[{"errorCode":"UNREGISTERED"}]}}', { status: 404 });
   pushes.push(body.message); return new Response("{}");
 };
-const { DB } = await import(path.join(ICI, "faux-supabase.ts"));
+const { DB, lectures } = await import(path.join(ICI, "faux-supabase.ts"));
 await import(tmp);
 let ko = 0; const ok = (n: string, c: boolean, x?: unknown) => { console.log((c ? "  OK   " : "  ÉCHEC ") + n + (c ? "" : " → " + JSON.stringify(x))); if (!c) ko++; };
 const sha = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
@@ -86,6 +86,9 @@ await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*251105*0630\nEA2*EGS***
 ok("réglage allumé : une notification « porte ouverte » tout de suite", instant() === 1, instant());
 await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*251105*0635\nEA2*EGS****1\nDXE" });
 ok("porte déjà ouverte : pas de doublon", instant() === 1, instant());
+// v5.34.5 : à l'ouverture de la porte, le serveur lit SEULEMENT le réglage « porteNotif » (avant : toutes les données de l'appli, ~100 Ko)
+const lecturesEtat = lectures.filter((l: any) => l.t === "ba_state");
+ok("porte : le serveur lit seulement le réglage, pas toutes les données de l'appli", lecturesEtat.length >= 2 && lecturesEtat.every((l: any) => l.cols === "porte:data->settings->porteNotif"), lecturesEtat);
 ok("relevé incomplet refusé", (await post({ k: KEY, raw: "bonjour" })).s === 400);
 ok("clé inconnue refusée", (await post({ k: "x".repeat(20) })).s === 401);
 ok("jeton Google demandé une seule fois (gardé 1 h)", tokenCalls === 1, tokenCalls);

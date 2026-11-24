@@ -361,6 +361,7 @@ window.BA = window.BA || {};
         // touche « Remplir » et la fin de son comptage (la porte s'ouvre, le boîtier relit la machine) est lui aussi déjà compté
         const dejaCompte = (s.interventions || []).some(it => it.num === m.num && (it.invAt || it.start) > x.t && Array.isArray(it.inv) && it.inv.length > 0 && !it.invSkipped);
         const inconnu = [];
+        const vides = new Set();          // v5.34.5 : types dont une sélection est à 0 après ces ventes (rupture du type ?)
         const sell = (sel, nSel, price) => {
           let lotDate = null;
           if (sel && !dejaCompte) {
@@ -387,15 +388,20 @@ window.BA = window.BA || {};
           // (le seul prix connu quand la machine dit 0 €) ; plusieurs ventes : la moyenne pourrait mélanger deux prix
           if (sel && d.delta === 1 && d.deltaValue != null && d.deltaValue > 0 && !(sel.pt != null && x.t < sel.pt)) prixAuto(s, m, sel, d.deltaValue, x.t, "v", false);
           if (!sel) M.addEvent(s, m.num, "SEL_UNKNOWN", { sel: d.selection, qty: d.delta, key: "u" + d.selection });
-          else if (M.qty(sel) === 0) M.addEvent(s, m.num, "SEL_EMPTY", { sel: sel.n, type: sel.type });
+          else if (M.qty(sel) === 0) vides.add(sel.type);
         });
         if (diff.ecartSelections > 0) spread(diff.ecartSelections, moyen * diff.ecartSelections).forEach(p => sell(null, null, p));
         if (ventes) m.lastSale = x.t;
         if (inconnu.length) {     // v5.34.4 : l'alerte retient les sélections concernées (l'inventaire demande de les compter)
           const ev = M.addEvent(s, m.num, "STOCK_UNKNOWN", { sels: [] });
           ev.data = Object.assign({}, ev.data, { sels: [...new Set(((ev.data && ev.data.sels) || []).concat(inconnu))].sort((a, b) => a - b) });
+          // v5.34.5 : la machine a vendu ce pain → « plus de pain X » était faux : réglée (l'alerte « stock inconnu » prend le relais)
+          const vendus = new Set(inconnu.map(n => (M.sel(m, n) || {}).type).filter(Boolean));
+          M.resolveEvents(s, m.num, "TYPE_EMPTY", e => vendus.has(e.data && e.data.type));
         }
-        if (m.sels.length && m.sels.every(z => M.qty(z) === 0)) M.addEvent(s, m.num, "MACHINE_EMPTY", {});
+        // v5.34.5 : « Machine vide » si plus rien ; sinon « plus de pain X » quand TOUTES les sélections d'un pain sont à 0
+        // (avant : une alerte par sélection vide, même s'il restait ce pain dans d'autres sélections)
+        M.stockAlerts(s, m, [...vides]);
       }
       if (!diff.baseline) {
         grouper(sansDoublonFas(nv.eva, nv.fas), e => e.code + "|" + e.date + "|" + e.time).concat(nv.activations).forEach(e => machineEvent(s, m, e));
@@ -521,6 +527,8 @@ window.BA = window.BA || {};
     // stock : vide / plus vide
     m.sels.forEach(sel => { if (M.qty(sel) > 0) M.resolveEvents(s, m.num, "SEL_EMPTY", e => e.data.sel === sel.n); });
     M.resolveEvents(s, m.num, "SEL_EMPTY", e => !M.sel(m, e.data.sel));
+    // v5.34.5 : « plus de pain X » réglée dès qu'une sélection de ce pain en a de nouveau (ou qu'il n'y a plus de sélection de ce pain)
+    M.resolveEvents(s, m.num, "TYPE_EMPTY", e => { const ss = m.sels.filter(x => x.type === (e.data && e.data.type)); return !ss.length || ss.some(x => M.qty(x) > 0); });
     if (m.sels.some(x => M.qty(x) > 0) || !m.sels.length) {
       s.events.filter(e => e.num === m.num && e.code === "MACHINE_EMPTY" && !e.resolved).forEach(e => addSpan(s, m.num, e.t, s.now, "e"));
       M.resolveEvents(s, m.num, "MACHINE_EMPTY");

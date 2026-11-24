@@ -20,6 +20,7 @@
       <div class="cm-addr"><div>${E(m.street)}</div><div class="petit">${E(m.city)}</div></div>
       <div class="gauge"><span style="width:${x.pct}%"></span></div>
       <div class="cm-row"><span>${t("op_fill_pct", { q: x.total, c: x.cap })}</span><span>${x.pct} %</span></div>
+      ${x.typesOut && x.typesOut.length ? `<div class="chips">${U.typesOutChip(x)}</div>` : ""}
       ${extra}
       <div class="cm-actions"><button class="btn big" data-fill="${m.num}">🧺 ${goLabel || t("op_fill_go")}</button>
         <button class="btn secondary" data-det="${m.num}">${t("op_fill_details")}</button></div>

@@ -37,7 +37,8 @@ window.BA = window.BA || {};
   // L'opérateur voit tout sauf « business » (données commerciales).
   const EVENTS = {
     DOOR_OPEN:     { cat: "door",     level: "warn" },
-    SEL_EMPTY:     { cat: "stock",    level: "warn" },
+    SEL_EMPTY:     { cat: "stock",    level: "warn" },    // plus créée depuis la v5.34.5 (les anciennes restent dans l'historique)
+    TYPE_EMPTY:    { cat: "stock",    level: "warn" },    // v5.34.5 : plus aucun pain d'un type dans la machine
     MACHINE_EMPTY: { cat: "stock",    level: "err"  },
     OLD_BREAD:     { cat: "fresh",    level: "warn" },
     KEPT_BREAD:    { cat: "fresh",    level: "warn" },
@@ -188,8 +189,50 @@ window.BA = window.BA || {};
       else if (pct <= s.settings.emptyPct) st = "empty";
       else if (techActive) st = "error";
       else if (toRemove > 0) st = "remove";
-      else if (emptySels > 0) st = "low";
-      return { total, cap, pct, emptySels, toRemove, mandatory, keptOnce, oldest, st };
+      // v5.34.5 : une sélection vide n'est pas un problème tant qu'une autre sélection du même pain en a encore ;
+      // « low » = un TYPE de pain manque (toutes ses sélections à 0). Machine entièrement vide : état « empty » plus haut.
+      const typesOut = total > 0 ? Model.typesOut(m).map(x => x.type) : [];
+      if (st === "ok" && typesOut.length) st = "low";
+      return { total, cap, pct, emptySels, typesOut, toRemove, mandatory, keptOnce, oldest, st };
+    },
+
+    // ---- v5.34.5 : rupture d'un type de pain ----
+    // Types de la machine dont TOUTES les sélections sont à 0 : [{ type, sels: [numéros] }], dans l'ordre des sélections
+    typesOut(m) {
+      const par = new Map();
+      m.sels.forEach(sel => {
+        const p = par.get(sel.type) || { type: sel.type, q: 0, sels: [] };
+        p.q += Model.qty(sel); p.sels.push(sel.n);
+        par.set(sel.type, p);
+      });
+      return [...par.values()].filter(p => p.q === 0).map(p => ({ type: p.type, sels: p.sels }));
+    },
+    // Sélections dont le stock est à vérifier : une vente est arrivée alors que l'appli les croyait vides (alerte STOCK_UNKNOWN ouverte)
+    unknownSels(s, m) {
+      const out = new Set();
+      s.events.forEach(e => { if (e.num === m.num && e.code === "STOCK_UNKNOWN" && !e.resolved && e.data && Array.isArray(e.data.sels)) e.data.sels.forEach(n => out.add(n)); });
+      return out;
+    },
+    // « Machine X : plus de pain gris » pour chaque type de `types` dont toutes les sélections sont à 0.
+    // Rien si la machine est entièrement vide (l'alerte « Machine vide » suffit) ni pour un type dont le stock est à vérifier
+    // (la machine vient d'en vendre : l'appli se trompe, l'alerte « stock inconnu » prend le relais).
+    typeAlerts(s, m, types) {
+      if (!m.sels.length || m.sels.every(x => Model.qty(x) === 0)) return;
+      const doute = Model.unknownSels(s, m);
+      [...new Set(types || [])].forEach(type => {
+        const sels = m.sels.filter(x => x.type === type);
+        if (!sels.length || sels.some(x => Model.qty(x) > 0) || sels.some(x => doute.has(x.n))) return;
+        const ns = sels.map(x => x.n);
+        const ev = Model.addEvent(s, m.num, "TYPE_EMPTY", { type, sels: ns, key: "t" + type });
+        if (JSON.stringify(ev.data.sels) !== JSON.stringify(ns)) ev.data = Object.assign({}, ev.data, { sels: ns });   // alerte déjà ouverte : sélections à jour
+      });
+    },
+    // Après un changement du stock (vente, retrait…) : « Machine vide » si plus rien, sinon les ruptures des types concernés.
+    // (v5.34.5 : remplace l'alerte « Sélection N vide », trop fréquente quand un même pain est dans plusieurs sélections)
+    stockAlerts(s, m, types) {
+      if (!m.sels.length) return;
+      if (m.sels.every(x => Model.qty(x) === 0)) { Model.addEvent(s, m.num, "MACHINE_EMPTY", {}); return; }
+      Model.typeAlerts(s, m, types);
     },
 
     // Plus ancien lot (date + quantité) d'une sélection
@@ -272,8 +315,7 @@ window.BA = window.BA || {};
       Model.addDaily(s, at, m.num, { s: 1, r: sel.price });
       Model.addType(s, at, m.num, sel.type, 1);
       m.lastSale = at;
-      if (Model.qty(sel) === 0) Model.addEvent(s, m.num, "SEL_EMPTY", { sel: sel.n, type: sel.type });
-      if (m.sels.every(x => Model.qty(x) === 0)) Model.addEvent(s, m.num, "MACHINE_EMPTY", {});
+      Model.stockAlerts(s, m, Model.qty(sel) === 0 ? [sel.type] : []);
       return true;
     },
 

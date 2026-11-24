@@ -160,8 +160,10 @@ async function jwtGoogle(sa: { client_email: string; private_key: string }, main
 const MUET_MS = 2 * 3600 * 1000;          // boîtier sans nouvelles depuis 2 h
 async function porteNotifActive(): Promise<boolean> {
   try {
-    const { data } = await admin.from("ba_state").select("data").eq("id", "main").maybeSingle();
-    return !!(data && data.data && data.data.settings && data.data.settings.porteNotif === true);
+    // v5.34.5 : on lit SEULEMENT ce réglage (avant : toutes les données de l'appli, ~100 Ko, à chaque ouverture de porte ;
+    // ce téléchargement compte dans les 5 Go gratuits par mois de Supabase)
+    const { data } = await admin.from("ba_state").select("porte:data->settings->porteNotif").eq("id", "main").maybeSingle();
+    return !!data && data.porte === true;
   } catch (_e) { return false; }
 }
 const PORTE_MS = 15 * 60 * 1000;          // porte encore ouverte après 15 min

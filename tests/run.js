@@ -223,14 +223,14 @@ async function scenarioPrincipal() {
   ok("reprise v3 : sélection 19 = pain gris, vide", sel19 && sel19.type === "gris" && sel19.lots.length === 0, sel19);
   ok("reprise v3 : produit inconnu « Volkoren brood » → type complet", s0.m[1].sels[0] && s0.m[1].sels[0].type === "complet", s0.m[1].sels[0]);
   ok("reprise v3 : 60 ventes sur 20 jours dans les statistiques", s0.sales === 60 && s0.days >= 20, s0.sales + " ventes / " + s0.days + " jours");
-  ok("reprise v3 : alerte « sélection vide » pour la 19", s0.ev.includes("SEL_EMPTY#1"), s0.ev);
+  ok("reprise v3 : alerte « plus de pain gris » pour la machine #1 (sa seule sélection de gris, la 19, est vide), plus d'alerte « sélection vide »", s0.ev.includes("TYPE_EMPTY#1") && !s0.ev.some(x => x.startsWith("SEL_EMPTY")), s0.ev);
   ok("reprise v3 : température reprise (16,4 °C)", s0.m[0].temp === 16.4, s0.m[0].temp);
   await a.waitForSelector("#view-dashboard .carte-machine, #view-dashboard [data-machine]");
   const dash = await a.innerText("#view-dashboard");
   ok("Dashboard : 2 machines, hors ligne (pas encore de câble)", dash.includes("Gare du Midi") && dash.includes("Antwerpen Centraal") && /Hors ligne/.test(dash));
   ok("en-tête : badge « Sauvegardé » (données dans Supabase)", (await a.innerText("#sync-status")).includes("Sauvegardé"));
   ok("en-tête : plus de mention TEST ni simulateur", !(await a.innerText("#app-header")).match(/TEST|Simulat/i));
-  ok("pied de page : version 5.34.4, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.34.4") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
+  ok("pied de page : version 5.34.5, sans boutons du simulateur", (await a.innerText("#app-footer")).includes("5.34.5") && !(await a.$("#btn-reset")) && !(await a.$("#sim-toggle")));
   await shot(a, "02-admin-dashboard");
   // v5.11 : thème nuit / clair (design de la version test 4.8.6) : sans choix, celui de l'ordinateur
   const sys = await a.evaluate(() => matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark"), autre = sys === "light" ? "dark" : "light";
