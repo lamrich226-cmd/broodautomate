@@ -1,5 +1,5 @@
 // Faux client Supabase en mémoire (juste ce que « ingest » utilise)
-export const DB: Record<string, any[]> = { devices: [], device_reports: [], ba_notifications: [], ba_push_tokens: [] };
+export const DB: Record<string, any[]> = { devices: [], device_reports: [], ba_notifications: [], ba_push_tokens: [], ba_vapid: [] };
 // v5.34.5 : colonnes demandées à chaque lecture (pour vérifier que la fonction ne télécharge pas plus que nécessaire)
 export const lectures: { t: string; cols: string }[] = [];
 // Comme PostgREST : « alias:colonne->a->b » (valeur JSON) ou « colonne->>a » (texte) ; colonnes ordinaires gardées telles quelles
@@ -33,7 +33,8 @@ class Q {
   limit(n: number) { this.lim = n; return this; }
   maybeSingle() { this.one = true; return this; }
   run() {
-    const T = DB[this.t]; const m = T.filter(r => this.f.every(f => f(r)));
+    const T = DB[this.t]; if (!T) return { data: null, error: { message: 'relation "' + this.t + '" does not exist' } };
+    const m = T.filter(r => this.f.every(f => f(r)));
     const copie = (r: any) => this.cols.includes("->") ? projeter(r, this.cols) : { ...r };
     if (this.op === "select") { const d = this.lim ? m.slice(0, this.lim) : m; return this.head ? { count: m.length, error: null } : { data: this.one ? (d[0] ? copie(d[0]) : null) : d.map(copie), error: null }; }
     if (this.op === "update") { m.forEach(r => Object.assign(r, structuredClone(this.payload))); return { error: null }; }

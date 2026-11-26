@@ -19,5 +19,7 @@ const at = /<link rel="apple-touch-icon" href="([^"]+)"/.exec(page);
 ok("iPhone : apple-touch-icon présent", !!at, null);
 if (at) { const p = png(at[1]); ok("iPhone : icône 180×180, sans transparence (carrée)", p.w === 180 && p.h === 180 && p.colorType === 2, p); }
 ok("iPhone : ouverture en plein écran + nom court", /apple-mobile-web-app-capable" content="yes"/.test(page) && /apple-mobile-web-app-title" content="Brood"/.test(page), null);
-ok("index.html (admin) : inchangée côté installation", !/manifest|apple-touch-icon/.test(fs.readFileSync(path.join(ROOT, "index.html"), "utf8")), null);
+// v5.34.6 : la page admin devient installable à son tour (nécessaire aux notifications sur iPhone) ; la page opérateur reste inchangée
+{ const h = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  ok("index.html (admin) : lien vers son propre manifeste (manifest.webmanifest, pas celui de l'opérateur)", /rel="manifest" href="manifest\.webmanifest"/.test(h) && !/manifest-operateur/.test(h), null); }
 console.log(bad ? "\n" + bad + " ÉCHEC(S)" : "\nv5.34.1 : TOUT EST OK"); process.exit(bad ? 1 : 0);

@@ -154,6 +154,48 @@ async function jwtGoogle(sa: { client_email: string; private_key: string }, main
   const sig = new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", cle, new TextEncoder().encode(tete + "." + corps)));
   return tete + "." + corps + "." + b64url(sig);
 }
+// ---------- v5.34.6 : notifications WEB (iPhone « ajouté à l'écran d'accueil », ordinateur) : Web Push, RFC 8291 + VAPID RFC 8292 ----------
+function deB64url(s: string): Uint8Array {
+  const b = atob(s.replace(/-/g, "+").replace(/_/g, "/") + "===".slice((s.length + 3) % 4));
+  return Uint8Array.from(b, (c) => c.charCodeAt(0));
+}
+const cat = (...l: Uint8Array[]) => { const o = new Uint8Array(l.reduce((a, x) => a + x.length, 0)); let i = 0; for (const x of l) { o.set(x, i); i += x.length; } return o; };
+async function hkdf(ikm: Uint8Array, salt: Uint8Array, info: Uint8Array, octets: number): Promise<Uint8Array> {
+  const cle = await crypto.subtle.importKey("raw", ikm as BufferSource, "HKDF", false, ["deriveBits"]);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: "HKDF", hash: "SHA-256", salt: salt as BufferSource, info: info as BufferSource }, cle, octets * 8));
+}
+// Chiffre un message pour un abonnement web (corps « aes128gcm », un seul enregistrement : 4 Ko au plus, avertissement compris)
+async function chiffrerWebPush(abo: { keys: { p256dh: string; auth: string } }, clair: Uint8Array): Promise<Uint8Array> {
+  if (clair.length > 3500) throw new Error("message trop long");
+  const ua = deB64url(abo.keys.p256dh), auth = deB64url(abo.keys.auth);
+  if (ua.length !== 65 || auth.length < 16) throw new Error("abonnement invalide");
+  const eph = await crypto.subtle.generateKey({ name: "ECDH", namedCurve: "P-256" }, true, ["deriveBits"]);
+  const asPub = new Uint8Array(await crypto.subtle.exportKey("raw", eph.publicKey));
+  const uaCle = await crypto.subtle.importKey("raw", ua as BufferSource, { name: "ECDH", namedCurve: "P-256" }, false, []);
+  const secret = new Uint8Array(await crypto.subtle.deriveBits({ name: "ECDH", public: uaCle }, eph.privateKey, 256));
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const txt = (s: string) => new TextEncoder().encode(s);
+  const ikm = await hkdf(secret, auth, cat(txt("WebPush: info\0"), ua, asPub), 32);
+  const cek = await hkdf(ikm, salt, txt("Content-Encoding: aes128gcm\0"), 16);
+  const nonce = await hkdf(ikm, salt, txt("Content-Encoding: nonce\0"), 12);
+  const aes = await crypto.subtle.importKey("raw", cek as BufferSource, "AES-GCM", false, ["encrypt"]);
+  const chiffre = new Uint8Array(await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, aes, cat(clair, new Uint8Array([2])) as BufferSource));   // 2 = dernier (seul) enregistrement
+  const entete = new Uint8Array(21); entete.set(salt, 0); new DataView(entete.buffer).setUint32(16, 4096); entete[20] = asPub.length;
+  return cat(entete, asPub, chiffre);
+}
+// Clés VAPID (identité de CE serveur auprès d'Apple, Google, Mozilla) : paire ECDSA P-256 ; « pub » est la clé publique (65 octets, base64url), « priv » le JWK privé
+async function nouvellesClesVapid(): Promise<{ pub: string; priv: JsonWebKey }> {
+  const p = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  return { pub: b64url(new Uint8Array(await crypto.subtle.exportKey("raw", p.publicKey))), priv: await crypto.subtle.exportKey("jwk", p.privateKey) };
+}
+// En-tête « Authorization: vapid t=…, k=… » pour un service de notification (aud = son adresse, sans chemin)
+async function enteteVapid(endpoint: string, cles: { pub: string; priv: JsonWebKey }, sujet: string, maintenant: number): Promise<string> {
+  const enc = (o: unknown) => b64url(new TextEncoder().encode(JSON.stringify(o)));
+  const corps = enc({ typ: "JWT", alg: "ES256" }) + "." + enc({ aud: new URL(endpoint).origin, exp: maintenant + 12 * 3600, sub: sujet });
+  const cle = await crypto.subtle.importKey("jwk", cles.priv, { name: "ECDSA", namedCurve: "P-256" }, false, ["sign"]);
+  const sig = new Uint8Array(await crypto.subtle.sign({ name: "ECDSA", hash: "SHA-256" }, cle, new TextEncoder().encode(corps)));
+  return "vapid t=" + corps + "." + b64url(sig) + ", k=" + cles.pub;
+}
 // ==== FIN LOGIQUE PURE ====
 
 // ---------- Notifications : table ba_notifications + téléphones (Firebase) ----------
@@ -191,12 +233,63 @@ async function accesGoogle(sa: CompteFirebase): Promise<string> {
   return acces.t;
 }
 
-// Envoie une notification à tous les téléphones des comptes admin. Rend true si au moins un l'a reçue.
-async function pousser(titre: string, texte: string): Promise<boolean> {
+// v5.34.6 : clés VAPID de ce serveur. Elles se créent toutes seules la première fois et restent dans la table « ba_vapid »
+// (jamais dans le code ni dans un secret à copier ; seule la clé PUBLIQUE sort, par la fonction SQL ba_vapid_public).
+// Rend null si la table n'existe pas encore (commandes SQL « web-push.sql » pas faites) : les notifications web sont alors sautées.
+const SUJET_VAPID = "https://lamrich226-cmd.github.io/broodautomate/";
+async function clesVapid(): Promise<{ pub: string; priv: JsonWebKey } | null> {
+  // erreur = table absente : on ne crée rien (pas de clés perdues) ; null = table là, mais pas encore de clés
+  const lire = async (): Promise<{ pub: string; priv: JsonWebKey } | null | "erreur"> => {
+    const { data, error } = await admin.from("ba_vapid").select("pub, priv").eq("id", 1).maybeSingle();
+    if (error) return "erreur";
+    if (!data || !data.pub || !data.priv) return null;
+    try { return { pub: String(data.pub), priv: JSON.parse(String(data.priv)) as JsonWebKey }; } catch (_e) { return "erreur"; }
+  };
+  try {
+    let l = await lire();
+    if (l === "erreur") return null;
+    if (l) return l;
+    const n = await nouvellesClesVapid();
+    const { error } = await admin.from("ba_vapid").upsert({ id: 1, pub: n.pub, priv: JSON.stringify(n.priv) }, { onConflict: "id", ignoreDuplicates: true });
+    if (error) { console.error("ba_vapid", error.message); return null; }
+    l = await lire();               // si deux appels ont créé des clés en même temps, la base n'en garde qu'une : on relit
+    return l && l !== "erreur" ? l : null;
+  } catch (e) { console.error("ba_vapid", e); return null; }
+}
+
+// Notification WEB (jeton = abonnement JSON donné par le navigateur). Rend true si au moins un appareil l'a reçue.
+async function pousserWeb(abonnes: { token: string }[], titre: string, texte: string): Promise<boolean> {
+  const cles = await clesVapid();
+  if (!cles) return false;
+  const base = { titre: titre.slice(0, 120), texte: texte.slice(0, 400), vue: "alerts" };
+  let ok = false;
+  for (const { token } of abonnes) {
+    // deno-lint-ignore no-explicit-any
+    let abo: any;
+    try { abo = JSON.parse(token); new URL(abo.endpoint); } catch (_e) { await admin.from("ba_push_tokens").delete().eq("token", token); continue; }
+    // seulement les vrais services de notification (Apple, Google, Mozilla, Microsoft) : le serveur n'appelle jamais une autre adresse
+    if (!/^https:\/\/([a-z0-9-]+\.)*(push\.apple\.com|googleapis\.com|push\.services\.mozilla\.com|notify\.windows\.com)\//i.test(abo.endpoint)) { await admin.from("ba_push_tokens").delete().eq("token", token); continue; }
+    try {
+      // page où l'appareil s'est abonné (admin ou opérateur) : toucher la notification rouvre CETTE appli, pas l'autre
+      const clair = new TextEncoder().encode(JSON.stringify(/^(index|operateur)\.html$/.test(abo.page || "") ? { ...base, page: abo.page } : base));
+      const r = await fetch(abo.endpoint, {
+        method: "POST",
+        headers: { Authorization: await enteteVapid(abo.endpoint, cles, SUJET_VAPID, Math.floor(Date.now() / 1000)), "Content-Encoding": "aes128gcm",
+          "Content-Type": "application/octet-stream", TTL: "86400", Urgency: "high" },
+        body: (await chiffrerWebPush(abo, clair)) as BodyInit,
+      });
+      if (r.ok) { ok = true; continue; }
+      if (r.status === 404 || r.status === 410) await admin.from("ba_push_tokens").delete().eq("token", token);   // abonnement supprimé (appli retirée, autorisation retirée)
+      else console.error("Web push", r.status, (await r.text()).slice(0, 200));
+    } catch (e) { console.error("Web push", e); }
+  }
+  return ok;
+}
+
+// Firebase (appli Android) : jetons « natifs »
+async function pousserFirebase(tels: { token: string }[], titre: string, texte: string): Promise<boolean> {
   const sa = compteFirebase();
-  if (!sa) return false;
-  const { data: tels } = await admin.from("ba_push_tokens").select("token").eq("operateur", false);
-  if (!tels || !tels.length) return false;
+  if (!sa || !tels.length) return false;
   const t = await accesGoogle(sa);
   let ok = false;
   for (const { token } of tels) {
@@ -211,6 +304,18 @@ async function pousser(titre: string, texte: string): Promise<boolean> {
     else console.error("Firebase", r.status, err.slice(0, 300));
   }
   return ok;
+}
+
+// Envoie une notification à tous les appareils des comptes admin : téléphones Android (Firebase) et appareils web (iPhone, ordinateur).
+// Rend true si au moins un l'a reçue.
+async function pousser(titre: string, texte: string): Promise<boolean> {
+  const { data: tels } = await admin.from("ba_push_tokens").select("token, appareil").eq("operateur", false);
+  if (!tels || !tels.length) return false;
+  const web = tels.filter((x: { appareil?: string }) => /^web/.test(x.appareil || ""));
+  const natifs = tels.filter((x: { appareil?: string }) => !/^web/.test(x.appareil || ""));
+  const a = await pousserFirebase(natifs, titre, texte);
+  const b = await pousserWeb(web, titre, texte);
+  return a || b;
 }
 
 // Envoie ce qui attend (moins de 6 h), en une seule notification si plusieurs
@@ -248,6 +353,7 @@ async function notifierReleve(boitier: any, evs: Evenement[]): Promise<void> {
 // Toutes les 15 min (pg_cron) : boîtiers muets, portes restées ouvertes, envois en retard
 async function veille(): Promise<void> {
   const maintenant = Date.now();
+  await clesVapid();          // v5.34.6 : les clés des notifications web se créent ici (au plus 15 min après la mise en place)
   const { data: boitiers } = await admin.from("devices").select("id, name, machine_id, last_seen, info");
   // deno-lint-ignore no-explicit-any
   const lignes: any[] = [];
