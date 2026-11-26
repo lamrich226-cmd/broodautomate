@@ -493,6 +493,7 @@ pre.journal .j-warn { color: var(--c-remove); } pre.journal .j-err { color: var(
 .plc-card p { margin: 6px 0; line-height: 1.45; } .plc-card .wz-actions { margin-top: 8px; }
 .plc-card .btn { min-height: 46px; flex: 1 1 130px; }
 .plc-move { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.rup-box .rup-line { margin: 6px 0; line-height: 1.45; } .rup-box .link-btn { margin-left: 6px; min-height: 44px; }
 .wz-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; } .wz-actions .btn { margin: 0; }
 .mission-card .btn.big { margin: 4px 0 0; width: 100%; }
 .ld-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 6px; }

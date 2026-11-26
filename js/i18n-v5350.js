@@ -1,6 +1,7 @@
 // ============================================================
 // BROODAUTOMATE v5.35.0 — Textes (FR / NL / EN) : étape facultative « Placements » de Remplir (appli opérateur)
 // Le chargement devient la 4e étape ; l'étape 3 (Placements) est toujours facultative.
+// Plus : « conseil de rupture » (clés rup_*), affiché dans le chargement (opérateur) et le plan de commande (admin).
 // ============================================================
 (function () {
   const D = BA.I18n.dicts;
@@ -20,7 +21,19 @@
     plc_next: "Continuer vers le chargement",
     plc_none_left: "Plus rien à déplacer.",
     plc_moved: "{q} [q:pain déplacé|pains déplacés] : sélection {a} → {b}",
-    plc_err: "Impossible de déplacer ce pain : "
+    plc_err: "Impossible de déplacer ce pain : ",
+    rup_window: "les {n} derniers jours",
+    rup_title: "Conseil : pain souvent épuisé",
+    rup_line: "{type} : épuisé {k} [k:jour|jours] sur {w}, en général vers {h} h.",
+    rup_fill: "Charge ces sélections au maximum ({sels} : {n} [n:place libre|places libres]).",
+    rup_full: "Ces sélections ({sels}) sont déjà pleines : pense à ajouter une sélection de ce pain.",
+    rup_short: "Historique encore court : conseil indicatif. Tu peux l'ignorer.",
+    rup_src: "D'après les alertes « Plus de pain … » de l'appli. Tu peux l'ignorer.",
+    rup_admin_title: "Conseils de rupture : pain épuisé tôt",
+    rup_admin_line: "#{n} {addr} : {type}, épuisé {k} [k:jour|jours] sur {w}, en général vers {h} h.",
+    rup_admin_adv: "Conseil : chargement « à fond » pour cette machine, ou ajouter une sélection de ce pain.",
+    rup_admin_on: "Cette machine est déjà chargée « à fond » : pense à ajouter une sélection de ce pain.",
+    rup_btn_full: "Passer #{n} « à fond »"
   });
 
   Object.assign(D.nl, {
@@ -38,7 +51,19 @@
     plc_next: "Verder naar het laden",
     plc_none_left: "Niets meer te verplaatsen.",
     plc_moved: "{q} [q:brood|broden] verplaatst: selectie {a} → {b}",
-    plc_err: "Dit brood kan niet verplaatst worden: "
+    plc_err: "Dit brood kan niet verplaatst worden: ",
+    rup_window: "de laatste {n} dagen",
+    rup_title: "Advies: brood vaak uitverkocht",
+    rup_line: "{type}: {k} [k:dag|dagen] uitverkocht in {w}, meestal rond {h} u.",
+    rup_fill: "Laad deze selecties vol ({sels}: {n} [n:vrije plaats|vrije plaatsen]).",
+    rup_full: "Deze selecties ({sels}) zijn al vol: overweeg een selectie van dit brood toe te voegen.",
+    rup_short: "Geschiedenis nog kort: indicatief advies. Je mag het negeren.",
+    rup_src: "Op basis van de meldingen « Geen … meer » van de app. Je mag het negeren.",
+    rup_admin_title: "Adviezen over uitverkocht brood (te vroeg op)",
+    rup_admin_line: "#{n} {addr}: {type}, {k} [k:dag|dagen] uitverkocht in {w}, meestal rond {h} u.",
+    rup_admin_adv: "Advies: laad deze automaat « vol », of voeg een selectie van dit brood toe.",
+    rup_admin_on: "Deze automaat wordt al « vol » geladen: overweeg een selectie van dit brood toe te voegen.",
+    rup_btn_full: "#{n} « vol » laden"
   });
 
   Object.assign(D.en, {
@@ -56,6 +81,18 @@
     plc_next: "Continue to loading",
     plc_none_left: "Nothing left to move.",
     plc_moved: "{q} [q:loaf|loaves] moved: selection {a} → {b}",
-    plc_err: "This bread cannot be moved: "
+    plc_err: "This bread cannot be moved: ",
+    rup_window: "the last {n} days",
+    rup_title: "Tip: bread often sold out",
+    rup_line: "{type}: sold out {k} [k:day|days] in {w}, usually around {h}:00.",
+    rup_fill: "Load these selections to the max ({sels}: {n} free [n:space|spaces]).",
+    rup_full: "These selections ({sels}) are already full: consider adding a selection of this bread.",
+    rup_short: "History is still short: indicative tip. You can ignore it.",
+    rup_src: "Based on the app's « No … left » alerts. You can ignore it.",
+    rup_admin_title: "Sell-out tips: bread gone early",
+    rup_admin_line: "#{n} {addr}: {type}, sold out {k} [k:day|days] in {w}, usually around {h}:00.",
+    rup_admin_adv: "Tip: load this machine « to the max », or add a selection of this bread.",
+    rup_admin_on: "This machine is already loaded « to the max »: consider adding a selection of this bread.",
+    rup_btn_full: "Load #{n} « to the max »"
   });
 })();

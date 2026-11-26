@@ -244,6 +244,23 @@
     };
   }
 
+  // v5.35 : « conseils de rupture » dans le plan de commande : pain épuisé tôt plusieurs jours de suite dans une machine
+  function ruptureHtml(p) {
+    if (!BA.Ruptures) return "";
+    const s = BA.Store.get(), rows = [];
+    p.perMachine.forEach(pm => {
+      const m = M.machine(s, pm.num); if (!m) return;
+      const R = BA.Ruptures.conseils(s, m);
+      R.items.forEach(r => rows.push({ pm, r, R }));
+    });
+    if (!rows.length) return "";
+    return `<div class="alert warn rup-box" id="rup-admin"><b>📉 ${t("rup_admin_title")}</b>
+      ${rows.map(({ pm, r, R }) => `<p class="rup-line">${t("rup_admin_line", { n: pm.num, addr: E(pm.street + ", " + pm.city), type: `<b>${U.prod(r.type)}</b>`, k: r.jours, w: t("rup_window", { n: R.fenetre }), h: r.heure })}
+        ${pm.mode === "full" ? t("rup_admin_on") : t("rup_admin_adv")}
+        ${pm.mode !== "full" && pm.need < pm.full ? `<button class="link-btn" data-lmm="${pm.num}">${t("rup_btn_full", { n: pm.num })}</button>` : ""}</p>`).join("")}
+      <p class="petit">${t(rows.some(x => x.R.court) ? "rup_short" : "rup_src")}</p></div>`;
+  }
+
   function planHtml(o) {
     const p = o.plan;
     const sum = f => p.perType.reduce((a, r) => a + (r[f] || 0), 0);
@@ -272,6 +289,7 @@
           <td class="ld-cell"><b>${pm.load}</b>${pm.adjusted ? ` <span class="tag c-mod" title="${E(t("load_less_tip", { n: pm.full - pm.load, f: pm.full }))}">📈 −${pm.full - pm.load}</span>` : ""}
             ${pm.need < pm.full ? `<div><button class="link-btn" data-lmm="${pm.num}">${pm.mode === "full" ? t("load_btn_need", { n: pm.need }) : t("load_btn_full", { n: pm.full })}</button></div>` : ""}</td>
           <td class="petit">${pm.lines.filter(l => l.load || l.remove).map(l => `${l.sel}: ${l.remove ? "−" + l.remove + (l.mandatory ? "⛔" : "") + " " : ""}+${l.load}`).join(" · ")}</td></tr>`).join("")}</tbody></table></div>
+      ${ruptureHtml(p)}
       ${BA.AdminFC.adviceHtml(o)}
       <div class="carte-actions wrap-actions">
         <button class="btn" id="send">📤 ${t("btn_send_operator")}</button>

@@ -488,6 +488,7 @@
         <h3>${t("step3_title")}</h3>
         <p class="note">${t(mission ? "step3_help" : "step3_help_free")}</p>
         <div class="alert warn">🔁 ${t("fifo_reminder")}</div>
+        ${this.ruptures(s, m)}
         ${reduced ? `<div class="alert info">📈 ${t("op_reduced_load")}</div>` : ""}
         <label class="field-row">${t("ld_date_all")} <input type="datetime-local" id="ld-date" value="${F.toInput(this.w.delivery)}"></label>
         <div class="table-scroll"><table class="wz">
@@ -506,6 +507,17 @@
           }).join("")}</tbody></table></div>
         <p class="petit" id="ld-total">${t("step3_total", { n: m.sels.reduce((a, sel) => a + (L[sel.n] || []).reduce((b, x) => b + (Number(x.qty) || 0), 0), 0) })}</p>
         <div class="wz-actions">${this.canBack(s, 3) ? this.backBtn("wz-back") : ""}<button class="btn big" id="ld-validate">✔ ${t("btn_validate_load")}</button></div>`;
+    },
+
+    // v5.35 : « conseil de rupture » dans le chargement : un pain régulièrement épuisé tôt (alertes « Plus de pain … » des 14 derniers
+    // jours) → charger ses sélections au maximum, ou ajouter une sélection si elles sont déjà pleines. Simple conseil, rien d'obligatoire.
+    ruptures(s, m) {
+      const R = BA.Ruptures && BA.Ruptures.conseils(s, m);
+      if (!R || !R.items.length) return "";
+      return `<div class="alert warn rup-box" id="rup-box"><b>📉 ${t("rup_title")}</b>
+        ${R.items.map(r => `<p class="rup-line">${t("rup_line", { type: `<b>${U.prod(r.type)}</b>`, k: r.jours, w: t("rup_window", { n: R.fenetre }), h: r.heure })}
+          ${r.libre > 0 ? t("rup_fill", { sels: r.sels.join(", "), n: r.libre }) : t("rup_full", { sels: r.sels.join(", ") })}</p>`).join("")}
+        <p class="petit">${t(R.court ? "rup_short" : "rup_src")}</p></div>`;
     },
 
     // v5.35 : étape 3 FACULTATIVE « Placements » : conseils pour déplacer le vieux pain vers la sélection du même pain qui se
@@ -656,6 +668,7 @@
         head = `<h3>${t("step3_title")}</h3>
           <p class="note">${t(c.mission ? "step3_help" : "step3_help_free")} ${t("vm_ld_help")}</p>
           <div class="alert warn">🔁 ${t("fifo_reminder")}</div>
+          ${this.ruptures(s, m)}
           ${c.reduced ? `<div class="alert info">📈 ${t("op_reduced_load")}</div>` : ""}
           <label class="field-row">${t("ld_date_all")} <input type="datetime-local" id="mvl-date" value="${F.toInput(w.delivery)}"></label>`;
       }
