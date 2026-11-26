@@ -38,35 +38,36 @@ r = await post({ k: KEY, raw: dat });
 ok("même relevé : rien de nouveau", DB.ba_notifications.length === 3 && pushes.length === 0);
 r = await post({ k: KEY, role: "machine", raw: "DXS*FAS*VA*V1/6*1\nEA1*ELB_3*251105*0431\nMA5*ERROR*251105*0430*45*54\nEA1*E45*251105*0430\nDXE*1*1" });
 ok("nouvelles pannes : 2 notifications (épuisé n° 3 + ascenseur)", DB.ba_notifications.filter(n => !n.silencieux).length === 2, DB.ba_notifications.filter(n => !n.silencieux).map(n => n.titre));
-ok("une seule notification téléphone, seulement au compte admin", pushes.length === 1 && pushes[0].token === "tel-admin" && /2 alertes/.test(pushes[0].notification.title), pushes);
+ok("une seule notification par téléphone, aux comptes admin ET opérateur (v5.34.7)", pushes.length === 2 && pushes.map((x: any) => x.token).sort().join() === "tel-admin,tel-operateur" && pushes.every((x: any) => /2 alertes/.test(x.notification.title)), pushes);
+const lots = () => pushes.filter((x: any) => x.token === "tel-admin");   // v5.34.7 : chaque envoi part aussi vers tel-operateur ; on compte les envois d'un seul téléphone
 ok("téléphone désinstallé retiré", !DB.ba_push_tokens.some(t => t.token === "mort"));
 ok("notifications marquées envoyées", DB.ba_notifications.filter(n => !n.silencieux).every(n => n.envoye_at));
 // porte
 r = await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*251105*0500\nEA2*EGS****1\nDXE" });
 const d = DB.devices[0];
-ok("porte ouverte notée (sans notification tout de suite)", d.info.porte && d.info.porte.ouverte === true && pushes.length === 1, d.info);
+ok("porte ouverte notée (sans notification tout de suite)", d.info.porte && d.info.porte.ouverte === true && lots().length === 1, d.info);
 r = await post({ k: KEY, hb: 1 });
 ok("signal de vie sans relevé : la porte reste ouverte", d.info.porte.ouverte === true && d.info.fw === "", d.info);
 d.info.porte.depuis = new Date(Date.now() - 16 * 60000).toISOString();
 r = await post({ veille: 1 });
-ok("veille : porte ouverte depuis 15 min → notification", r.j.ok && pushes.length === 2 && /porte ouverte depuis plus de 15 min/.test(pushes[1].notification.title), pushes.map(p => p.notification));
+ok("veille : porte ouverte depuis 15 min → notification", r.j.ok && lots().length === 2 && /porte ouverte depuis plus de 15 min/.test(lots()[1].notification.title), lots().map(p => p.notification));
 r = await post({ veille: 1 });
-ok("veille suivante : pas de 2e alerte porte", pushes.length === 2);
+ok("veille suivante : pas de 2e alerte porte", lots().length === 2);
 r = await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGT*251105*0520\nEA2*EGS****0\nDXE" });
-ok("porte refermée → notification « porte refermée »", d.info.porte.ouverte === false && pushes.length === 3 && /refermée/.test(pushes[2].notification.title), pushes.map(p => p.notification.title));
+ok("porte refermée → notification « porte refermée »", d.info.porte.ouverte === false && lots().length === 3 && /refermée/.test(lots()[2].notification.title), lots().map(p => p.notification.title));
 // boîtier muet puis retour
 d.last_seen = new Date(Date.now() - 3 * 3600000).toISOString();
 r = await post({ veille: 1 });
-ok("veille : boîtier muet depuis 2 h → notification", pushes.length === 4 && /muet/.test(pushes[3].notification.title), pushes.map(p => p.notification.title));
+ok("veille : boîtier muet depuis 2 h → notification", lots().length === 4 && /muet/.test(lots()[3].notification.title), lots().map(p => p.notification.title));
 r = await post({ veille: 1 });
-ok("pas de 2e alerte pour le même silence", pushes.length === 4);
+ok("pas de 2e alerte pour le même silence", lots().length === 4);
 r = await post({ k: KEY, hb: 1 });
-ok("le boîtier revient → « de nouveau en ligne »", pushes.length === 5 && /de nouveau en ligne/.test(pushes[4].notification.title), pushes.map(p => p.notification.title));
+ok("le boîtier revient → « de nouveau en ligne »", lots().length === 5 && /de nouveau en ligne/.test(lots()[4].notification.title), lots().map(p => p.notification.title));
 // sans Firebase : la cloche marche, les téléphones attendent
 delete env.FCM_SERVICE_ACCOUNT;
 r = await post({ k: KEY, role: "machine", raw: "DXS\nEA7*5*1\nDXE" });
 const c = DB.ba_notifications.find(n => n.type === "coupure");
-ok("sans Firebase : notification gardée pour la cloche, pas envoyée", c && !c.envoye_at && pushes.length === 5, c);
+ok("sans Firebase : notification gardée pour la cloche, pas envoyée", c && !c.envoye_at && lots().length === 5, c);
 // v5.15 : porte = le plus récent de EGS / EGT, quel que soit l'ordre des lignes (le relevé ne garde que la dernière de chaque)
 await post({ k: KEY, role: "machine", raw: "DXS\nEA1*EGS*261106*1152\nEA2*EGS****1\nEA1*EGT*261106*1138\nEA2*EGT****0\nDXE" });
 ok("EGS 11:52 listé avant un EGT plus ancien 11:38 : porte OUVERTE", DB.devices[0].info.porte.ouverte === true, DB.devices[0].info.porte);

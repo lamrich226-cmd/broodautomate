@@ -27,9 +27,9 @@ ok("manifest admin : icônes 192 et 512 existent", man.icons.every(i => fs.exist
 const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
 ok("index.html : lien manifest + icône écran d'accueil + apple-mobile-web-app-capable + nom « Brood Admin »", /rel="manifest" href="manifest\.webmanifest"/.test(html) && /rel="apple-touch-icon"/.test(html) && /apple-mobile-web-app-capable" content="yes"/.test(html) && /apple-mobile-web-app-title" content="Brood Admin"/.test(html));
 const ope = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
-ok("index.html et operateur.html chargent js/i18n-v5346.js", /i18n-v5346\.js\?v=5\.34\.6/.test(html) && /i18n-v5346\.js\?v=5\.34\.6/.test(ope));
+ok("index.html et operateur.html chargent js/i18n-v5346.js", /i18n-v5346\.js\?v=5\.34\.7/.test(html) && /i18n-v5346\.js\?v=5\.34\.7/.test(ope));
 const cfg = fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8");
-ok("version 5.34.6 dans config.js", /version: "5\.34\.6"/.test(cfg));
+ok("version 5.34.7 dans config.js", /version: "5\.34\.7"/.test(cfg));
 
 // ---------- 1. Le service worker (sw.js) lu dans un faux environnement ----------
 console.log("== 1. sw.js : réception et toucher d'une notification");
@@ -175,10 +175,17 @@ a = await appareil("ancien", { sansPush: true, ctx: { viewport: { width: 1280, h
 p = await a.ouvrir("index.html"); await cloche(p);
 ok("navigateur sans Web Push : l'ancien bouton « sur cet ordinateur » est conservé (comportement d'avant)", !!(await p.$(".np-perm")) && !(await p.$(".np-web")));
 await a.ctx.close();
-// 3e. Compte opérateur : pas de cloche, aucune demande de clé ni d'abonnement
+// 3e. Compte opérateur (v5.34.7) : pas de cloche, mais un bouton « Activer » dans « Plus » ; l'abonnement est inscrit (page operateur.html)
 a = await appareil("operateur", { ctx: { userAgent: IPHONE, serviceWorkers: "allow" } });
 p = await a.ouvrir("operateur.html", "op@test.be", "Secret-456"); await sleep(1500);
-ok("compte opérateur : pas de cloche, aucune clé demandée, aucun abonnement", !(await p.$("#notif-btn")) && a.journal.vapid === 0 && a.journal.jeton.length === 0);
+ok("compte opérateur : pas de cloche, rien demandé tant qu'on n'a pas touché le bouton", !(await p.$("#notif-btn")) && a.journal.vapid === 0 && a.journal.jeton.length === 0);
+await p.evaluate(() => BA.Shell.go("more")); await p.waitForSelector("#more-notif .np-web", { timeout: 10000 });
+await p.click("#more-notif .np-web"); await p.waitForSelector("#more-notif .np-web-off", { timeout: 10000 });
+const j3 = JSON.parse(a.journal.jeton.at(-1).t);
+ok("compte opérateur : bouton Activer dans « Plus » → abonnement inscrit (page operateur.html, iPhone)", j3.page === "operateur.html" && a.journal.jeton.at(-1).appareil === "web-ios" && a.journal.vapid === 1, j3);
+await p.screenshot({ path: path.join(OUT, "iphone-5-operateur-plus.png") });
+await p.click("#more-notif .np-web-off"); await p.waitForSelector("#more-notif .np-web", { timeout: 10000 });
+ok("compte opérateur : « Désactiver » remet le bouton Activer", true);
 await a.ctx.close();
 // 3f. Admin sur la page opérateur (cas des iPhones installés avec operateur.html) : même bouton, page « operateur.html » retenue
 a = await appareil("admin-operateur", { ctx: { userAgent: IPHONE, serviceWorkers: "allow" } });

@@ -139,7 +139,9 @@
         <button type="button" id="more-theme" class="btn secondary">${light ? "🌙" : "☀️"} ${E(BA.Theme ? BA.Theme.label() : "")}</button>
         ${document.getElementById("btn-logout") ? `<button type="button" id="more-logout" class="btn secondary">🚪 ${t("logout")}</button>` : ""}
         ${BA.IN_APP ? "" : `<a class="btn secondary" href="index.html">🖥 ${t("open_admin")}</a>`}
+        <div id="more-notif"></div>
       </div>`;
+    if (BA.Notifs && BA.Notifs.montrerWeb) BA.Notifs.montrerWeb(el.querySelector("#more-notif"), () => renderMore(el));
     el.querySelectorAll("[data-go]").forEach(b => b.onclick = () => BA.Shell.go(b.dataset.go));
     el.querySelector("#more-lang").onchange = e => { BA.I18n.set(e.target.value, "op"); BA.Shell.build(); };
     el.querySelector("#more-theme").onclick = () => { const h = document.getElementById("theme-toggle"); if (h) h.click(); renderMore(el); };

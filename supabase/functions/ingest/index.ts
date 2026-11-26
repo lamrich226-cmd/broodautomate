@@ -306,10 +306,10 @@ async function pousserFirebase(tels: { token: string }[], titre: string, texte: 
   return ok;
 }
 
-// Envoie une notification à tous les appareils des comptes admin : téléphones Android (Firebase) et appareils web (iPhone, ordinateur).
+// Envoie une notification à tous les appareils (comptes admin ET opérateur, v5.34.7) : téléphones Android (Firebase) et appareils web (iPhone, ordinateur).
 // Rend true si au moins un l'a reçue.
 async function pousser(titre: string, texte: string): Promise<boolean> {
-  const { data: tels } = await admin.from("ba_push_tokens").select("token, appareil").eq("operateur", false);
+  const { data: tels } = await admin.from("ba_push_tokens").select("token, appareil");
   if (!tels || !tels.length) return false;
   const web = tels.filter((x: { appareil?: string }) => /^web/.test(x.appareil || ""));
   const natifs = tels.filter((x: { appareil?: string }) => !/^web/.test(x.appareil || ""));

@@ -209,7 +209,7 @@ window.BA = window.BA || {};
       st.lu = lire();
       const r = await role();
       inscrireTelephone();
-      if (r !== "operator" && WEB()) {                                  // v5.34.6 : toucher une notification ramène l'appli sur la page Alertes ; état de l'abonnement
+      if (WEB()) {                                                      // v5.34.6 : toucher une notification ramène l'appli sur la page Alertes ; état de l'abonnement (v5.34.7 : aussi pour les comptes opérateur)
         try { navigator.serviceWorker.addEventListener("message", ev => { if (ev.data && ev.data.ba === "aller") aller(); }); } catch (e) { /* tant pis */ }
         etatWeb();
       }
@@ -218,6 +218,18 @@ window.BA = window.BA || {};
       charger();
     },
     mount: monter,
+    // v5.34.7 : bloc « alertes sur cet appareil » pour l'appli opérateur (pas de cloche là-bas) : bouton Activer / état / Désactiver
+    montrerWeb(el, redessiner) {
+      if (!el || !WEB()) { if (el) el.innerHTML = IOS_SANS_NOTIF() ? `<p class="note">${E(t("notif_ios_hint"))}</p>` : ""; return; }
+      const bloque = Notification.permission === "denied";
+      el.innerHTML = st.web
+        ? `<p class="note">✅ ${E(t("notif_web_active"))}</p><button type="button" class="btn secondary np-web-off">${E(t("notif_web_off"))}</button>`
+        : bloque ? `<p class="note">${E(t("notif_blocked"))}</p>`
+        : `<button type="button" class="btn secondary np-web">📲 ${E(t("notif_web_enable"))}</button>${st.webMsg ? `<p class="note">${E(t(st.webMsg))}</p>` : ""}`;
+      const redo = () => { if (redessiner) redessiner(); };
+      const a = el.querySelector(".np-web"); if (a) a.onclick = async () => { await activerWeb(); redo(); };
+      const d = el.querySelector(".np-web-off"); if (d) d.onclick = async () => { await desactiverWeb(); redo(); };
+    },
     async retirer() {                                                  // déconnexion : ce téléphone ne reçoit plus rien
       for (const j of [st.jeton, st.jetonWeb]) {
         if (!j) continue;

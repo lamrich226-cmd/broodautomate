@@ -102,7 +102,7 @@ neuve("Machine 4 : porte ouverte");
 r = await post({ veille: 1 });
 const vers = (u: string) => appels.filter(x => x.url === u).length;
 ok("B3 iPhone et ordinateur reçoivent chacun 1 message", vers(ios.abo.endpoint) === 1 && vers(bureau.abo.endpoint) === 1, appels.map(x => x.url));
-ok("B3 le compte opérateur ne reçoit rien", vers(operateur.abo.endpoint) === 0);
+ok("B3 le compte opérateur reçoit aussi (v5.34.7) : 1 message", vers(operateur.abo.endpoint) === 1);
 ok("B3 une adresse hors Apple/Google/Mozilla/Microsoft n'est JAMAIS appelée (ni evil.example, ni apple.com.evil.example)", !appels.some(x => /evil\.example/.test(x.url)), appels.map(x => x.url));
 ok("B3 abonnement mort (410) et jetons invalides supprimés de la table", !DB.ba_push_tokens.some((t: any) => t.token === jeton(mort) || /evil\.example|ceci n/.test(t.token)), DB.ba_push_tokens.map((t: any) => t.appareil));
 ok("B3 abonnements valides et celui de l'opérateur conservés", [ios, bureau, operateur].every(n => DB.ba_push_tokens.some((t: any) => t.token === jeton(n))));
@@ -121,7 +121,7 @@ ok("B3b appareil abonné depuis la page opérateur : le message contient page «
 ok("B3b page étrangère (adresse) ignorée : aucune clé « page » dans le message", !("page" in lire(piege)), lire(piege));
 ok("B3b appareil abonné sans page (ancien format) : pas de clé « page »", !("page" in lire(ios)), lire(ios));
 
-DB.ba_push_tokens = DB.ba_push_tokens.filter((t: any) => !/OPE2|PIEGE/.test(t.token));   // (retirés : B4 suit seulement l'iPhone et l'ordinateur)
+DB.ba_push_tokens = DB.ba_push_tokens.filter((t: any) => !/OPE2|PIEGE|OPERATEUR/.test(t.token));   // (retirés : B4 suit seulement l'iPhone et l'ordinateur)
 
 // B4. Si aucun appareil n'a reçu (service en panne : 500), la notification reste à envoyer au prochain passage
 appels.length = 0; statut[ios.abo.endpoint] = 500; statut[bureau.abo.endpoint] = 500;
