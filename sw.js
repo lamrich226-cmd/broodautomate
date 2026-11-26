@@ -1,5 +1,5 @@
 // ============================================================
-// BROODAUTOMATE v5.34.7 — Service worker : reçoit les notifications (Web Push) même appli fermée
+// BROODAUTOMATE v5.35.0 — Service worker : reçoit les notifications (Web Push) même appli fermée
 // (iPhone « ajouté à l'écran d'accueil », ordinateur). Il ne garde AUCUNE page en cache : il n'y a pas de gestionnaire « fetch »,
 // donc l'appli se charge et se met à jour exactement comme avant (voir js/maj.js).
 // iPhone : chaque message reçu DOIT afficher une notification, sinon iOS retire l'abonnement au bout de quelques essais.

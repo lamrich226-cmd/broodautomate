@@ -29,7 +29,7 @@ ok("index.html : lien manifest + icône écran d'accueil + apple-mobile-web-app-
 const ope = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
 ok("index.html et operateur.html chargent js/i18n-v5346.js", /i18n-v5346\.js\?v=5\.34\.7/.test(html) && /i18n-v5346\.js\?v=5\.34\.7/.test(ope));
 const cfg = fs.readFileSync(path.join(ROOT, "js/config.js"), "utf8");
-ok("version 5.34.7 dans config.js", /version: "5\.34\.7"/.test(cfg));
+ok("version 5.35.0 dans config.js", /version: "5\.35\.0"/.test(cfg));
 
 // ---------- 1. Le service worker (sw.js) lu dans un faux environnement ----------
 console.log("== 1. sw.js : réception et toucher d'une notification");

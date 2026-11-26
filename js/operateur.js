@@ -3,8 +3,8 @@
 // (reprise de la version test 4.8.1 ; changements v5 marqués « v5 »)
 // Reçoit les ordres et les infos du logiciel admin.
 // Pas de ventes ni de chiffre d'affaires.
-// Processus « Remplir » en 3 étapes :
-//   1. Inventaire  2. Retrait des anciens pains  3. Chargement
+// Processus « Remplir » : 1. Inventaire  2. Retrait des anciens pains  3. Placements (facultatif, v5.35)  4. Chargement
+// (en interne, l'étape enregistrée « 3 » reste le chargement : les Remplir déjà commencés continuent sans changement)
 // ============================================================
 
 (function () {
@@ -243,7 +243,7 @@
       else if (w.step <= 3 && it.step !== w.step) {
         // avancé ou revenu en arrière sur un autre appareil : on se met à la même étape (les chiffres pas encore validés repartent)
         w.step = Math.min(it.step, 3); w.mode = "view"; w.lines = null; w.inv = null; w.rmd = null; w.error = "";
-        w.info = t("wz_moved", { n: w.step }); this.disarm(); this.render();
+        w.info = t("wz_moved", { n: this.shownStep(s, M.machine(s, w.num)) }); this.disarm(); this.render();
         return true;
       } else if (refused) why = "wz_lost_refused";
       if (!why) return false;
@@ -305,9 +305,26 @@
     },
     backBtn(id) { return `<button class="btn big secondary" id="${id}">${t("btn_back")}</button>`; },
 
+    // v5.35 : 4 étapes affichées (Inventaire, Retrait, Placements, Chargement). En interne l'étape 3 reste « Chargement » :
+    // « Placements » est un écran facultatif posé avant (rien n'est renuméroté dans le Remplir enregistré).
+    // Numéro affiché de l'étape en cours : 1 Inventaire, 2 Retrait, 3 Placements (s'il y a un conseil), 4 Chargement
+    shownStep(s, m) {
+      const w = this.w;
+      if (!w || w.step < 3) return w ? w.step : 1;
+      return m && BA.Placements && BA.Placements.conseils(s, m).recos.length ? 3 : 4;
+    },
+    placing() { const w = this.w; return !!(w && w.step === 3 && w.placeShow && !w.placeDone); },
+    // Depuis le chargement, « Retour » rouvre d'abord l'écran Placements (s'il a été montré) ; vrai si c'est ce qui s'est passé
+    backFrom() {
+      const w = this.w;
+      if (!w || w.step !== 3 || !w.placeShow || !w.placeDone) return false;
+      w.placeDone = false; w.mvOpen = false; w.error = ""; w.info = ""; this.render();
+      return true;
+    },
     stepper(step) {
-      return `<div class="stepper">${[1, 2, 3].map(n =>
-        `<div class="step ${n === step ? "on" : n < step ? "done" : ""}"><span>${n < step ? "✔" : n}</span>${t("step" + n)}</div>`).join("")}</div>`;
+      const cur = step < 3 ? step : this.placing() ? 3 : 4;
+      return `<div class="stepper s4">${["step1", "step2", "step_place", "step3"].map((k, i) =>
+        `<div class="step ${i + 1 === cur ? "on" : i + 1 < cur ? "done" : ""}"><span>${i + 1 < cur ? "✔" : i + 1}</span>${t(k)}</div>`).join("")}</div>`;
     },
 
     render() {
@@ -326,10 +343,15 @@
       let body = "";
       // v5.24 (design-test) : « Machine » (on touche les tiroirs) ou « Tableau » (comme avant) ; mêmes actions derrière
       const mach = !!BA.MachineView && this.vue() === "machine";
-      if (w._ms !== w.step) { w._ms = w.step; w.mvOpen = false; }     // nouvelle étape : fenêtre du tiroir fermée
+      if (w._ms !== w.step) {                                          // nouvelle étape : fenêtre du tiroir fermée
+        w._ms = w.step; w.mvOpen = false; w.placeShow = false; w.placeDone = false; w.placeIgnore = {};
+        // v5.35 : l'écran « Placements » n'apparaît que s'il y a au moins un conseil ; sinon on passe directement au chargement
+        if (w.step === 3 && BA.Placements) w.placeShow = BA.Placements.conseils(s, m).recos.length > 0;
+      }
+      const plc = this.placing();
       if (w.step === 1) body = mach ? this.mStep(s, m) : this.step1(s, m);
       else if (w.step === 2) body = mach ? this.mStep(s, m) : this.step2(s, m);
-      else if (w.step === 3) body = mach ? this.mStep(s, m) : this.step3(s, m);
+      else if (w.step === 3) body = plc ? this.placements(s, m) : mach ? this.mStep(s, m) : this.step3(s, m);
       else body = this.summary(s, m) + (mach ? this.mAfter(s, m) : "");
       document.getElementById("modal-root").innerHTML = `
         <div class="modal-back"><div class="modal" role="dialog" aria-modal="true">
@@ -340,11 +362,11 @@
           ${w.step <= 3 ? this.stepper(w.step) : ""}
           ${w.error ? `<div class="alert err">${w.error}</div>` : ""}
           ${w.info ? `<div class="alert info">ℹ️ ${E(w.info)}</div>` : ""}
-          ${w.step <= 3 && BA.MachineView ? this.vueSwitch() : ""}
+          ${w.step <= 3 && !plc && BA.MachineView ? this.vueSwitch() : ""}
           ${body}
         </div></div>`;
       this.bind();
-      if (mach && w.step <= 3) this.mBind();
+      if (mach && w.step <= 3 && !plc) this.mBind();
       clearInterval(w.syncT);
       if (w.step > 3 && document.getElementById("wz-sync")) w.syncT = setInterval(() => { if (this.w !== w) return clearInterval(w.syncT); this.syncLine(); }, 1500);
       const aft = mach && w.step > 3 ? document.getElementById("wz-after") : null;
@@ -484,6 +506,26 @@
           }).join("")}</tbody></table></div>
         <p class="petit" id="ld-total">${t("step3_total", { n: m.sels.reduce((a, sel) => a + (L[sel.n] || []).reduce((b, x) => b + (Number(x.qty) || 0), 0), 0) })}</p>
         <div class="wz-actions">${this.canBack(s, 3) ? this.backBtn("wz-back") : ""}<button class="btn big" id="ld-validate">✔ ${t("btn_validate_load")}</button></div>`;
+    },
+
+    // v5.35 : étape 3 FACULTATIVE « Placements » : conseils pour déplacer le vieux pain vers la sélection du même pain qui se
+    // vend le mieux (classement tiré du journal des ventes ; l'opérateur ne voit que des numéros, pas de chiffres de vente).
+    // Rien ne bouge tout seul : « Fait » = l'opérateur a déplacé le pain dans la machine ; « Ignorer » = on laisse tout.
+    placements(s, m) {
+      const w = this.w, P = BA.Placements.conseils(s, m), ign = w.placeIgnore || {};
+      const recos = P.recos.filter(r => !ign[r.key]);
+      const lvl = P.niveau === "good" ? "" : P.niveau === "mid" ? "plc_mid" : "plc_low";
+      return `
+        <h3>${t("plc_title")}</h3>
+        <p class="note">${t("plc_help")}</p>
+        ${lvl ? `<div class="alert ${P.niveau === "mid" ? "info" : "warn"}" id="plc-level">ℹ️ ${t(lvl, { d: Math.max(1, P.jours) })}</div>` : ""}
+        ${recos.length ? recos.map(r => `<div class="plc-card">
+            <div class="plc-move"><span class="selno-big">${r.from}</span><span class="mv-arrows" aria-hidden="true">→</span><span class="selno-big">${r.to}</span><span class="petit">${U.prod(r.type)}</span></div>
+            <p>${t("plc_move", { q: r.qty, a: r.from, b: r.to })}</p>
+            <p class="petit">${t("plc_why", { a: r.from, b: r.to })} ${t("plc_since", { d: F.dt(r.date), age: F.age(r.age) })}</p>
+            <div class="wz-actions"><button class="btn secondary plc-skip" data-k="${E(r.key)}">${t("plc_skip_btn")}</button><button class="btn plc-do" data-k="${E(r.key)}">${t("plc_done_btn")}</button></div>
+          </div>`).join("") : `<div class="alert info" id="plc-none">✅ ${t("plc_none_left")}</div>`}
+        <div class="wz-actions">${this.canBack(s, 3) ? this.backBtn("wz-back") : ""}<button class="btn big" id="plc-next">${t("plc_next")} →</button></div>`;
     },
 
     loadCtx(s, m) {
@@ -867,7 +909,7 @@
             m.sels.forEach(sel => { const L = w.lines && w.lines[sel.n]; if (!L || !L.length) return; L[0].qty = Math.max(0, sel.cap - M.qty(sel) - L.slice(1).reduce((a, x) => a + (Number(x.qty) || 0), 0)); });
             return this.mRefresh(b.id);
           case "mvw-ld-ok": return this.doLoad();
-          case "mvw-back": { const to = w.step - 1; if (!this.act(() => A.undoToStep(w.itId, to))) return; w.lines = null; w.inv = null; w.rmd = null; return go(to); }
+          case "mvw-back": { const to = w.step - 1; if (this.backFrom(to)) return; if (!this.act(() => A.undoToStep(w.itId, to))) return; w.lines = null; w.inv = null; w.rmd = null; return go(to); }
         }
       };
     },
@@ -898,7 +940,25 @@
 
       // retour arrière (annule l'étape déjà validée)
       const back = (to) => { if (!this.act(() => BA.Actions.undoToStep(w.itId, to))) return; w.lines = null; w.inv = null; w.rmd = null; go(to); };
-      if (q("wz-back")) q("wz-back").onclick = () => back(w.step - 1);
+      // v5.35 : depuis le chargement, « Retour » revient d'abord aux Placements (s'il y en avait), sans défaire le retrait
+      if (q("wz-back")) q("wz-back").onclick = () => this.backFrom(w.step - 1) || back(w.step - 1);
+
+      // v5.35 : étape facultative « Placements » (écran dessiné par placements())
+      document.querySelectorAll(".plc-skip").forEach(b => b.onclick = () => {
+        w.placeIgnore = w.placeIgnore || {}; w.placeIgnore[b.dataset.k] = true; w.error = ""; w.info = ""; this.render();
+      });
+      document.querySelectorAll(".plc-do").forEach(b => b.onclick = () => {
+        if (this.stale()) return;
+        const s0 = BA.Store.get(), m0 = M.machine(s0, w.num);
+        const r = m0 && BA.Placements.conseils(s0, m0).recos.find(x => x.key === b.dataset.k);
+        if (!r) { w.error = ""; w.info = ""; return this.render(); }               // déjà fait ou plus d'actualité : on redessine
+        const res = BA.Actions.moveLot(w.num, r.from, r.to, r.lotId, r.qty);
+        w.lines = null;                                                              // les places libres ont changé : chargement recalculé
+        if (res && res.err) { w.error = t("plc_err") + t(res.err); w.info = ""; }
+        else { w.error = ""; w.info = t("plc_moved", { q: res.qty, a: r.from, b: r.to }); }
+        this.render();
+      });
+      if (q("plc-next")) q("plc-next").onclick = () => { if (this.stale()) return; w.placeDone = true; w.error = ""; w.info = ""; this.render(); };
       if (q("inv-back")) q("inv-back").onclick = () => { w.mode = "view"; w.error = ""; this.render(); };
       if (q("rm-back")) q("rm-back").onclick = () => { w.mode = "view"; w.error = ""; this.render(); };
 
