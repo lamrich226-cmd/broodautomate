@@ -5,8 +5,8 @@ const ICI = path.dirname(new URL(import.meta.url).pathname);
 const src = fs.readFileSync(path.join(ICI, "../../supabase/functions/ingest/index.ts"), "utf8");
 const a = src.indexOf("// ==== DÉBUT LOGIQUE PURE"), b = src.indexOf("// ==== FIN LOGIQUE PURE");
 const tmp = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "ba-pur-")), "pur.ts");
-fs.writeFileSync(tmp, src.slice(a, b) + "\nexport { lireReleve, resume, jwtGoogle, libelle, b64url };\n");
-const { lireReleve, resume, jwtGoogle, libelle } = await import(tmp);
+fs.writeFileSync(tmp, src.slice(a, b) + "\nexport { lireReleve, resume, jwtGoogle, libelle, b64url, categorie, voulue };\n");
+const { lireReleve, resume, jwtGoogle, libelle, categorie, voulue } = await import(tmp);
 let ko = 0; const ok = (n: string, c: boolean, x?: unknown) => { console.log((c ? "  OK   " : "  ÉCHEC ") + n + (c ? "" : " → " + JSON.stringify(x))); if (!c) ko++; };
 // v5.25 : le vrai relevé (données privées, pas dans le dépôt) est facultatif : sans lui, ses 3 vérifications sont sautées
 const vrai = process.argv[2] || process.env.BA_AUDIT || path.join(ICI, "../donnees/AUDIT_FASTER_170824020354.dat");
@@ -41,4 +41,15 @@ const jwt = await jwtGoogle({ client_email: "x@y.iam.gserviceaccount.com", priva
 const [h, c, sig] = jwt.split(".");
 const v = crypto.verify("RSA-SHA256", Buffer.from(h + "." + c), publicKey, Buffer.from(sig.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
 ok("jeton Google signé RS256 et vérifiable", v && JSON.parse(Buffer.from(c, "base64url").toString()).scope.includes("firebase.messaging"));
+// v5.36.0 : chaque appareil choisit ses notifications
+ok("catégories : pannes, coupure et alertes = « alertes » ; porte ; muet et info = « boitier » ; stock ; vente", ["panne", "alerte", "coupure"].every(x => categorie(x) === "alertes") && categorie("porte") === "porte" && categorie("muet") === "boitier" && categorie("info") === "boitier" && categorie("stock") === "stock" && categorie("vente") === "vente");
+ok("type inconnu : rangé dans « alertes » (jamais perdu)", categorie("nouveau-type") === "alertes");
+ok("sans réglage : tout est voulu (admin)", ["panne", "porte", "muet", "stock", "vente"].every(x => voulue({ token: "t" }, x) && voulue({ token: "t", prefs: {} }, x) && voulue({ token: "t", prefs: null }, x)));
+ok("{vente:false} coupe les ventes seulement", !voulue({ token: "t", prefs: { vente: false } }, "vente") && voulue({ token: "t", prefs: { vente: false } }, "stock") && voulue({ token: "t", prefs: { vente: false } }, "panne"));
+ok("{alertes:false} coupe pannes, coupures et alertes, pas la porte", !voulue({ token: "t", prefs: { alertes: false } }, "panne") && !voulue({ token: "t", prefs: { alertes: false } }, "coupure") && voulue({ token: "t", prefs: { alertes: false } }, "porte"));
+ok("une valeur autre que false (true, 0, texte) ne coupe rien", voulue({ token: "t", prefs: { vente: true } }, "vente") && voulue({ token: "t", prefs: { vente: 0 } }, "vente") && voulue({ token: "t", prefs: { vente: "non" } }, "vente"));
+ok("réglages absurdes (tableau, texte) : tout est voulu", voulue({ token: "t", prefs: [1] as any }, "vente") && voulue({ token: "t", prefs: "x" as any }, "vente"));
+ok("les comptes opérateur ne reçoivent JAMAIS les ventes, même avec prefs {vente:true}", !voulue({ token: "t", operateur: true }, "vente") && !voulue({ token: "t", operateur: true, prefs: { vente: true } }, "vente") && voulue({ token: "t", operateur: true }, "stock") && voulue({ token: "t", operateur: true }, "panne"));
+// le lecteur de relevés copié dans la fonction est IDENTIQUE à celui de l'appli (une seule vérité)
+ok("supabase/functions/ingest/evadts-parser.js = js/evadts-parser.js (copie identique)", fs.readFileSync(path.join(ICI, "../../supabase/functions/ingest/evadts-parser.js"), "utf8") === fs.readFileSync(path.join(ICI, "../../js/evadts-parser.js"), "utf8"));
 console.log(ko ? ko + " ÉCHEC(S)" : "TOUT EST BON"); process.exit(ko ? 1 : 0);

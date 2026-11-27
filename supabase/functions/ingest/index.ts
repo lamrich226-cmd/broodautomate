@@ -1,7 +1,11 @@
 // ============================================================
-// Broodautomate — fonction « ingest » (v5.9 ; v5.25 : une seule notification pour une panne écrite deux fois) : reçoit les envois des boîtiers 4G (LILYGO)
-// et envoie les NOTIFICATIONS (cloche de la page admin + appli Android).
-// Supabase → Edge Functions → ingest → Code → remplacer TOUT le code par celui-ci → Deploy.
+// Broodautomate — fonction « ingest » (v5.9 ; v5.25 : une seule notification pour une panne écrite deux fois ; v5.36.0 : ventes, ruptures de pain
+// et choix des notifications par appareil) : reçoit les envois des boîtiers 4G (LILYGO)
+// et envoie les NOTIFICATIONS (cloche de la page admin + appli Android + iPhone / ordinateur).
+// Supabase → Edge Functions → ingest → Code → remplacer TOUT le code de index.ts par celui-ci → Deploy.
+// v5.36.0 : 3 autres fichiers vont AVEC index.ts, dans le même dossier de la fonction : ventes.ts, fenetre.js, evadts-parser.js
+// (Edge Functions → ingest → Code → « + » pour ajouter un fichier ; ou « supabase functions deploy ingest » qui prend tout le dossier).
+// S'ils manquent, la fonction marche comme avant : seules les notifications de ventes et de ruptures de pain n'arrivent pas.
 // « Verify JWT » (ou « Enforce JWT verification ») reste DÉSACTIVÉ : le boîtier
 // s'identifie avec SA clé secrète (table devices), pas avec un compte.
 //
@@ -135,6 +139,17 @@ function resume(liste: { titre: string; texte: string }[]): { titre: string; tex
   if (liste.length === 1) return { titre: liste[0].titre, texte: liste[0].texte };
   const textes = liste.slice(0, 3).map((x) => x.titre).join(" · ");
   return { titre: "Broodautomate : " + liste.length + " alertes", texte: textes + (liste.length > 3 ? " …" : "") };
+}
+
+// v5.36.0 : chaque appareil choisit les notifications qu'il veut. Catégorie d'un type de notification (les mêmes noms que les interrupteurs de l'appli)
+const CATEGORIES: Record<string, string> = { panne: "alertes", alerte: "alertes", coupure: "alertes", porte: "porte", muet: "boitier", info: "boitier", stock: "stock", vente: "vente" };
+const categorie = (type: string): string => CATEGORIES[type] || "alertes";
+type Appareil = { token: string; appareil?: string | null; operateur?: boolean | null; prefs?: Record<string, unknown> | null };
+// Cet appareil veut-il cette notification ? « false » dans ses réglages = coupée (sans réglage : tout arrive). Les ventes ne vont JAMAIS aux comptes opérateur.
+function voulue(a: Appareil, type: string): boolean {
+  if (type === "vente" && a.operateur) return false;
+  const p = a.prefs;
+  return !(p && typeof p === "object" && !Array.isArray(p) && p[categorie(type)] === false);
 }
 
 function b64url(b: Uint8Array): string {
@@ -306,25 +321,48 @@ async function pousserFirebase(tels: { token: string }[], titre: string, texte: 
   return ok;
 }
 
-// Envoie une notification à tous les appareils (comptes admin ET opérateur, v5.34.7) : téléphones Android (Firebase) et appareils web (iPhone, ordinateur).
-// Rend true si au moins un l'a reçue.
-async function pousser(titre: string, texte: string): Promise<boolean> {
-  const { data: tels } = await admin.from("ba_push_tokens").select("token, appareil");
-  if (!tels || !tels.length) return false;
-  const web = tels.filter((x: { appareil?: string }) => /^web/.test(x.appareil || ""));
-  const natifs = tels.filter((x: { appareil?: string }) => !/^web/.test(x.appareil || ""));
+// Appareils enregistrés (comptes admin ET opérateur, v5.34.7) avec leurs réglages (v5.36.0). Sans la colonne « prefs » (commandes SQL pas
+// encore faites) : on les lit sans, et tout est activé.
+async function lireAppareils(): Promise<Appareil[]> {
+  let r = await admin.from("ba_push_tokens").select("token, appareil, operateur, prefs");
+  if (r.error) r = await admin.from("ba_push_tokens").select("token, appareil, operateur");
+  return (r.data || []) as Appareil[];
+}
+// Envoie un message à des appareils : téléphones Android (Firebase) et appareils web (iPhone, ordinateur). Rend true si au moins un l'a reçu.
+async function pousser(tels: Appareil[], titre: string, texte: string): Promise<boolean> {
+  const web = tels.filter((x) => /^web/.test(x.appareil || ""));
+  const natifs = tels.filter((x) => !/^web/.test(x.appareil || ""));
   const a = await pousserFirebase(natifs, titre, texte);
   const b = await pousserWeb(web, titre, texte);
   return a || b;
 }
 
-// Envoie ce qui attend (moins de 6 h), en une seule notification si plusieurs
+// Envoie ce qui attend (moins de 6 h), en une seule notification par appareil si plusieurs. Chaque appareil ne reçoit que ce qu'il a choisi (v5.36.0).
 async function envoyerEnAttente(): Promise<void> {
-  const { data } = await admin.from("ba_notifications").select("id, titre, texte").is("envoye_at", null).eq("silencieux", false)
+  const { data } = await admin.from("ba_notifications").select("id, titre, texte, type").is("envoye_at", null).eq("silencieux", false)
     .gt("cree_at", new Date(Date.now() - RETRY_MS).toISOString()).order("id").limit(20);
   if (!data || !data.length) return;
-  const r = resume(data);
-  if (await pousser(r.titre, r.texte)) await admin.from("ba_notifications").update({ envoye_at: new Date().toISOString() }).in("id", data.map((x) => x.id));
+  const tels = await lireAppareils();
+  if (!tels.length) return;
+  // appareils qui reçoivent exactement la même liste : un seul envoi pour eux (cas courant : personne n'a changé ses réglages)
+  const groupes = new Map<string, { liste: typeof data; tels: Appareil[] }>();
+  const voulues = new Set<number>();
+  for (const t of tels) {
+    const liste = data.filter((n) => voulue(t, n.type));
+    if (!liste.length) continue;
+    liste.forEach((n) => voulues.add(n.id));
+    const cle = liste.map((n) => n.id).join(",");
+    const g = groupes.get(cle) || { liste, tels: [] };
+    g.tels.push(t); groupes.set(cle, g);
+  }
+  const envoyes = new Set<number>();
+  for (const g of groupes.values()) {
+    const r = resume(g.liste);
+    if (await pousser(g.tels, r.titre, r.texte)) g.liste.forEach((n) => envoyes.add(n.id));
+  }
+  // une notification que PERSONNE ne veut (tout le monde l'a coupée) n'attend pas : rien à envoyer
+  data.forEach((n) => { if (!voulues.has(n.id)) envoyes.add(n.id); });
+  if (envoyes.size) await admin.from("ba_notifications").update({ envoye_at: new Date().toISOString() }).in("id", [...envoyes]);
 }
 
 // deno-lint-ignore no-explicit-any
@@ -348,6 +386,54 @@ async function notifierReleve(boitier: any, evs: Evenement[]): Promise<void> {
   const n = await ajouter(evs.map((e) => ({ cle: boitier.id + "|" + e.cle, device_id: boitier.id, machine_id: boitier.machine_id, type: e.type,
     titre: nomDe(boitier) + " : " + e.titre, texte: e.texte, silencieux: premier })));
   if (n && !premier) console.log("nouveaux événements", n);
+}
+
+// v5.36.0 : calcul des ventes et des ruptures de pain (ventes.ts + lecteur de relevés). Chargé À PART et seulement quand il sert : s'il manque
+// (fichiers pas déployés avec index.ts), la fonction marche comme avant. Jamais une raison de refuser l'envoi d'un boîtier.
+let ventesMod: Promise<typeof import("./ventes.ts") | null> | null = null;
+const chargerVentes = () => ventesMod ??= import("./ventes.ts").catch((e) => { console.error("ventes.ts", String(e).slice(0, 200)); return null; });
+
+// Ventes et ruptures de pain d'un relevé de lecture du boîtier → notifications « vente » (admin seulement) et « stock ».
+// Détails et prudence : ventes.ts. Le stock vient des données de l'appli (fonction SQL ba_stock_machine : UNE machine, pas tout).
+// deno-lint-ignore no-explicit-any
+async function notifierVentes(boitier: any, rid: number, raw: string): Promise<void> {
+  const V = await chargerVentes();
+  if (!V) return;
+  const n = V.releveComplet(raw);
+  if (!n) return;
+  // les 48 relevés d'avant (≈ 2 jours au rythme d'un relevé par heure) : seulement numéro, rôle et heure ; le contenu de 2 d'entre eux au plus
+  let l = await admin.from("device_reports").select("id, role, received_at").eq("machine_id", boitier.machine_id).lt("id", rid).order("id", { ascending: false }).limit(48);
+  if (l.error) l = await admin.from("device_reports").select("id, received_at").eq("machine_id", boitier.machine_id).lt("id", rid).order("id", { ascending: false }).limit(48);
+  const liste = (l.data || []) as { id: number; role?: string | null; received_at?: string | null }[];
+  // stock de la machine (null si la commande SQL n'est pas faite : les ventes partent quand même, avec « sélection N » à la place du pain)
+  const ex = (await admin.rpc("ba_stock_machine", { mid: boitier.machine_id })).data;
+  const etat = ex && Array.isArray(ex.sels) ? {
+    num: Number(ex.num), g4: ex.g4 && typeof ex.g4 === "object" ? ex.g4 : null,
+    sels: ex.sels.map((x: { n: unknown; type: unknown; qty: unknown }) => ({ n: Number(x.n), type: typeof x.type === "string" && x.type ? x.type : null, qty: Number(x.qty) || 0 })),
+    ouverte: ex.ouverte === true, tmod: ex.tmod == null ? null : Number(ex.tmod),
+    noms: ex.noms && typeof ex.noms === "object" && !Array.isArray(ex.noms) ? ex.noms : null,     // noms des pains ajoutés dans l'appli
+  } : null;
+  // relevé par câble ou clé USB depuis le relevé compté par l'appli ? (le stock de l'appli en tient compte, pas ce calcul)
+  let autres = false;
+  if (etat && etat.g4 && typeof etat.g4.at === "number") {
+    const a = await admin.from("audits").select("source").eq("machine_id", boitier.machine_id).gt("imported_at", new Date(etat.g4.at).toISOString()).limit(10);
+    autres = !a.error && (a.data || []).some((x: { source?: string }) => x.source !== "4g");
+  }
+  const plan = V.reperer(liste, etat, autres, rid);
+  const ids = [...new Set([plan.pId, plan.eId].filter((x): x is number => !!x && x !== rid))];
+  const lus = ids.length ? (await admin.from("device_reports").select("id, raw").in("id", ids)).data || [] : [];
+  const lire = (id: number | null) => { const r = lus.find((x: { id: number }) => x.id === id); return r ? V.releveComplet(String(r.raw)) : null; };
+  const res = V.calculer(n, lire(plan.pId), plan.eId === rid ? n : lire(plan.eId), etat);
+  const nom = nomDe(boitier);
+  // deno-lint-ignore no-explicit-any
+  const lignes: any[] = [];
+  const base = { device_id: boitier.id, machine_id: boitier.machine_id };
+  // la rupture d'abord : c'est elle qui fait le titre de la notification quand une vente en provoque une
+  for (const r of res.ruptures) { const t = V.texteRupture(r, etat && etat.noms); lignes.push({ ...base, cle: "stock|" + boitier.id + "|" + (r.type || "machine") + "|" + rid, type: "stock", titre: nom + " : " + t.titre, texte: t.texte }); }
+  if (res.vente) { const t = V.texteVente(res.vente, etat && etat.noms); lignes.push({ ...base, cle: "vente|" + boitier.id + "|" + rid, type: "vente", titre: nom + " : " + t.titre, texte: t.texte }); }
+  if (lignes.length) console.log("ventes / ruptures", lignes.length);
+  else if (res.raison && res.raison !== "aucune vente") console.log("ventes : rien envoyé (" + res.raison + ")");
+  await ajouter(lignes);
 }
 
 // Toutes les 15 min (pg_cron) : boîtiers muets, portes restées ouvertes, envois en retard
@@ -429,19 +515,23 @@ Deno.serve(async (req: Request) => {
   const { error: e2 } = await admin.from("devices").update({ last_seen: new Date().toISOString(), info }).eq("id", boitier.id);
   if (e2) return reponse({ ok: false, error: "mise à jour : " + e2.message, t }, 500);
 
+  let rid = 0;                                           // numéro du relevé gardé (v5.36.0 : pour les ventes et les ruptures)
   if (raw) {
     const ligne: Record<string, unknown> = { device_id: boitier.id, machine_id: boitier.machine_id, raw, role: b.role === "machine" ? "machine" : "boitier" };
-    let { error: e3 } = await admin.from("device_reports").insert(ligne);
+    let { data: d3, error: e3 } = await admin.from("device_reports").insert(ligne).select("id");
     if (e3 && /role/i.test(e3.message)) {               // table créée avant la colonne « role »
       delete ligne.role;
-      ({ error: e3 } = await admin.from("device_reports").insert(ligne));
+      ({ data: d3, error: e3 } = await admin.from("device_reports").insert(ligne).select("id"));
     }
     if (e3) return reponse({ ok: false, error: "enregistrement : " + e3.message, t }, 500);
+    rid = Number(d3 && d3[0] && d3[0].id) || 0;
   }
 
   // Notifications : jamais une raison de refuser l'envoi du boîtier (si la table n'existe pas encore, on continue)
   try {
     await notifierReleve(boitier, lecture.evs);
+    // v5.36.0 : ventes et ruptures de pain (seulement les lectures complètes du boîtier, pas les envois partiels de la machine)
+    if (raw && rid && b.role !== "machine") { try { await notifierVentes(boitier, rid, raw); } catch (e) { console.error("ventes", e); } }
     // v5.13 : notification tout de suite à l'ouverture de la porte, seulement si l'admin l'a activée (réglage « porteNotif », éteint par défaut)
     if (lecture.porte === true && !(avant && avant.ouverte) && await porteNotifActive())
       await ajouter([{ cle: "porte-ouverte|" + boitier.id + "|" + (porte ? porte.depuis : ""), device_id: boitier.id, machine_id: boitier.machine_id, type: "porte",

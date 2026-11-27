@@ -74,7 +74,7 @@ function client() {
       const rows = tab.filter(r => st.filters.every(f => garde(r, f)));
       if (st.op === "select") return st.head ? { data: null, count: rows.length, error: null } : { data: rows, count: rows.length, error: null };
       if (st.op === "update") { rows.forEach(r => Object.assign(r, JSON.parse(JSON.stringify(st.vals)))); return { error: null }; }
-      if (st.op === "insert") { tab.push(Object.assign({ id: ++fake.seq, received_at: new Date().toISOString() }, st.vals)); return { error: null }; }
+      if (st.op === "insert") { const ligne = Object.assign({ id: ++fake.seq, received_at: new Date().toISOString() }, st.vals); tab.push(ligne); return { error: null, ligne }; }
       if (st.op === "upsert") {
         const ajoutes = [];
         [].concat(st.vals).forEach(v => { if (st.conflit && tab.some(r => r[st.conflit] === v[st.conflit])) return; const r = Object.assign({ id: ++fake.seq, cree_at: new Date().toISOString(), envoye_at: null }, v); tab.push(r); ajoutes.push(r); });
@@ -84,7 +84,11 @@ function client() {
     };
     const api = {
       select(cols, o) { if (st.op !== "upsert") st.op = "select"; st.head = !!(o && o.head); return api; }, update(v) { st.op = "update"; st.vals = v; return api; },
-      insert(v) { st.op = "insert"; st.vals = v; return Promise.resolve(run()); },
+      insert(v) {            // v5.36.0 : « .insert(…).select("id") » (ingest relit l'id du relevé) comme sur le vrai Supabase
+        st.op = "insert"; st.vals = v; const r = run(); const p = Promise.resolve({ error: r.error || null });
+        p.select = () => Promise.resolve({ data: r.ligne ? [{ id: r.ligne.id }] : null, error: r.error || null });
+        return p;
+      },
       upsert(v, o) { st.op = "upsert"; st.vals = v; st.conflit = o && o.onConflict; return api; },
       delete() { st.op = "delete"; return api; },
       eq(c, v) { st.filters.push([c, v]); return api; },
@@ -95,7 +99,7 @@ function client() {
     };
     return api;
   };
-  return { from: q };
+  return { from: q, rpc: async () => ({ data: null, error: { message: "function public.ba_stock_machine does not exist (essai sans les ventes)" } }) };   // v5.36.0 : pas de calcul de ventes ici (couvert par tests/ingest/ventes-flux.test.mts)
 }
 globalThis.__fake = { createClient: () => client() };
 let ingest = null;
@@ -165,7 +169,7 @@ try {
   const pc = await device("pc");
   const a = await open(pc, "index.html");
   await login(a); await ready(a);
-  ok("pied de page : version 5.35.0", (await a.innerText("#app-footer")).includes("5.35.0"));
+  ok("pied de page : version 5.36.0", (await a.innerText("#app-footer")).includes("5.36.0"));
   await view(a, "technique");
   await a.waitForSelector("#rs-boitiers .alert.warn", { timeout: 15000 });
   ok("section « Boîtiers 4G » : pas encore installés + bouton des commandes SQL", (await a.innerText("#rs-boitiers")).includes("pas encore installés") && !!(await a.$("#rs-boitiers [data-bx=sql]")));

@@ -638,6 +638,18 @@ pre.journal .j-warn { color: var(--c-remove); } pre.journal .j-err { color: var(
 #notif-panel .np-foot { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
 #notif-panel .np-foot .btn { margin: 0; }
 @media (max-width: 899px) { #notif-panel { top: 60px; right: 12px; left: 12px; width: auto; } }
+/* v5.36.0 : choisir ses notifications (cloche admin et bloc « Plus » de l'appli opérateur) */
+#notif-panel .np-prefs { border: 1px solid var(--line); border-radius: 12px; background: var(--surface-2); padding: 0 12px; }
+#notif-panel .np-prefs summary { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; row-gap: 0; min-height: 44px; padding: 4px 24px 4px 0; position: relative; cursor: pointer; font-weight: 600; list-style: none; }
+#notif-panel .np-prefs summary::-webkit-details-marker { display: none; }
+#notif-panel .np-prefs summary::after { content: "▾"; position: absolute; right: 0; top: 12px; color: var(--text-dim); }
+#notif-panel .np-prefs[open] summary::after { content: "▴"; }
+.np-off { color: var(--text-dim); font-weight: 500; font-size: .85rem; white-space: nowrap; }
+.np-prefs label.case, .np-prefs-op label.case { display: flex; align-items: center; gap: 8px; min-height: 44px; margin: 0; font-size: .92rem; cursor: pointer; }
+.np-prefs label.case input, .np-prefs-op label.case input { flex: none; width: 20px; height: 20px; margin: 0; }
+.np-prefs-op { display: flex; flex-direction: column; gap: 2px; margin-top: 12px; }
+.np-prefs .note, .np-prefs-op .note { margin: 4px 0 8px; }
+.np-prefs-msg:empty { display: none; }
 /* bouton de déconnexion dans le bas de la barre latérale */
 button.side-link { width: 100%; font: inherit; font-weight: 650; font-size: .9rem; cursor: pointer; }
 .side-link.side-out { background: transparent; border-color: var(--line); color: var(--text-dim); }

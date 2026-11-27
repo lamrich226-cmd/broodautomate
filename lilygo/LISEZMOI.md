@@ -185,6 +185,7 @@ Puis, dans Broodautomate, clique sur **J'ai fini : vérifier**.
 
 ### b) La fonction « ingest » (elle reçoit les envois des boîtiers)
 Bouton **📋 Fonction « ingest »** dans la même partie (le code est aussi dans `supabase/functions/ingest/index.ts`).
+*(Depuis la v5.36.0, la fonction a 3 fichiers de plus : `ventes.ts`, `fenetre.js`, `evadts-parser.js`, dans le même dossier — pour les notifications « chaque vente » et « plus de pain ». Avec seulement `index.ts`, tout marche comme avant. Voir `LISEZMOI.md` à la racine.)*
 1. Supabase → ton projet → **Edge Functions** → **Deploy a new function** → **Via Editor**.
 2. Nom : **ingest** (exactement).
 3. Efface le code d'exemple, colle le code (bouton **Copier le code**), puis **Deploy function**.

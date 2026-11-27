@@ -153,30 +153,34 @@ class FakeSupabase {
     const f = [];
     for (const [k, v] of sp.entries()) {
       if (["select", "order", "limit", "offset", "on_conflict", "columns"].includes(k)) continue;
-      const m = /^(eq|neq|gt|gte|lt|lte|in|is)\.(.*)$/s.exec(v);
+      const m = /^(not\.)?(eq|neq|gt|gte|lt|lte|in|is)\.(.*)$/s.exec(v);       // v5.36.0 : « not.in.(a,b) »
       if (!m) throw new Error("filtre inconnu " + k + "=" + v);
-      let val = m[2];
-      if (m[1] === "in") val = val.replace(/^\(|\)$/g, "").split(",").map(x => x.replace(/^"|"$/g, ""));
-      f.push({ col: k, op: m[1], val });
+      let val = m[3];
+      if (m[2] === "in") val = val.replace(/^\(|\)$/g, "").split(",").map(x => x.replace(/^"|"$/g, ""));
+      f.push({ col: k, op: m[2], val, non: !!m[1] });
     }
     return f;
   }
   match(row, filters) {
-    return filters.every(({ col, op, val }) => {
-      const x = row[col];
-      const sx = x == null ? null : String(x);
-      switch (op) {
-        case "eq": return sx === val;
-        case "neq": return sx !== val;
-        case "in": return val.includes(sx);
-        case "is": return val === "null" ? x == null : String(x) === val;
-        case "gt": case "gte": case "lt": case "lte": {
-          const a = typeof x === "number" ? x : String(x), b = typeof x === "number" ? Number(val) : val;
-          return op === "gt" ? a > b : op === "gte" ? a >= b : op === "lt" ? a < b : a <= b;
-        }
-      }
-      return false;
+    return filters.every(({ col, op, val, non }) => {
+      const r = this.testFiltre(row, col, op, val);
+      return non ? !r : r;
     });
+  }
+  testFiltre(row, col, op, val) {
+    const x = row[col];
+    const sx = x == null ? null : String(x);
+    switch (op) {
+      case "eq": return sx === val;
+      case "neq": return sx !== val;
+      case "in": return val.includes(sx);
+      case "is": return val === "null" ? x == null : String(x) === val;
+      case "gt": case "gte": case "lt": case "lte": {
+        const a = typeof x === "number" ? x : String(x), b = typeof x === "number" ? Number(val) : val;
+        return op === "gt" ? a > b : op === "gte" ? a >= b : op === "lt" ? a < b : a <= b;
+      }
+    }
+    return false;
   }
   project(rows, select) {
     if (!select || select === "*") return clone(rows);
