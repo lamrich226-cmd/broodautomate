@@ -339,6 +339,9 @@ window.BA = window.BA || {};
         rows += `<tr class="sel-first empty"><td class="selno">${sel.n}</td><td>${prod(sel.type)}</td><td>0 <span class="petit">/ ${sel.cap}</span></td><td>—</td><td></td><td><span class="tag c-empty">${t("sel_empty")}</span></td></tr>`;
         return;
       }
+      // v5.36.1 : plusieurs lots dans la sélection : sur téléphone (cartes de l'appli opérateur), chaque carte redit « 19 · lot 2/2 » et le pain,
+      // et les cartes de la sélection sont collées dans un même cadre bleu (en faisant défiler, on voit qu'on reste dans la même sélection)
+      const nb = sel.lots.length;
       sel.lots.forEach((l, j) => {
         const old = M.isOld(s, l);
         const planned = mission && mission.removeBefore && !l.kept && l.date < mission.removeBefore;
@@ -355,9 +358,11 @@ window.BA = window.BA || {};
         else if (old || planned) status = `<span class="tag c-remove">${t("lot_remove")}</span>
           <button class="btn petit secondary" data-act="keep" data-sel="${sel.n}" data-lot="${l.id}" title="${E(t("btn_keep_tip"))}">${t("btn_keep")}</button>${rmBtn}`;
         else status = `<span class="tag c-ok">${t("lot_ok")}</span>${rmBtn}`;
-        rows += `<tr class="${j === 0 ? "sel-first" : ""} ${hot ? "lot-old" : ""}">
-          <td class="selno">${j === 0 ? sel.n : ""}</td>
-          <td>${j === 0 ? prod(sel.type) : ""}</td>
+        const lotK = nb > 1 ? `<span class="lot-k"> ${t("lot_k", { i: j + 1, n: nb })}</span>` : "";
+        const grp = nb > 1 ? " sel-grp" + (j === nb - 1 ? " sel-end" : "") : "";
+        rows += `<tr class="${j === 0 ? "sel-first" : ""}${grp} ${hot ? "lot-old" : ""}">
+          <td class="selno"><span class="${j === 0 ? "" : "sel-rep"}">${sel.n}${lotK}</span></td>
+          <td>${j === 0 ? prod(sel.type) : `<span class="sel-rep">${prod(sel.type)}</span>`}</td>
           <td>${l.qty}${j === 0 ? ` <span class="petit">(${q}/${sel.cap})</span>` : ""}
             ${l.qty > 1 ? `<button class="btn petit secondary" data-act="split" data-sel="${sel.n}" data-lot="${l.id}" title="${t("split_tip")}">✂ ${t("btn_split")}</button>` : ""}</td>
           <td><input type="datetime-local" class="lot-date" id="lotdate-${m.num}-${l.id}" value="${F.toInput(l.date)}" data-sel="${sel.n}" data-lot="${l.id}">${l.estimated ? ` <span class="petit">${t("estimated")}</span>` : ""}</td>
@@ -460,6 +465,50 @@ window.BA = window.BA || {};
     };
     const first = ins().find(i => Number(i.value) > 0) || ins()[0];
     if (first) { first.focus(); first.select(); }
+  }
+
+  // ---------- v5.36.1 : fenêtre « 📅 Changer la date » (Stock en tableau, admin et opérateur) ----------
+  // Tous les lots de la sélection, chacun avec sa date de livraison. Seules les dates changées sont enregistrées
+  // (BA.Actions.setLotDate : notée dans l'Historique, avec qui l'a changée). Pas de date dans le futur.
+  function dateDialog(num, selN) {
+    const s = BA.Store.get(), m = M.machine(s, num), sel = m && M.sel(m, selN);
+    if (!sel) return;
+    M.sortLots(sel);
+    if (!sel.lots.length) { toast(t("rm_none")); return; }
+    const mission = M.openMission(s, m.num);
+    const hot = l => (l.kept && M.isMandatory(s, l)) || (!l.kept && M.mustRemove(s, l, mission));
+    const tag = l => l.kept ? (M.isMandatory(s, l) ? ` <span class="tag c-must">⛔ ${t("lot_invalid_short")}</span>` : ` <span class="tag c-kept">⏳ ${t("lot_kept_short")}</span>`)
+      : M.mustRemove(s, l, mission) ? ` <span class="tag c-remove">${t("lot_remove")}</span>` : "";
+    const root = document.getElementById("modal-root");
+    const back = document.activeElement;
+    const key = e => { if (e.key === "Escape") { e.preventDefault(); close(); } };
+    const close = () => { document.removeEventListener("keydown", key, true); root.innerHTML = ""; if (back && back.focus && document.contains(back)) back.focus({ preventScroll: true }); };
+    root.innerHTML = `<div class="modal-back dlg-back"><div class="modal dt-modal" role="dialog" aria-modal="true" aria-labelledby="dt-title">
+      <div class="modal-head"><div><h2 id="dt-title">📅 ${t("dt_title")}</h2>
+        <div class="petit">#${m.num} · ${t("col_sel")} ${sel.n} · ${prod(sel.type)} · ${E(m.street)}</div></div></div>
+      <p class="note">${t("dt_help")}</p>
+      <div class="dt-list">${sel.lots.map(l => `<div class="dt-row${hot(l) ? " lot-old" : ""}">
+        <div class="dt-info"><b>${t("n_breads", { n: l.qty })}</b><span class="petit">${F.age(Math.max(0, s.now - l.date))}</span>${tag(l)}</div>
+        <label class="field-row">${t("col_lotdate")} <input type="datetime-local" class="dt-in" data-lot="${l.id}" value="${F.toInput(l.date)}" max="${F.toInput(s.now)}"></label></div>`).join("")}</div>
+      <div id="dt-err"></div>
+      <div class="wz-actions"><button class="btn big" id="dt-ok">✔ ${t("btn_save")}</button>
+        <button class="btn big secondary" id="dt-cancel">${t("btn_cancel_short")}</button></div>
+    </div></div>`;
+    document.addEventListener("keydown", key, true);
+    root.querySelector("#dt-cancel").onclick = close;
+    root.querySelector(".dlg-back").onclick = e => { if (e.target.classList.contains("dlg-back")) close(); };
+    root.querySelector("#dt-ok").onclick = () => {
+      const now = BA.Store.get().now;
+      const items = Array.from(root.querySelectorAll(".dt-in")).filter(i => i.value !== i.defaultValue).map(i => ({ lot: i.dataset.lot, ms: F.fromInput(i.value) }));
+      const err = items.some(x => !x.ms) ? "dt_err_bad" : items.some(x => x.ms > now + 5 * M.MIN) ? "dt_err_future" : null;
+      if (err) { root.querySelector("#dt-err").innerHTML = `<div class="alert err">${t(err)}</div>`; return; }
+      items.forEach(x => BA.Actions.setLotDate(num, sel.n, x.lot, x.ms));
+      close();
+      if (!items.length) return;
+      toast("✅ " + t("dt_done", { n: items.length, s: sel.n }));
+      BA.Shell.renderView();
+    };
+    const first = root.querySelector(".dt-in"); if (first) first.focus();
   }
 
   // ---------- Déplacer du pain entre deux sélections du même produit ----------
@@ -713,6 +762,8 @@ window.BA = window.BA || {};
     const f = st.selForm && st.selForm.num === m.num ? st.selForm : (st.selForm = { num: m.num, n: "", type: m.sels[0] ? m.sels[0].type : "blanc", newType: "", cap: 6, price: "" });
     if (f.type !== "__new" && !M.types(s).includes(f.type)) f.type = M.types(s)[0];   // type qui n'est plus proposé
     const msg = st.selMsg && st.selMsg.num === m.num ? st.selMsg : null;
+    // v5.36.1 : la date du plus vieux pain est un bouton : il ouvre « 📅 Changer la date » (tous les lots de la sélection)
+    const dtBtn = (sel, o) => `<button type="button" class="btn petit secondary dt-btn" data-act="lot-dates" data-sel="${sel.n}" title="${E(t("dt_btn_tip"))}" aria-label="${E(t("dt_btn_tip"))} ${sel.n}">📅 ${F.dt(o.date)}</button>`;
     const rows = m.sels.map(sel => {
       const q = M.qty(sel);
       const o = M.oldestLot(sel);
@@ -732,8 +783,8 @@ window.BA = window.BA || {};
         <td><input id="ps-n-${m.num}-${sel.n}" class="ps-n num-in sel-in" type="number" min="1" max="999" value="${sel.n}" data-sel="${sel.n}" aria-label="${E(t("col_sel"))}"></td>
         <td>${typeCell}</td>
         <td><input id="ps-cap-${m.num}-${sel.n}" class="ps-cap num-in" type="number" min="1" max="50" value="${sel.cap}" data-sel="${sel.n}"></td>
-        <td class="nowrap"><b>${q}</b>${q > 0 ? ` <button class="btn petit secondary rm-mini" data-act="rm-bread" data-sel="${sel.n}" title="${E(t("btn_rm_tip"))}" aria-label="${E(t("btn_rm_tip"))} ${sel.n}">➖</button>` : ""}${o ? `<div class="petit only-phone">${F.dt(o.date)}</div>` : ""}</td>
-        <td class="no-phone">${o ? `${F.dt(o.date)} <span class="petit">(${t("n_breads", { n: o.qty })} · ${F.age(s.now - o.date)})</span>` : "—"}</td>
+        <td class="nowrap"><b>${q}</b>${q > 0 ? ` <button class="btn petit secondary rm-mini" data-act="rm-bread" data-sel="${sel.n}" title="${E(t("btn_rm_tip"))}" aria-label="${E(t("btn_rm_tip"))} ${sel.n}">➖</button>` : ""}${o ? `<div class="petit only-phone">${dtBtn(sel, o)}</div>` : ""}</td>
+        <td class="no-phone">${o ? `<span class="dt-cell">${dtBtn(sel, o)}<span class="petit">(${t("n_breads", { n: o.qty })} · ${F.age(s.now - o.date)})</span></span>` : "—"}</td>
         <td><input id="ps-price-${m.num}-${sel.n}" class="ps-price num-in" type="number" min="0" step="0.1" value="${sel.price.toFixed(2)}" data-sel="${sel.n}" aria-label="${E(t("col_price"))} ${sel.n}"></td>
         <td>${status}</td>
         <td class="nowrap">${q > 0 && m.sels.some(x => x !== sel && x.type === sel.type) ? `<button class="btn petit secondary mv-btn" data-act="sel-move" data-sel="${sel.n}" title="${E(t("btn_move_tip"))}" aria-label="${E(t("btn_move"))} ${sel.n}"><span class="mv-arrows">⇄</span>${admin ? "" : " " + t("btn_move")}</button> ` : ""}${m.sels.length > 1 ? `<button class="btn petit secondary sel-del" data-act="sel-del" data-sel="${sel.n}" title="${E(t("btn_del_sel"))}" aria-label="${E(t("btn_del_sel"))} ${sel.n}">🗑${admin ? "" : " " + t("btn_del_short")}</button>` : ""}</td></tr>`;
@@ -788,6 +839,7 @@ window.BA = window.BA || {};
     el.querySelectorAll(".ps-cap").forEach(i => i.onchange = () => say(BA.Actions.updateSelection(num, i.dataset.sel, { cap: Number(i.value) }), "saved_sel"));
     el.querySelectorAll(".ps-price").forEach(i => i.onchange = () => { const v = Number(i.value); if (i.value !== "" && v >= 0) say(BA.Actions.updateSelection(num, i.dataset.sel, { price: v }), "saved_price", { n: i.dataset.sel, p: F.eur(v) }); else say("err_price"); });
     el.querySelectorAll('.sel-table [data-act="rm-bread"]').forEach(b => b.onclick = () => removeDialog(num, b.dataset.sel));
+    el.querySelectorAll('.sel-table [data-act="lot-dates"]').forEach(b => b.onclick = () => dateDialog(num, b.dataset.sel));
     el.querySelectorAll('.sel-table [data-act="sel-move"]').forEach(b => b.onclick = () => moveDialog(num, b.dataset.sel, null));
     // Suppression : une fenêtre demande toujours de confirmer (avec un avertissement s'il reste du pain dedans)
     el.querySelectorAll('[data-act="sel-del"]').forEach(b => b.onclick = () => {
@@ -1059,7 +1111,7 @@ window.BA = window.BA || {};
     F, E, t, prod, pill, ICON, NAV_ICONS, helpToggles,
     renderDashboard, renderDetails, renderAlerts, renderRs232,
     machinePicker, lotsTable, openMoves, moveRequests, bindMoves, bindLotActions, stockTable, bindStockTable, eventHtml, evTitle, interventionsTable, prodText, prodLow, typesOutChip,
-    confirmDialog, dateInput, afterClick, removeDialog, moveDialog, toast, openWindow,
+    confirmDialog, dateInput, afterClick, removeDialog, moveDialog, dateDialog, toast, openWindow,
     chartTheme, chartCrosshair, chartEndLabel, chartSignColor
   };
 

@@ -1404,3 +1404,29 @@ html.mv-ov-on, html.mv-ov-on body { overflow: hidden; }
 .m3-switch { margin-left: auto; }
 @media (max-width: 600px) { .m3-inline .m3-stage { height: clamp(340px, 64vh, 560px); } .m3-mini { height: 200px; } .m3-inline .m3-bar3 .mv-fs-btn, .m3-inline .m3-switch .mv-fs-btn { min-height: 36px; padding: 0 10px; font-size: .78rem; } }
 .modal .m3-inline .m3-stage { height: clamp(320px, 56vh, 520px); }
+
+/* ---------- v5.36.1 : « 📅 Changer la date » d'un pain depuis Stock en tableau (admin et opérateur) ---------- */
+.sel-table .dt-btn { margin-left: 0; white-space: nowrap; }
+.sel-table .dt-cell { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.sel-table .only-phone .dt-btn { margin-top: 6px; }
+/* appli opérateur sur téléphone : le tableau devient des cartes, où la ligne « plus vieux pain » est déjà affichée : pas de 2e bouton sous la quantité */
+@media (max-width: 899px) { body.operateur table.tbl-cartes.sel-table .only-phone { display: none; } body.operateur table.tbl-cartes.sel-table .dt-cell { justify-content: flex-end; } }
+@media (pointer: coarse) { .sel-table .dt-btn { min-height: 44px; } }
+.dt-list { display: grid; gap: 10px; margin: 12px 0; }
+.dt-row { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.dt-row.lot-old { background: color-mix(in srgb, var(--c-remove) 10%, transparent); }
+.dt-info { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.dt-info .tag { margin: 0; }
+.dt-row label.field-row { margin: 8px 0 0; }
+.dt-row .dt-in { min-height: 44px; box-sizing: border-box; }
+/* v5.36.1 : Détails machine → Lots, appli opérateur sur téléphone (cartes) : une sélection à plusieurs lots = un seul bloc entouré de bleu
+   (couleur des numéros de sélection), lots séparés par un trait pointillé ; chaque carte redit le n°, le pain et « lot 2/2 ».
+   Sur ordinateur (vrai tableau) : rien ne change (n° et pain seulement sur la 1re ligne). */
+.lots .sel-rep, .lots .lot-k { display: none; }
+@media (max-width: 899px) {
+  body.operateur table.tbl-cartes.lots .sel-rep { display: inline; }
+  body.operateur table.tbl-cartes.lots .lot-k { display: inline; margin-left: 4px; font-size: .8rem; font-weight: 650; color: var(--text-dim); }
+  body.operateur table.tbl-cartes.lots tr.sel-grp { border: 2px solid var(--link); }
+  body.operateur table.tbl-cartes.lots tr.sel-grp:not(.sel-end) { margin-bottom: 0; border-bottom: 1px dashed var(--line-strong); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+  body.operateur table.tbl-cartes.lots tr.sel-grp:not(.sel-first) { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+}
