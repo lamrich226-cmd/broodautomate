@@ -357,7 +357,7 @@ window.BA = window.BA || {};
     try {
       // une table absente (commandes SQL pas encore faites) n'est revérifiée qu'avec « Tout revérifier »
       if (force || S.copies !== false) {
-        const c = await sb().from("ba_state_backup").select("jour, ligne, cree_at").order("jour", { ascending: false }).limit(40);
+        const c = await sb().from("ba_state_backup").select("jour, ligne, cree_at").order("jour", { ascending: false }).limit(60);   // v5.36.3 : 3 lignes par nuit (main, hist, arch)
         S.copies = c.error ? (absente(c.error, "ba_state_backup") ? false : { err: c.error.message }) : (c.data || []);
       }
       if (force || S.notifs !== false) {

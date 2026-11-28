@@ -24,6 +24,12 @@
 //   suivant, même si un autre appareil a écrit entre-temps (avant : copie mise de côté, rien d'envoyé) ;
 //   (2) la copie de l'appareil garde l'historique (gros) dans IndexedDB, réécrit seulement quand il
 //   change : plus de limite de 5 Mo du navigateur, et chaque modification écrit beaucoup moins.
+// - v5.36.3 : les Remplir terminés depuis plus de 7 jours sont rangés dans une 3e ligne, « arch » (archives),
+//   écrite seulement quand elle change et avec contrôle de version (un appareil en retard ne peut pas l'écraser).
+//   Dans « main » restent les Remplir en cours, ceux des 7 derniers jours et le dernier de chaque machine (le
+//   serveur s'en sert pour les alertes de rupture). En mémoire, l'appli remet tout ensemble : à l'écran rien ne
+//   change. Un appareil resté sur une version plus ancienne ne lit ni n'écrit « arch » : il ne voit que les Remplir
+//   de « main » jusqu'à son rechargement, sans rien abîmer.
 // ============================================================
 
 window.BA = window.BA || {};
@@ -96,7 +102,8 @@ window.BA = window.BA || {};
   // Le présent (quelques dizaines de Ko) est réécrit à chaque modification ; les jours passés
   // (historique) sont dans une 2e partie, réécrite seulement quand elle change.
   const JOURNAL_DAYS = 62, JOURNAL_MAX = 20000, J_RECENT_MAX = 300, J_RECENT_KEEP = 100;
-  function split(s) {
+  // archBase (v5.36.3) : les archives connues (lues ou écrites) — un Remplir qui y est déjà y reste (voir splitIts)
+  function split(s, archBase) {
     const cut = M.dayKey(s.now - 2 * DAY), recent = {}, hist = {};
     Object.keys(s.daily).forEach(k => { (k < cut ? hist : recent)[k] = s.daily[k]; });
     const keys = Object.keys(hist).sort();
@@ -113,25 +120,82 @@ window.BA = window.BA || {};
     let ck = 0;
     j.forEach(e => { if ((e.i || 0) <= jcut) { jOld.push(e); ck = (ck + e.t + (e.i || 0)) % 1e9; } else jRecent.push(e); });
     const sig = keys.length + "|" + (keys[0] || "") + "|" + (keys[keys.length - 1] || "") + "|" + (s.histRev || 0) + "|j" + jOld.length + "|" + ck;
-    const main = Object.assign({}, s, { daily: recent, journal: jRecent, h: sig });
+    const its = splitIts(s, archBase);
+    const main = Object.assign({}, s, { daily: recent, journal: jRecent, h: sig, ha: its.arch.sig });
     delete main.now;
     // « en ligne » est recalculé à l'affichage ; les copies de stock d'une intervention terminée ne servent plus
     main.machines = s.machines.map(m => { const c = Object.assign({}, m); delete c.online; return c; });
-    main.interventions = (s.interventions || []).map(it => (it.status === "open" || !it.snaps) ? it : Object.assign({}, it, { snaps: undefined }));
-    return { main, hist: { sig, days: hist, jold: jOld } };
+    main.interventions = its.keep;
+    return { main, hist: { sig, days: hist, jold: jOld }, arch: its.arch };
   }
-  // Remet les deux parties ensemble
-  function assemble(main, hist) {
+  // Remet les parties ensemble (v5.36.3 : avec les Remplir des archives, à leur place, le plus récent d'abord)
+  function assemble(main, hist, arch) {
     const o = clone(main);
     if (hist && hist.days) {
       o.daily = Object.assign({}, hist.days, o.daily);
       const ids = new Set((o.journal || []).map(e => e.i));
       o.journal = (hist.jold || []).filter(e => !ids.has(e.i)).concat(o.journal || []);
     }
-    delete o.h;
+    if (arch && Array.isArray(arch.its) && arch.its.length) o.interventions = mergeIts(Array.isArray(o.interventions) ? o.interventions : [], arch.its);
+    delete o.h; delete o.ha;
     fixup(o);
     o.now = Date.now();
     return o;
+  }
+
+  // ---------------- v5.36.3 : archives des Remplir (ligne « arch ») ----------------
+  // Un Remplir part aux archives quand il est terminé (ou annulé) depuis plus de IT_KEEP_DAYS jours, sauf le dernier
+  // non annulé de chaque machine : le serveur (ba_stock_machine : « ouverte » et « tmod ») lit seulement « main ».
+  const IT_KEEP_DAYS = 7, IT_MAX = 300;               // IT_MAX : même plafond que BA.Actions.startIntervention
+  const num0 = v => (v === undefined || v === null || v === "" || !isFinite(Number(v))) ? null : Number(v);
+  // même calcul que le serveur : coalesce(end, invAt, start)
+  const itTime = it => { const v = num0(it.end); if (v != null) return v; const w = num0(it.invAt); return w != null ? w : (num0(it.start) || 0); };
+  function hash32(str) { let h = 2166136261; for (let i = 0; i < str.length; i++) { h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
+  // Les archives ne font que grandir : un Remplir qui y est déjà (archBase) y reste, même si cet appareil le trouve encore
+  // récent (horloges un peu différentes) ou s'il a été rouvert. Sinon un appareil pourrait l'enlever des archives pendant
+  // qu'un autre l'enlève du présent : il ne serait plus nulle part. Seul le plafond (IT_MAX) en fait sortir les plus vieux.
+  // Un Remplir peut donc être dans les deux : à la lecture, celui du présent gagne.
+  function splitIts(s, archBase) {
+    const all = Array.isArray(s.interventions) ? s.interventions : [];
+    const cut = (Number(s.now) || Date.now()) - IT_KEEP_DAYS * DAY;
+    const deja = new Set(archBase && Array.isArray(archBase.its) ? archBase.its.map(x => x && x.id) : []);
+    const dernier = {};
+    all.forEach(it => { if (it && typeof it === "object" && it.status !== "cancelled") { const k = String(it.num); if (!dernier[k] || itTime(it) > itTime(dernier[k])) dernier[k] = it; } });
+    const keep = [], old = [];
+    all.forEach(it => {
+      if (!it || typeof it !== "object") { keep.push(it); return; }           // (jamais vu : gardé tel quel)
+      const c = (it.status === "open" || !it.snaps) ? it : Object.assign({}, it, { snaps: undefined });
+      const vieux = it.status !== "open" && itTime(it) < cut && dernier[String(it.num)] !== it;
+      if (!vieux) keep.push(c);
+      if (vieux || deja.has(it.id)) old.push(c);
+    });
+    // signature : change si un Remplir arrive aux archives ou en repart, change de numéro de machine, d'état, de contenu
+    const part = it => [it.id, it.num, it.status, itTime(it), it.start, it.step, it.remTotal, (it.inv || []).length, (it.load || []).length, (it.rem || []).length].join(":");
+    const sig = "a" + old.length + "|" + hash32(old.map(part).join(";"));
+    return { keep, arch: { sig, its: old } };
+  }
+  const ARCH_VIDE = "a0|" + hash32("");               // signature des archives quand il n'y a rien à ranger
+  // main (le présent) + archives → une seule liste, comme avant le rangement : le plus récent d'abord (début du Remplir),
+  // chaque partie garde son ordre ; un Remplir présent des deux côtés : celui de « main » ; au plus IT_MAX
+  function mergeIts(a, b) {
+    const ids = new Set(a.map(x => x && x.id));
+    const bb = clone(b.filter(x => x && typeof x === "object" && !ids.has(x.id)));
+    if (!bb.length) return a.length > IT_MAX ? a.slice(0, IT_MAX) : a;
+    const t = x => num0(x.start) || 0, out = [];
+    let i = 0, j = 0;
+    while (i < a.length || j < bb.length) {
+      if (j >= bb.length || (i < a.length && t(a[i]) >= t(bb[j]))) out.push(a[i++]); else out.push(bb[j++]);
+    }
+    return out.length > IT_MAX ? out.slice(0, IT_MAX) : out;
+  }
+  // Archives : a = lues dans la base (prioritaires), b = copie de cet appareil. Si elles ne correspondent pas au présent
+  // (deux appareils ont écrit au même moment, ou un appareil sur une ancienne version), on réunit les deux : rien ne se perd.
+  function pickArch(a, sig, b) {
+    const ok = x => x && Array.isArray(x.its);
+    if (ok(a) && a.sig === sig) return a;
+    if (!ok(a)) return ok(b) ? b : null;
+    if (!ok(b)) return a;
+    return { sig: a.sig, its: mergeIts(a.its, b.its) };
   }
   // Jours passés : a = lu dans la base (prioritaire), b = copie de cet appareil.
   // Si la copie de la base ne correspond pas au présent (deux appareils ont écrit au même moment),
@@ -264,11 +328,29 @@ window.BA = window.BA || {};
       return res.data;
     },
     async load() {
-      const rows = this.check(await this.sb().from("ba_state").select("id, version, data").in("id", ["main", "hist"])) || [];
-      return { main: rows.find(r => r.id === "main") || null, hist: rows.find(r => r.id === "hist") || null };
+      const rows = this.check(await this.sb().from("ba_state").select("id, version, data").in("id", ["main", "hist", "arch"])) || [];
+      return { main: rows.find(r => r.id === "main") || null, hist: rows.find(r => r.id === "hist") || null, arch: rows.find(r => r.id === "arch") || null };
     },
     async fetchMain() { return this.check(await this.sb().from("ba_state").select("id, version, data").eq("id", "main").maybeSingle()); },
     async fetchHist() { const r = this.check(await this.sb().from("ba_state").select("id, version, data").eq("id", "hist").maybeSingle()); return r ? r.data : null; },
+    // v5.36.3 : archives des Remplir — { version, data } ou null (pas encore de ligne « arch »)
+    async fetchArch() { const r = this.check(await this.sb().from("ba_state").select("id, version, data").eq("id", "arch").maybeSingle()); return r ? { version: Number(r.version), data: r.data } : null; },
+    // Écriture seulement si personne ne l'a changée depuis « version » (0 = pas encore de ligne : création)
+    async saveArch(version, arch) {
+      const now = new Date().toISOString();
+      if (!version) {
+        const res = await this.sb().from("ba_state").insert({ id: "arch", version: 1, data: arch, updated_at: now, updated_by: String(tag) });
+        if (res.error) {
+          if (res.error.code === "23505" || /duplicate|unique/i.test(res.error.message || "")) return { ok: false };
+          this.check(res);
+        }
+        return { ok: true, version: 1 };
+      }
+      const rows = this.check(await this.sb().from("ba_state")
+        .update({ data: arch, version: version + 1, updated_at: now, updated_by: String(tag) })
+        .eq("id", "arch").eq("version", version).select("version")) || [];
+      return rows.length === 1 ? { ok: true, version: Number(rows[0].version) } : { ok: false };
+    },
     async version() { const r = this.check(await this.sb().from("ba_state").select("version").eq("id", "main").maybeSingle()); return r ? Number(r.version) : 0; },
     // Création (premier démarrage) : faux si un autre appareil l'a créée juste avant
     async create(main, hist) {
@@ -310,9 +392,17 @@ window.BA = window.BA || {};
   // Mode local : la même chose dans le navigateur
   const Local = {
     read() { return lsGet(LOCAL_DB); },
-    async load() { const d = this.read(); return d ? { main: { version: d.version, data: d.main }, hist: { data: d.hist } } : { main: null, hist: null }; },
+    async load() { const d = this.read(); return d ? { main: { version: d.version, data: d.main }, hist: { data: d.hist }, arch: d.arch ? { version: d.archVer || 1, data: d.arch } : null } : { main: null, hist: null, arch: null }; },
     async fetchMain() { const d = this.read(); return d ? { id: "main", version: d.version, data: d.main } : null; },
     async fetchHist() { const d = this.read(); return d ? d.hist : null; },
+    async fetchArch() { const d = this.read(); return d && d.arch ? { version: d.archVer || 1, data: d.arch } : null; },
+    async saveArch(version, arch) {
+      const d = this.read() || { version: 0 };
+      if ((d.arch ? d.archVer || 1 : 0) !== (version || 0)) return { ok: false };
+      d.arch = arch; d.archVer = (version || 0) + 1;
+      if (!lsSet(LOCAL_DB, d)) throw new Error("plus de place dans le navigateur");
+      return { ok: true, version: d.archVer };
+    },
     async version() { const d = this.read(); return d ? d.version : 0; },
     async create(main, hist) { if (this.read()) return false; return lsSet(LOCAL_DB, { version: 1, main, hist }); },
     async saveHist(hist) { const d = this.read() || { version: 0 }; d.hist = hist; if (!lsSet(LOCAL_DB, d)) throw new Error("plus de place dans le navigateur"); },
@@ -329,8 +419,9 @@ window.BA = window.BA || {};
   // ================= État et synchronisation =================
   let state = null;
   let backend = null;
-  let base = { version: 0, stable: "", histSig: null };   // dernière version connue de la base
+  let base = { version: 0, stable: "", histSig: null, archSig: null, archVer: 0 };   // dernière version connue de la base
   let histCache = null;                                    // dernière partie « jours passés » lue / écrite
+  let archCache = null;                                    // v5.36.3 : dernières archives des Remplir lues / écrites
   let pending = [];                                         // modifications pas encore confirmées par la base
   let pushing = false, pushAgain = false, pullAgain = false;
   let pushTimer = null, retryMs = 2000;
@@ -352,16 +443,24 @@ window.BA = window.BA || {};
   // v5.25 : historique de l'appareil illisible au démarrage sans réseau (IndexedDB vidé, écriture pas terminée…) : tant que
   // celui de la base n'a pas été relu, rien n'est écrit à sa place (ni dans la base, ni sur l'appareil)
   let histMissing = false;
+  // v5.36.3 : même chose pour les archives des Remplir : tant que celles de la base n'ont pas été relues, elles ne sont jamais
+  // réécrites (sinon un appareil qui ne les a pas pourrait les vider)
+  let cachedArchSig = null, archMissing = false;
   function opsToKeep() {
     return pending.map(op => op.desc ? { t: op.t, first: op.first, desc: op.desc } : (op.derived || op.part) ? null : { t: op.t, first: op.first, unknown: true }).filter(Boolean);
   }
   function writeCache() {
     if (!state) return;
-    const sp = split(state);
-    lsSet(LKEY, { url: CLOUD ? C.supabase.url : "local", version: base.version, dirty: pending.length > 0, main: sp.main, histSig: histMissing ? "?" : sp.hist.sig, ops: opsToKeep(), at: Date.now() });
+    const sp = split(state, archCache);
+    lsSet(LKEY, { url: CLOUD ? C.supabase.url : "local", version: base.version, dirty: pending.length > 0, main: sp.main, histSig: histMissing ? "?" : sp.hist.sig,
+      archSig: archMissing ? "?" : sp.arch.sig, archVer: base.archVer || 0, archDbSig: base.archSig, ops: opsToKeep(), at: Date.now() });
     if (!histMissing && sp.hist.sig !== cachedHistSig) {
       const sig = sp.hist.sig; cachedHistSig = sig;
       IDB.set("hist", sp.hist).then(ok => { if (ok === false && cachedHistSig === sig) cachedHistSig = null; });
+    }
+    if (!archMissing && sp.arch.sig !== cachedArchSig) {
+      const sig = sp.arch.sig; cachedArchSig = sig;
+      IDB.set("arch", sp.arch).then(ok => { if (ok === false && cachedArchSig === sig) cachedArchSig = null; });
     }
   }
   // Copie de l'appareil au démarrage : l'historique est lu dans IndexedDB (ancienne forme : dans la même clé)
@@ -373,20 +472,40 @@ window.BA = window.BA || {};
       if (cache.hist) cachedHistSig = cache.hist.sig;
       else cache.histStale = h || null;            // pas le bon : sert seulement à l'affichage hors ligne
     }
+    if (cache && !cache.arch && cache.archSig) {
+      const a = await IDB.get("arch");
+      cache.arch = a && Array.isArray(a.its) && a.sig === cache.archSig ? a : null;
+      if (cache.arch) cachedArchSig = cache.arch.sig;
+      else cache.archStale = a && Array.isArray(a.its) ? a : null;   // pas le bon : sert seulement à l'affichage hors ligne
+    }
     return cache;
   }
   // Avant le premier envoi : l'historique de la base remis dans les données (les jours que seul cet appareil a sont gardés)
   async function reloadHist() {
     const h = await backend.fetchHist();
     if (h) {
-      const sp = split(state);
+      const sp = split(state, archCache);
       histCache = pickHist(h, null, sp.hist);
-      state = assemble(sp.main, histCache);
+      state = assemble(sp.main, histCache, sp.arch);
       base.histSig = h.sig;
     }
     histMissing = false;
     notify();
   }
+  // v5.36.3 : archives des Remplir relues dans la base et réunies avec celles de cet appareil (rien ne se perd) ;
+  // aussi quand une autre page les a changées pendant qu'on voulait les écrire
+  async function reloadArch() {
+    const r = await backend.fetchArch();
+    const sp = split(state, archCache);
+    archCache = pickArch(r ? r.data : null, null, sp.arch);
+    state = assemble(sp.main, sp.hist, archCache);
+    base.archSig = r && r.data ? r.data.sig : null;
+    base.archVer = r ? r.version : 0;
+    archMissing = false;
+    notify();
+  }
+  // Faut-il écrire les archives ? (pas de ligne « arch » tant qu'il n'y a rien à y ranger)
+  const archToSave = sp => sp.arch.sig !== base.archSig && (sp.arch.its.length > 0 || (base.archVer || 0) > 0);
 
   // ---------------- v5.25 : actions refaites après un redémarrage ----------------
   // BA.Actions donne à chaque modification le nom de l'action et ses valeurs (Store.track). Pour la refaire sur une
@@ -446,15 +565,22 @@ window.BA = window.BA || {};
     try {
       for (let guard = 0; guard < 8 && pending.length; guard++) {
         if (histMissing) await reloadHist();
+        if (archMissing) await reloadArch();
         const batch = pending.slice();
         const sent = () => { pending = pending.filter(op => !batch.includes(op)); };
-        const sp = split(state);
+        const sp = split(state, archCache);
         const st = stable(sp.main);
-        if (st === base.stable && sp.hist.sig === base.histSig) { sent(); break; }     // rien n'a changé
+        if (st === base.stable && sp.hist.sig === base.histSig && !archToSave(sp)) { sent(); break; }     // rien n'a changé
         if (sp.hist.sig !== base.histSig) { await backend.saveHist(sp.hist); histCache = sp.hist; base.histSig = sp.hist.sig; }
+        // v5.36.3 : les archives AVANT le présent (le présent ne perd un Remplir qu'une fois celui-ci rangé), avec contrôle de version
+        if (archToSave(sp)) {
+          const ra = await backend.saveArch(base.archVer || 0, sp.arch);
+          if (!ra.ok) { await reloadArch(); continue; }        // changées ailleurs entre-temps : réunies, puis on recommence
+          archCache = sp.arch; base.archSig = sp.arch.sig; base.archVer = ra.version;
+        }
         const r = await backend.saveMain(base.version, sp.main);
         if (r.ok) {
-          base = { version: r.version, stable: st, histSig: sp.hist.sig };
+          base = { version: r.version, stable: st, histSig: sp.hist.sig, archSig: base.archSig, archVer: base.archVer };
           sent();
           orphan = null;
         } else {
@@ -484,14 +610,25 @@ window.BA = window.BA || {};
     let hist = histCache;
     if (!hist || hist.sig !== row.data.h) hist = pickHist(await backend.fetchHist(), row.data.h, histCache);
     histCache = hist;
-    const s = assemble(row.data, hist);
+    // v5.36.3 : archives des Remplir relues seulement si ce présent en attend d'autres que celles qu'on a
+    let arch = archCache;
+    const want = row.data.ha, have = archCache ? archCache.sig : ARCH_VIDE;
+    if (archMissing || (want !== undefined && want !== have)) {
+      const ra = await backend.fetchArch();
+      arch = pickArch(ra ? ra.data : null, want, archCache);
+      base.archVer = ra ? ra.version : 0;
+      base.archSig = ra && ra.data ? ra.data.sig : null;
+      archMissing = false;
+    }
+    archCache = arch;
+    const s = assemble(row.data, hist, arch);
     // déjà dans la base (envoyées, mais la réponse s'était perdue) : pas refaites
     const done = new Set(Array.isArray(row.data.applied) ? row.data.applied : []);
     pending = pending.filter(op => !done.has(op.first));
     if (orphan) { if (!done.has(orphan.first)) markLost(orphan.cache); orphan = null; }
     pending.forEach(op => runOp(s, op));
     state = s;
-    base = { version: Number(row.version), stable: stable(row.data), histSig: hist ? hist.sig : null };
+    base = { version: Number(row.version), stable: stable(row.data), histSig: hist ? hist.sig : null, archSig: base.archSig, archVer: base.archVer };
     histMissing = false;
     notify();
   }
@@ -545,9 +682,14 @@ window.BA = window.BA || {};
         if (!cacheOk) throw e;                              // pas de réseau et rien sur cet appareil
         // réseau coupé : on repart de la copie de cet appareil
         histMissing = !cache.hist && "histSig" in cache;
-        state = assemble(cache.main, cache.hist || cache.histStale);
+        archMissing = !cache.arch && "archSig" in cache && cache.archSig !== ARCH_VIDE;     // v5.36.3
+        state = assemble(cache.main, cache.hist || cache.histStale, cache.arch || cache.archStale);
         histCache = cache.hist || null;
-        base = { version: cache.version || 0, stable: stable(cache.main), histSig: !cache.dirty && cache.hist ? cache.hist.sig : null };
+        archCache = cache.arch || null;
+        base = { version: cache.version || 0, stable: stable(cache.main), histSig: !cache.dirty && cache.hist ? cache.hist.sig : null,
+          // ce que la BASE a (pas ce que cet appareil calcule) : sinon un Remplir que cet appareil trouve vieux, encore dans le
+          // présent de la base, serait retiré du présent sans avoir été écrit aux archives
+          archSig: typeof cache.archDbSig === "string" ? cache.archDbSig : null, archVer: Number(cache.archVer) || 0 };
         // modifications pas encore envoyées : elles partiront dès le retour du réseau. v5.25 : les ACTIONS gardées reprennent
         // leur place dans la file d'envoi (refaites sur la version de la base si un autre appareil a écrit entre-temps)
         if (cache.dirty) {
@@ -569,19 +711,21 @@ window.BA = window.BA || {};
         const created = await backend.create(sp.main, sp.hist);
         if (created) {
           state = s; histCache = sp.hist;
-          base = { version: 1, stable: stable(sp.main), histSig: sp.hist.sig };
+          base = { version: 1, stable: stable(sp.main), histSig: sp.hist.sig, archSig: null, archVer: 0 };
         } else {
           remote = await backend.load();
         }
       }
       if (!state) {
         histCache = pickHist(remote.hist ? remote.hist.data : null, remote.main.data.h, cacheOk ? cache.hist : null);
-        state = assemble(remote.main.data, histCache);
-        base = { version: Number(remote.main.version), stable: stable(remote.main.data), histSig: remote.hist && remote.hist.data ? remote.hist.data.sig : null };
+        archCache = pickArch(remote.arch ? remote.arch.data : null, remote.main.data.ha, cacheOk ? cache.arch : null);     // v5.36.3
+        state = assemble(remote.main.data, histCache, archCache);
+        base = { version: Number(remote.main.version), stable: stable(remote.main.data), histSig: remote.hist && remote.hist.data ? remote.hist.data.sig : null,
+          archSig: remote.arch && remote.arch.data ? remote.arch.data.sig : null, archVer: remote.arch ? Number(remote.arch.version) || 0 : 0 };
         // modifications faites hors ligne sur cet appareil (page fermée avant l'envoi)
         if (cacheOk && cache.dirty && cache.main) {
           if (Number(cache.version) === base.version) {          // personne n'a écrit depuis : on les envoie maintenant
-            state = assemble(cache.main, pickHist(cache.hist, cache.main.h, histCache));
+            state = assemble(cache.main, pickHist(cache.hist, cache.main.h, histCache), pickArch(cache.arch, cache.main.ha, archCache));
             resumeDirty(cache);
           } else {
             // v5.25 : un autre appareil a écrit entre-temps : les ACTIONS gardées (Remplir, retrait, prix…) sont refaites sur
@@ -646,7 +790,10 @@ window.BA = window.BA || {};
 
     // utilisés par la connexion RS232 et la reprise des données
     newMachine, regionOf, typeFromName, startEvents,
-    _split: split, _stable: stable, SetupError
+    _split: split, _stable: stable, SetupError,
+    // v5.36.3 : pour les essais (archives des Remplir)
+    _assemble: assemble, _mergeIts: mergeIts, _pickArch: pickArch, ARCH_VIDE, IT_KEEP_DAYS,
+    _arch: () => ({ sig: base.archSig, ver: base.archVer, missing: archMissing, cache: archCache ? archCache.sig : null })
   };
 
   BA.Store = Store;

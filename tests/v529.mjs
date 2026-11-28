@@ -163,13 +163,13 @@ const cle = ms => { const d = new Date(ms); return d.getFullYear() + "-" + pad(d
 
   console.log("== 3. Bandeau « nouvelle version publiée »");
   const v0 = await p.evaluate(async () => { await BA.Maj.verifier(true); return { v: BA.Maj.actuelle(), b: !!document.querySelector(".maj-bandeau") }; });
-  ok("même version publiée : pas de bandeau", v0.v === "5.36.2" && v0.b === false, v0);
+  ok("même version publiée : pas de bandeau", v0.v === "5.36.3" && v0.b === false, v0);
   await p.route(/js\/config\.js\?maj=/, r => r.fulfill({ status: 200, contentType: "application/javascript", body: 'const BA_CONFIG = {\n  app: { name: "Broodautomate", version: "9.9.9" },\n};' }));
   const v1 = await p.evaluate(async () => { await BA.Maj.verifier(true); const b = document.querySelector(".maj-bandeau"); return b ? b.innerText : ""; });
   ok("nouvelle version publiée : bandeau « … (9.9.9) » + bouton « Recharger »", /nouvelle version/i.test(v1) && /9\.9\.9/.test(v1) && /Recharger/.test(v1), v1);
   await p.screenshot({ path: path.join(OUT, "v529-bandeau.png") });
   const ope = fs.readFileSync(path.join(ROOT, "operateur.html"), "utf8");
-  ok("appli opérateur : le bandeau y est aussi (js/maj.js chargé)", /js\/maj\.js\?v=5\.36\.2/.test(ope) && /js\/i18n-v529\.js/.test(ope));
+  ok("appli opérateur : le bandeau y est aussi (js/maj.js chargé)", /js\/maj\.js\?v=5\.36\.3/.test(ope) && /js\/i18n-v529\.js/.test(ope));
 
   console.log("== 4. v5.29.1 : consommation 1NCE (par paliers, heure de lecture) ; Dashboard en premier dans l'appli opérateur");
   let nConso = 0, consoKo = false;

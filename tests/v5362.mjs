@@ -50,9 +50,9 @@ function etat() {
 
 (async () => {
   console.log("== 0. Fichiers");
-  ok("version 5.36.2 dans config.js", /version: "5\.36\.2"/.test(lire("js/config.js")));
-  ok("index.html et operateur.html : tous les fichiers en ?v=5.36.2, plus aucun en 5.36.1", [lire("index.html"), lire("operateur.html")].every(h => /\?v=5\.36\.2/.test(h) && !/\?v=5\.36\.1/.test(h)));
-  ok("sw.js : en-tête v5.36.2", /BROODAUTOMATE v5\.36\.2/.test(lire("sw.js")));
+  ok("version 5.36.3 dans config.js", /version: "5\.36\.3"/.test(lire("js/config.js")));
+  ok("index.html et operateur.html : tous les fichiers en ?v=5.36.3, plus aucun en 5.36.2", [lire("index.html"), lire("operateur.html")].every(h => /\?v=5\.36\.3/.test(h) && !/\?v=5\.36\.2/.test(h)));
+  ok("sw.js : en-tête v5.36.3", /BROODAUTOMATE v5\.36\.3/.test(lire("sw.js")));
   ok("actions.js : BA.Actions.setLotDates, et la fenêtre « Changer la date » l'utilise (plus de setLotDate lot par lot)",
     /setLotDates\(num, selN, items\)/.test(lire("js/actions.js")) && /BA\.Actions\.setLotDates\(num, sel\.n, items\)/.test(lire("js/ui.js")) && !/items\.forEach\(x => BA\.Actions\.setLotDate\(/.test(lire("js/ui.js")));
 
