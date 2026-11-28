@@ -113,7 +113,7 @@ Posée **par-dessus** `css/app.css` : retirer les 2 lignes `design-v534` des deu
 
 **Vérifié** : `tests/v5360.mjs`, `tests/sql/v5360.test.mjs`, `tests/ingest/ventes.test.mts`, `tests/ingest/ventes-flux.test.mts` (données inventées, rien de réel touché).
 
-## v5.36.3 (28/11/2026, préparée, pas encore publiée) : vieux Remplir aux archives
+## v5.36.3 (publiée le 28/11/2026) : vieux Remplir aux archives
 - Rien ne change à l'écran : seule la façon de ranger les données sur le serveur change (les Remplir terminés depuis plus de 7 jours dans une 3e ligne « arch »). `tests/v5363.mjs` compare le texte de 18 pages (admin et opérateur) avant et après le rangement : identiques au caractère près.
 
 ## v5.36.2 (publiée le 28/11/2026) : corrections de l'audit complet
