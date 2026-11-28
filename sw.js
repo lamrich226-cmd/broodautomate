@@ -1,5 +1,5 @@
 // ============================================================
-// BROODAUTOMATE v5.36.1 — Service worker : reçoit les notifications (Web Push) même appli fermée
+// BROODAUTOMATE v5.36.2 — Service worker : reçoit les notifications (Web Push) même appli fermée
 // (iPhone « ajouté à l'écran d'accueil », ordinateur). Il ne garde AUCUNE page en cache : il n'y a pas de gestionnaire « fetch »,
 // donc l'appli se charge et se met à jour exactement comme avant (voir js/maj.js).
 // iPhone : chaque message reçu DOIT afficher une notification, sinon iOS retire l'abonnement au bout de quelques essais.
@@ -22,9 +22,11 @@ self.addEventListener("notificationclick", e => {
   e.notification.close();
   const vue = (e.notification.data && e.notification.data.vue) || "alerts", page = (e.notification.data && e.notification.data.page) || "index.html";
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(liste => {
-    for (const c of liste) {
-      if (c.focus) { try { c.postMessage({ ba: "aller", vue }); } catch (_x) { /* page fermée entre-temps */ } return c.focus(); }
-    }
+    // v5.36.2 : d'abord une fenêtre de la bonne appli (admin = index.html ou l'adresse du dossier, opérateur = operateur.html),
+    // sinon n'importe quelle fenêtre ouverte comme avant (avant : toujours la première, même si c'était l'autre appli)
+    const bonne = c => { try { const p = new URL(c.url).pathname; return p.endsWith("/" + page) || (page === "index.html" && p.endsWith("/")); } catch (_x) { return false; } };
+    const c = liste.find(x => x.focus && bonne(x)) || liste.find(x => x.focus);
+    if (c) { try { c.postMessage({ ba: "aller", vue }); } catch (_x) { /* page fermée entre-temps */ } return c.focus(); }
     return self.clients.openWindow ? self.clients.openWindow(page + "#" + vue) : undefined;
   }));
 });

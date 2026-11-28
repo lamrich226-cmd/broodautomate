@@ -113,7 +113,12 @@ Posée **par-dessus** `css/app.css` : retirer les 2 lignes `design-v534` des deu
 
 **Vérifié** : `tests/v5360.mjs`, `tests/sql/v5360.test.mjs`, `tests/ingest/ventes.test.mts`, `tests/ingest/ventes-flux.test.mts` (données inventées, rien de réel touché).
 
-## v5.36.1 (27/11/2026, préparée, pas encore publiée) : changer la date d'un pain depuis « Stock en tableau »
+## v5.36.2 (28/11/2026, préparée, pas encore publiée) : corrections de l'audit complet
+- Rien ne change à l'écran. « 📅 Changer la date » : les dates de tous les lots changés sont enregistrées ENSEMBLE (`BA.Actions.setLotDates`), puis les lots sont rangés une seule fois — échanger les dates de deux lots marche (avant : les deux lots se rejoignaient au premier changement). Même message (« 2 dates enregistrées — sélection 11 »).
+- Notification touchée : la fenêtre de la bonne appli revient devant (admin / opérateur).
+- `tests/parcours.mjs` vérifie l'affichage de toutes les pages (3 langues, téléphone 390 px et ordinateur, clair et sombre) : aucun texte non traduit, aucun « undefined », rien qui dépasse sur téléphone. À relancer après chaque changement d'écran.
+
+## v5.36.1 (publiée le 27/11/2026) : changer la date d'un pain depuis « Stock en tableau »
 - Dans Produits / Stock → Stock en tableau (admin et opérateur), la date du plus vieux pain de chaque sélection devient un **bouton 📅** (gris, secondaire) : on touche la date pour la changer. Sélection vide : pas de bouton (« — »).
 - Le bouton ouvre la fenêtre **« 📅 Changer la date »** : titre, « #machine · Sélection · pain · rue », une phrase d'aide courte, puis **une carte par lot** (le plus vieux d'abord) : « N pains », l'âge, l'étiquette « À retirer » / ⏳ gardé / ⛔ invalide (fond rouge pâle pour un lot à retirer), et une case **Date du lot** pleine largeur (44 px). Boutons « ✔ Enregistrer » / « Annuler » ; Échap et clic à côté ferment.
 - Refus clairs, la fenêtre reste ouverte : date dans le futur, date incomplète. Rien de changé → la fenêtre se ferme sans message. Sinon : message « ✅ Date enregistrée — sélection N » et le tableau se redessine.

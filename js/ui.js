@@ -469,7 +469,7 @@ window.BA = window.BA || {};
 
   // ---------- v5.36.1 : fenêtre « 📅 Changer la date » (Stock en tableau, admin et opérateur) ----------
   // Tous les lots de la sélection, chacun avec sa date de livraison. Seules les dates changées sont enregistrées
-  // (BA.Actions.setLotDate : notée dans l'Historique, avec qui l'a changée). Pas de date dans le futur.
+  // (BA.Actions.setLotDates : notées dans l'Historique, avec qui les a changées). Pas de date dans le futur.
   function dateDialog(num, selN) {
     const s = BA.Store.get(), m = M.machine(s, num), sel = m && M.sel(m, selN);
     if (!sel) return;
@@ -502,7 +502,7 @@ window.BA = window.BA || {};
       const items = Array.from(root.querySelectorAll(".dt-in")).filter(i => i.value !== i.defaultValue).map(i => ({ lot: i.dataset.lot, ms: F.fromInput(i.value) }));
       const err = items.some(x => !x.ms) ? "dt_err_bad" : items.some(x => x.ms > now + 5 * M.MIN) ? "dt_err_future" : null;
       if (err) { root.querySelector("#dt-err").innerHTML = `<div class="alert err">${t(err)}</div>`; return; }
-      items.forEach(x => BA.Actions.setLotDate(num, sel.n, x.lot, x.ms));
+      BA.Actions.setLotDates(num, sel.n, items);           // v5.36.2 : toutes ensemble (échanger deux dates ne fond plus les lots)
       close();
       if (!items.length) return;
       toast("✅ " + t("dt_done", { n: items.length, s: sel.n }));

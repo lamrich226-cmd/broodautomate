@@ -78,8 +78,8 @@ function etat() {
   const date = async (p, n) => { const l = await p.$$(`.sel-table [data-act="lot-dates"][data-sel="${n}"]`); for (const x of l) if (await x.isVisible()) { await x.click(); break; } await p.waitForSelector(".dt-modal"); };
 
   console.log("== 0. Fichiers");
-  ok("version 5.36.1 dans config.js", /version: "5\.36\.1"/.test(lire("js/config.js")));
-  ok("index.html et operateur.html chargent js/i18n-v5361.js après i18n-v5360.js", [lire("index.html"), lire("operateur.html")].every(h => /i18n-v5360\.js\?v=5\.36\.1[\s\S]*i18n-v5361\.js\?v=5\.36\.1/.test(h)));
+  ok("version 5.36.2 dans config.js", /version: "5\.36\.2"/.test(lire("js/config.js")));
+  ok("index.html et operateur.html chargent js/i18n-v5361.js après i18n-v5360.js", [lire("index.html"), lire("operateur.html")].every(h => /i18n-v5360\.js\?v=5\.36\.2[\s\S]*i18n-v5361\.js\?v=5\.36\.2/.test(h)));
 
   console.log("== 1. Opérateur sur téléphone : le bouton 📅 dans Stock en tableau");
   let { p, ctx, fake } = await ouvrir("op-tel");

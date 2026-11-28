@@ -24,8 +24,8 @@ const lire = f => fs.readFileSync(path.join(ROOT, f), "utf8");
 
 // ---------- 0. Fichiers ----------
 console.log("== 0. Fichiers : version, textes, mêmes catégories que la fonction du serveur");
-ok("version 5.36.1 dans config.js", /version: "5\.36\.1"/.test(lire("js/config.js")));
-ok("index.html et operateur.html chargent js/i18n-v5360.js (après v5350)", [lire("index.html"), lire("operateur.html")].every(h => /i18n-v5350\.js\?v=5\.36\.1[\s\S]*i18n-v5360\.js\?v=5\.36\.1/.test(h)));
+ok("version 5.36.2 dans config.js", /version: "5\.36\.2"/.test(lire("js/config.js")));
+ok("index.html et operateur.html chargent js/i18n-v5360.js (après v5350)", [lire("index.html"), lire("operateur.html")].every(h => /i18n-v5350\.js\?v=5\.36\.2[\s\S]*i18n-v5360\.js\?v=5\.36\.2/.test(h)));
 const ts = lire("supabase/functions/ingest/index.ts");
 const mCat = /const CATEGORIES: Record<string, string> = (\{[^}]*\});/.exec(ts);
 const catServeur = mCat ? new Function("return " + mCat[1])() : null;

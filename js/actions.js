@@ -17,6 +17,24 @@ window.BA = window.BA || {};
     return { sel, lot: i >= 0 ? sel.lots[i] : null, i };
   }
 
+  // Change la date de un ou plusieurs lots d'une sélection, puis range les lots UNE fois (deux lots à la même minute se rejoignent).
+  // v5.36.2 : avant, chaque lot était changé puis rangé aussitôt. En échangeant les dates de deux lots, le 1er changement les
+  // faisait se rejoindre (même minute) et le 2e ne trouvait plus son lot : tout le pain restait à une seule date.
+  function changeDates(s, num, selN, items) {
+    const m = M.machine(s, num), sel = m && M.sel(m, selN);
+    if (!sel) return 0;
+    const faits = items.map(x => ({ lot: sel.lots.find(l => l.id === Number(x.lot)), ms: Number(x.ms) }))   // tous trouvés avant le 1er changement
+      .filter(x => x.lot && isFinite(x.ms) && x.lot.date !== x.ms);
+    faits.forEach(({ lot, ms }) => {
+      M.log(s, { k: "date", n: m.num, s: sel.n, y: sel.type, q: lot.qty, l: lot.date, l2: ms });
+      lot.date = ms; lot.estimated = false;
+      // pain en fait frais : plus de sursis ; encore trop vieux : il reste « gardé une fois » (invalide au jour suivant)
+      if (lot.kept && !(s.now - ms > s.settings.thrHours * M.H)) { lot.kept = false; delete lot.keptAt; }
+    });
+    if (faits.length) M.sortLots(sel);
+    return faits.length;
+  }
+
   // ---- Déplacement d'un lot (voir BA.Actions.moveLot) ----
   // Un lot peut changer de numéro quand deux lots de même date se rejoignent : une demande retient donc la date.
   function moveLotByDate(sel, date, kept) {
@@ -149,15 +167,13 @@ window.BA = window.BA || {};
     // ---------- Lots ----------
     setLotDate(num, selN, lotId, ms) {
       if (!isFinite(ms)) return;
-      Store.update(s => {
-        const m = M.machine(s, num); const { sel, lot } = findLot(m, selN, lotId);
-        if (!lot || lot.date === ms) return;
-        M.log(s, { k: "date", n: m.num, s: sel.n, y: sel.type, q: lot.qty, l: lot.date, l2: ms });
-        lot.date = ms; lot.estimated = false;
-        // pain en fait frais : plus de sursis ; encore trop vieux : il reste « gardé une fois » (invalide au jour suivant)
-        if (lot.kept && !(s.now - ms > s.settings.thrHours * M.H)) { lot.kept = false; delete lot.keptAt; }
-        M.sortLots(sel);
-      });
+      Store.update(s => { changeDates(s, num, selN, [{ lot: lotId, ms }]); });
+    },
+    // v5.36.2 : plusieurs lots d'une même sélection en une seule fois (fenêtre « Changer la date » de Stock en tableau).
+    // items = [{ lot: n° du lot, ms: nouvelle date }]. Renvoie le nombre de dates changées.
+    setLotDates(num, selN, items) {
+      if (!Array.isArray(items) || !items.length) return 0;
+      return Store.update(s => changeDates(s, num, selN, items));
     },
     // Sépare n pains d'un lot et leur donne une autre date de livraison (date par pain, pas seulement par lot)
     splitLot(num, selN, lotId, n, ms) {

@@ -14,7 +14,7 @@ create table if not exists public.ba_notifications (id bigint generated always a
 alter table public.ba_notifications enable row level security;
 
 -- 3. Seuls les comptes admin les voient (un compte « operator » ne les voit pas)
-create policy "notifs_lecture_admin" on public.ba_notifications for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') is distinct from 'operator');
+create policy "notifs_lecture_admin" on public.ba_notifications for select to authenticated using (((select auth.jwt()) -> 'app_metadata' ->> 'role') is distinct from 'operator');
 
 -- 4.
 grant select on public.ba_notifications to authenticated;
@@ -51,7 +51,7 @@ create table if not exists public.ba_state_backup (jour date not null, ligne tex
 alter table public.ba_state_backup enable row level security;
 
 -- 15. Seuls les comptes admin peuvent lire les copies
-create policy "copies_lecture_admin" on public.ba_state_backup for select to authenticated using ((auth.jwt() -> 'app_metadata' ->> 'role') is distinct from 'operator');
+create policy "copies_lecture_admin" on public.ba_state_backup for select to authenticated using (((select auth.jwt()) -> 'app_metadata' ->> 'role') is distinct from 'operator');
 
 -- 16.
 grant select on public.ba_state_backup to authenticated;
@@ -73,7 +73,7 @@ select cron.schedule('ba-copie-menage', '45 2 * * *', $$delete from public.ba_st
 create extension if not exists pg_net with schema extensions;
 
 -- 22. Toutes les 15 minutes : boîtier muet depuis 2 h, porte restée ouverte 15 min, notifications pas encore envoyées
-select cron.schedule('ba-veille', '*/15 * * * *', $$select net.http_post(url := 'https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest', body := '{"veille":1}'::jsonb)$$);
+select cron.schedule('ba-veille', '*/15 * * * *', $$select net.http_post(url := 'https://ujvihkryzjrawamekwpu.supabase.co/functions/v1/ingest', body := '{"veille":1}'::jsonb, timeout_milliseconds := 15000)$$);
 
 
 -- D. RÉGLAGE « LIRE MAINTENANT » À DISTANCE (commande 23) — le délai choisi dans l'admin (Boîtiers 4G : 15 min, 30 min ou 1 h)
