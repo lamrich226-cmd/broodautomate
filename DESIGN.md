@@ -113,7 +113,7 @@ Posée **par-dessus** `css/app.css` : retirer les 2 lignes `design-v534` des deu
 
 **Vérifié** : `tests/v5360.mjs`, `tests/sql/v5360.test.mjs`, `tests/ingest/ventes.test.mts`, `tests/ingest/ventes-flux.test.mts` (données inventées, rien de réel touché).
 
-## v5.36.2 (28/11/2026, préparée, pas encore publiée) : corrections de l'audit complet
+## v5.36.2 (publiée le 28/11/2026) : corrections de l'audit complet
 - Rien ne change à l'écran. « 📅 Changer la date » : les dates de tous les lots changés sont enregistrées ENSEMBLE (`BA.Actions.setLotDates`), puis les lots sont rangés une seule fois — échanger les dates de deux lots marche (avant : les deux lots se rejoignaient au premier changement). Même message (« 2 dates enregistrées — sélection 11 »).
 - Notification touchée : la fenêtre de la bonne appli revient devant (admin / opérateur).
 - `tests/parcours.mjs` vérifie l'affichage de toutes les pages (3 langues, téléphone 390 px et ordinateur, clair et sombre) : aucun texte non traduit, aucun « undefined », rien qui dépasse sur téléphone. À relancer après chaque changement d'écran.
